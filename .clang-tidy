@@ -1,0 +1,56 @@
+---
+Checks:                       'readability-*,-readability-redundant-member-init,-readability-redundant-access-specifiers,-readability-magic-numbers'
+WarningsAsErrors:             ''
+HeaderFileExtensions:         ['', 'h','hh','hpp','hxx']
+ImplementationFileExtensions: ['c','cc','cpp','cxx']
+HeaderFilterRegex:            ''
+FormatStyle:                  none
+InheritParentConfig:          true
+User:                         admin
+CheckOptions:
+  readability-identifier-length.MinimumParameterNameLength: '2'
+  readability-identifier-length.MinimumVariableNameLength:  '2'
+  # 命名规范
+  ##  类、结构体
+  ### 名: CamelCase
+  readability-identifier-naming.ClassCase:  CamelCase
+  readability-identifier-naming.StructCase: CamelCase
+  ### 成员变量名: camelBack（公有）、_camelBack（保护、私有）
+  readability-identifier-naming.PublicMemberCase:       camelBack
+  readability-identifier-naming.ProtectedMemberCase:    camelBack
+  readability-identifier-naming.ProtectedMemberPrefix:  _
+  readability-identifier-naming.PrivateMemberCase:      camelBack
+  readability-identifier-naming.PrivateMemberPrefix:    _
+  ### 成员函数名: lower_case（公有）、_lower_case（保护、私有）
+  readability-identifier-naming.PublicMethodCase:       lower_case
+  readability-identifier-naming.ProtectedMethodCase:    lower_case
+  readability-identifier-naming.ProtectedMethodPrefix:  _
+  readability-identifier-naming.PrivateMethodCase:      lower_case
+  readability-identifier-naming.PrivateMethodPrefix:    _
+  ##  枚举
+  ### 名: CamelCase
+  readability-identifier-naming.EnumCase: CamelCase
+  ### 枚举值: eCamelCase
+  readability-identifier-naming.EnumConstantCase:   CamelCase
+  readability-identifier-naming.EnumConstantPrefix: e
+  ##  函数
+  readability-identifier-naming.FunctionCase: lower_case
+  ##  参数
+  readability-identifier-naming.ParameterCase:  camelBack
+  ##  变量
+  ### 默认: camelBack
+  readability-identifier-naming.VariableCase: camelBack
+  ### 局部变量: camelBack
+  readability-identifier-naming.LocalVariableCase: camelBack
+  ### 全局变量: g_camelBack
+  readability-identifier-naming.GlobalVariableCase:   camelBack
+  readability-identifier-naming.GlobalVariablePrefix: g_
+  ### 静态变量: k_camelBack
+  readability-identifier-naming.StaticVariableCase:   camelBack
+  readability-identifier-naming.StaticVariablePrefix: k_
+  ### 编译期变量: CamelCase
+  readability-identifier-naming.ConstexprVariableCase:    CamelCase
+  readability-identifier-naming.ConstexprVariablePrefix:  ''
+
+SystemHeaders:   false
+...
