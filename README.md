@@ -1,4 +1,6 @@
-# mksync ([中文](/README_zh.md))
+# mksync
+
+### Introduction ([中文](/README_zh.md))
 Mksync can synchronize a mouse and keyboard between multiple computers on Windows and Linux systems. (macOS may be in the future plans)
 
 It also supports clipboard sharing, file transfer and drag-drop files. (support will be added in the future through plugins)

@@ -1,4 +1,6 @@
-# mksync ([English](/README.md))
+# mksync
+
+### Introduction ([English](/README.md))
 
 mksync 可以在 Windows 和 Linux 系统的多台计算机之间同步鼠标和键盘。（macOS 可能在未来的计划中）
 
