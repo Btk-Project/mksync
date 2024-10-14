@@ -82,4 +82,9 @@
 #define mks_no_coroutine_fn
 #endif
 
+#define MKS_BEGIN                                                                                                              \
+    namespace mks                                                                                                              \
+    {
+#define MKS_END }
+
 #endif
