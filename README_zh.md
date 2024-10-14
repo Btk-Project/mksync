@@ -15,7 +15,7 @@ mksync 中的应用程序模拟了 KVM 切换器的功能，在历史上，KVM �
 
 该 mks 库是 mksync 的开发库，您可以使用 mksync 的协议来开发类似的应用程序，或者为 mksync 开发插件以获得更多功能。
 
-Mksync 是基于协同、障碍和输入跳跃的灵感而开发的。你也可以说 mksync 是它们的重构版本。
+Mksync 是基于 synergy、barrier 和 input-leap 的灵感而开发的。你也可以说 mksync 是它们的重构版本。
 
 ## 有什么不同？
 
