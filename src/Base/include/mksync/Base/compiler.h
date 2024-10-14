@@ -47,9 +47,9 @@
 // #if defined(_WIN32) && !defined(__clang__) && !defined(__MINGW32__)
 // #pragma pack(push, 1)
 // #endif
-// typedef struct MKS_PACKED A {
+// typedef struct A {
 //     uint8_t value1;
-// } A;
+// } MKS_PACKED A;
 // #if defined(_WIN32) && !defined(__clang__) && !defined(__MINGW32__)
 // #pragma pack(pop)
 // #endif
