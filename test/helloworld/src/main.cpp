@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <codecvt>
+#include <locale>
 
 #include "mksync/Proto/Proto.hpp"
 

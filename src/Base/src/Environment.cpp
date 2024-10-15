@@ -1,6 +1,7 @@
 #include "mksync/Base/Environment.hpp"
 
 #include <codecvt>
+#include <locale>
 
 MKS_BEGIN
 MKS_BASE_BEGIN
