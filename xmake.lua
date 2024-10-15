@@ -65,6 +65,7 @@ add_requires(
     "out_ptr",
     -- tools
     "cxxopts",
+    "ilias",
     "rapidjson"
 )
 -- Use dynamic libraries for direct dependencies and static libraries for indirect dependencies.

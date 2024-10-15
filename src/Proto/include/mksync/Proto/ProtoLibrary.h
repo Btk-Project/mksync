@@ -27,4 +27,9 @@
 #endif
 // clang-format on
 
+#define MKS_PROTO_BEGIN                                                                                                        \
+    namespace proto                                                                                                            \
+    {
+#define MKS_PROTO_END }
+
 #endif
