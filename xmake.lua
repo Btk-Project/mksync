@@ -12,17 +12,6 @@ set_encodings("utf-8")
 add_rules("mode.release", "mode.debug", "mode.releasedbg", "mode.minsizerel")
 add_rules("plugin.compile_commands.autoupdate", {lsp = "clangd", outputdir = ".vscode"})
 
-if is_host("windows") then
-    add_defines(
-        "_WIN32_WINNT=0x0601", -- support Win7
-        "UNICODE",
-        "_UNICODE",
-        "NOMINMAX",
-        "_CRT_SECURE_NO_WARNINGS",
-        "_SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING"
-    )
-end
-
 rule("targetclean")
     after_build(function (target)
         os.tryrm(target:targetdir() .. "/" .. target:basename() .. ".exp")
