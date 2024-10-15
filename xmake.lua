@@ -48,6 +48,7 @@ includes("lua/hideoptions.lua")
 
 -- Some of the third-libraries use our own configurations
 add_repositories("myrepo third-party", {rootdir = os.scriptdir()})
+add_repositories("btk-repo https://github.com/Btk-Project/xmake-repo.git")
 -- headonly
 add_requires(
     -- c++23
@@ -58,6 +59,7 @@ add_requires(
     "rapidjson"
 )
 -- Use dynamic libraries for direct dependencies and static libraries for indirect dependencies.
+add_requireconfs("neko-proto", {configs = {shared = is_config("third_party_kind", "shared"), enable_simdjson = false, enable_rapidjson = true, enable_fmt = true, enable_communication = true}})
 add_requires("fmt", {configs = {shared = is_config("third_party_kind", "shared"), header_only = false}})
 add_requires("spdlog", {configs = {shared = is_config("third_party_kind", "shared"), header_only = false, fmt_external = true, wchar = true, wchar_filename = true, console_wchar = true}})
 -- third party dependencies settings
