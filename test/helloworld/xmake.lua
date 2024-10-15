@@ -5,7 +5,6 @@ target("helloworld")
     set_targetdir("$(testdir)")
 
     add_deps("Proto")
-    add_defines("WIN32_LEAN_AND_MEAN")
     add_rules("targetclean")
 
     -- version
