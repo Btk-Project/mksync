@@ -38,12 +38,6 @@ Task<void> task1(Context &ctxt, void *args)
     co_return {};
 }
 
-std::vector<std::string> split(const std::string &str)
-{
-    std::istringstream iss(str);
-    return {std::istream_iterator<std::string>{iss}, std::istream_iterator<std::string>{}};
-}
-
 Task<void> main_loop(Context &ctx)
 {
     std::cout << "main loop" << std::endl;
