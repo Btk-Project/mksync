@@ -12,7 +12,7 @@ target("backend")
         target:set("basename", Camel(project:name()) .. Camel(target:name()))
     end)
 
-    add_deps("Proto")
+    add_deps("proto")
     add_rules("targetclean")
 
     add_packages("ilias", "cxxopts")

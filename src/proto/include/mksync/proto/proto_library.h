@@ -1,5 +1,5 @@
 //
-// ProtoLibrary.h
+// proto_library.h
 //
 // Package: mksync
 // Library: MksyncProto

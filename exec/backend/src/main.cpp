@@ -1,4 +1,4 @@
-#include "mksync/Base/osdep.h"
+#include "mksync/base/osdep.h"
 
 #include <iostream>
 #include <functional>
@@ -10,8 +10,8 @@
 #include <ilias/task.hpp>
 #include <ilias/sync/scope.hpp>
 
-#include "mksync/Base/Environment.hpp"
-#include "mksync/Proto/Proto.hpp"
+#include "mksync/base/environment.hpp"
+#include "mksync/proto/proto.hpp"
 
 using ILIAS_NAMESPACE::Console;
 using ILIAS_NAMESPACE::Error;

@@ -1,6 +1,6 @@
 
 
-target("Proto")
+target("proto")
     set_kind("$(kind)")
     set_targetdir("$(libdir)")
 
@@ -12,7 +12,7 @@ target("Proto")
         target:set("basename", Camel(project:name()) .. Camel(target:name()))
     end)
 
-    add_deps("Base")
+    add_deps("base")
     add_defines("MKS_PROTO_EXPORTS")
     add_rules("targetclean")
 

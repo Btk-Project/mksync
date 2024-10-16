@@ -1,6 +1,6 @@
 
 
-target("Base")
+target("base")
     set_kind("$(kind)")
     set_targetdir("$(libdir)")
 
@@ -12,7 +12,7 @@ target("Base")
         target:set("basename", Camel(project:name()) .. Camel(target:name()))
     end)
 
-    -- add_deps("Base")
+    -- add_deps("base")
     add_rules("targetclean")
     -- Pre-Define
     if is_kind("shared") then

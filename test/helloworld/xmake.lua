@@ -4,7 +4,7 @@ target("helloworld")
     set_kind("binary")
     set_targetdir("$(testdir)")
 
-    add_deps("Proto")
+    add_deps("proto")
     add_rules("targetclean")
 
     -- version
