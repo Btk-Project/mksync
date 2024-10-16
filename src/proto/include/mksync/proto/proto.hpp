@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include "ProtoLibrary.h"
+#include "mksync/proto/proto_library.h"
 
 #include <stdint.h>
 

@@ -1,4 +1,4 @@
-#include "mksync/Proto/Proto.hpp"
+#include "mksync/proto/proto.hpp"
 
 #include <iostream>
 

@@ -1,5 +1,5 @@
 //
-// Environment.hpp
+// environment.hpp
 //
 // Package: mksync
 // Library: MksyncBase
@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include "BaseLibrary.h"
-#include "mksync/Base/osdep.h"
+#include "mksync/base/base_library.h"
+#include "mksync/base/osdep.h"
 
 #include <string>
 #include <vector>

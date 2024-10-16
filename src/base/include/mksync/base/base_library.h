@@ -1,5 +1,5 @@
 //
-// BaseLibrary.h
+// base_library.h
 //
 // Package: mksync
 // Library: MksyncBase

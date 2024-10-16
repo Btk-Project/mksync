@@ -1,10 +1,10 @@
-#include "mksync/Base/osdep.h"
+#include "mksync/base/osdep.h"
 
 #include <iostream>
 #include <codecvt>
 #include <locale>
 
-#include "mksync/Proto/Proto.hpp"
+#include "mksync/proto/proto.hpp"
 
 int main()
 {

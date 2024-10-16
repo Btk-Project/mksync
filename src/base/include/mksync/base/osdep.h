@@ -9,7 +9,7 @@
 #ifndef _MKSYNC_BASE_OSDEP_H_
 #define _MKSYNC_BASE_OSDEP_H_
 
-#include "mksync/Base/compiler.h"
+#include "mksync/base/compiler.h"
 
 #ifdef _WIN32
 #ifndef _WIN32_WINNT
