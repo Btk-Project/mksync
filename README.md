@@ -64,15 +64,15 @@ xmake f -p mingw -a x86_64 -m releasedbg -k shared --runtimes=stdc++_shared --th
 ```
 #### For linux with gcc
 ```
-xmake f -a x86_64 -m release -k shared --runtimes=stdc++_shared --third_party_kind=shred -cv
+xmake f -a x86_64 -m releasedbg -k shared --runtimes=stdc++_shared --third_party_kind=shared -cv
 ```
 #### For linux with gcc-13
 ```
-xmake f -a x86_64 -m release -k shared --runtimes=stdc++_shared --toolchain=gcc-13 --third_party_kind=shred -cv
+xmake f -a x86_64 -m releasedbg -k shared --runtimes=stdc++_shared --toolchain=gcc-13 --third_party_kind=shared -cv
 ```
 #### For linux with llvm
 ```
-xmake f -a x86_64 -m release -k shared --runtimes=stdc++_shared --toolchain=llvm --third_party_kind=shred -cv
+xmake f -a x86_64 -m releasedbg -k shared --runtimes=stdc++_shared --toolchain=llvm --third_party_kind=shared -cv
 ```
 
 ### compile
