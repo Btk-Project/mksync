@@ -20,8 +20,8 @@
 
 #ifdef __cplusplus
 #define MKS_EXTERN_C extern "C"
-#define MKS_EXTERN_C_START                                                                                                    \
-    extern "C"                                                                                                                 \
+#define MKS_EXTERN_C_START                                                                         \
+    extern "C"                                                                                     \
     {
 #define MKS_EXTERN_C_END }
 #else
@@ -138,8 +138,8 @@
 #if __has_attribute(fallthrough)
 #define MKS_FALLTHROUGH __attribute__((fallthrough))
 #else
-#define MKS_FALLTHROUGH                                                                                                       \
-    do {                                                                                                                       \
+#define MKS_FALLTHROUGH                                                                            \
+    do {                                                                                           \
     } while (0) /* fallthrough */
 #endif
 

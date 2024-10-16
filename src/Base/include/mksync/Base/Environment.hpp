@@ -26,8 +26,8 @@ MKS_BASE_BEGIN
  * @param argvector 转换后的 utf8(char)编码 的参数字符串指针列表
  * @return char** 转换后的 utf8(char)编码 的参数字符串指针列表的指针
  * @remarks 若 args
- * 非空，则转换后的内容会接在原内容之后，但原内容不会被当作参数。不建议出于此目的使用该函数，此功能仅为了保证当 args
- * 非空时也能正常工作
+ * 非空，则转换后的内容会接在原内容之后，但原内容不会被当作参数。不建议出于此目的使用该函数，此功能仅为了保证当
+ * args 非空时也能正常工作
  */
 MKS_BASE_API char **convert_argc_argv(size_t argc, const wchar_t *const *wargv, std::string &args,
                                       std::vector<char *> &argvector);
@@ -40,7 +40,8 @@ MKS_BASE_API char **convert_argc_argv(size_t argc, const wchar_t *const *wargv, 
  * @param argvector
  * @return MKS_BASE_API
  */
-MKS_BASE_API std::string string_to_argc_argv(const std::string &str, int &argc, std::vector<const char *> &argvector);
+MKS_BASE_API std::string string_to_argc_argv(const std::string &str, int &argc,
+                                             std::vector<const char *> &argvector);
 
 MKS_BASE_END
 MKS_END
