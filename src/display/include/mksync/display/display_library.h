@@ -1,5 +1,5 @@
 //
-// DisplayLibrary.h
+// display_library.h
 //
 // Package: mksync
 // Library: MksyncDisplay
@@ -27,8 +27,8 @@
 #endif
 // clang-format on
 
-#define MKS_DISPLAY_BEGIN                                                                                                      \
-    namespace display                                                                                                          \
+#define MKS_DISPLAY_BEGIN                                                                          \
+    namespace display                                                                              \
     {
 #define MKS_DISPLAY_END }
 

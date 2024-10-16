@@ -1,6 +1,6 @@
 
 
-target("Display")
+target("display")
     set_kind("$(kind)")
     set_targetdir("$(libdir)")
 
@@ -12,7 +12,7 @@ target("Display")
         target:set("basename", Camel(project:name()) .. Camel(target:name()))
     end)
 
-    add_deps("Base", "Proto")
+    add_deps("base", "proto")
     add_defines("MKS_DISPLAY_EXPORTS")
     add_rules("targetclean")
 

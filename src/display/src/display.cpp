@@ -1,4 +1,4 @@
-#include "mksync/Display/Display.hpp"
+#include "mksync/display/display.hpp"
 
 #include <iostream>
 

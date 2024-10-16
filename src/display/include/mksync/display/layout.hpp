@@ -1,5 +1,5 @@
 //
-// Layout.h
+// layout.h
 //
 // Package: mksync
 // Library: MksyncDisplay
@@ -8,13 +8,13 @@
 
 #pragma once
 
-#include "DisplayLibrary.h"
+#include "mksync/display/display_library.h"
 
 #include <stdint.h>
 #include <vector>
 
-#include "mksync/Base/osdep.h"
-#include "mksync/Display/Display.hpp"
+#include "mksync/base/osdep.h"
+#include "mksync/display/display.hpp"
 
 MKS_BEGIN
 MKS_DISPLAY_BEGIN
