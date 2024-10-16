@@ -3,6 +3,7 @@
 #include <codecvt>
 #include <locale>
 #include <sstream>
+#include <iterator>
 
 MKS_BEGIN
 MKS_BASE_BEGIN
