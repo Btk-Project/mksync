@@ -7,7 +7,8 @@
 MKS_BEGIN
 MKS_BASE_BEGIN
 
-char **convert_argc_argv(size_t argc, const wchar_t *const *wargv, std::string &args, std::vector<char *> &argvector)
+char **convert_argc_argv(size_t argc, const wchar_t *const *wargv, std::string &args,
+                         std::vector<char *> &argvector)
 {
     std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converter = {};
     argvector.resize(argc);
@@ -23,10 +24,12 @@ char **convert_argc_argv(size_t argc, const wchar_t *const *wargv, std::string &
     return argvector.data();
 }
 
-std::string string_to_argc_argv(const std::string &str, int &argc, std::vector<const char *> &argvector)
+std::string string_to_argc_argv(const std::string &str, int &argc,
+                                std::vector<const char *> &argvector)
 {
     std::istringstream       iss(str);
-    std::vector<std::string> args = {std::istream_iterator<std::string>{iss}, std::istream_iterator<std::string>{}};
+    std::vector<std::string> args = {std::istream_iterator<std::string>{iss},
+                                     std::istream_iterator<std::string>{}};
 
     argc = static_cast<int>(args.size());
     argvector.resize(argc);

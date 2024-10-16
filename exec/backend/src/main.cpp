@@ -21,8 +21,8 @@ using ILIAS_NAMESPACE::SystemError;
 using ILIAS_NAMESPACE::Task;
 using ILIAS_NAMESPACE::TaskScope;
 
-#define argsparse(argc, argv)                                                                                                  \
-    (void)argc;                                                                                                                \
+#define argsparse(argc, argv)                                                                      \
+    (void)argc;                                                                                    \
     (void)argv;
 
 struct Context {
@@ -66,7 +66,8 @@ Task<void> main_loop(Context &ctx)
     scop.setAutoCancel(true);
 
     while (!ctx.mIsExit) {
-        auto ret = co_await console.read(ilias::makeBuffer(readBuffer)); // TODO: read command from stdin
+        auto ret =
+            co_await console.read(ilias::makeBuffer(readBuffer)); // TODO: read command from stdin
         if (!ret) {
             // TODO: error handling
             std::cout << "read error: " << ret.error().toString() << std::endl;
@@ -76,8 +77,8 @@ Task<void> main_loop(Context &ctx)
         // TODO: process input
         int                       argc;
         std::vector<const char *> argvector;
-        std::string               args =
-            mks::base::string_to_argc_argv(std::string(readBuffer.begin(), readBuffer.begin() + ret.value()), argc, argvector);
+        std::string               args = mks::base::string_to_argc_argv(
+            std::string(readBuffer.begin(), readBuffer.begin() + ret.value()), argc, argvector);
 
         auto optres = opts.parse(argc, argvector.data());
 

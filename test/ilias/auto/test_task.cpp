@@ -8,21 +8,23 @@
 #include <iostream>
 #include <gtest/gtest.h>
 
-using ILIAS_NAMESPACE::Task;
-using ILIAS_NAMESPACE::PlatformContext;
 using ILIAS_NAMESPACE::Console;
-using ILIAS_NAMESPACE::Result;
 using ILIAS_NAMESPACE::Error;
+using ILIAS_NAMESPACE::PlatformContext;
+using ILIAS_NAMESPACE::Result;
 using ILIAS_NAMESPACE::SystemError;
+using ILIAS_NAMESPACE::Task;
 using ILIAS_NAMESPACE::TaskScope;
 
-Task<void> Task1(int id) {
+Task<void> Task1(int id)
+{
     // 一个普通任务一旦可以被执行，就会立刻执行完。
     std::cout << "run task" << id << std::endl;
     co_return {};
 }
 
-Task<void> MainTask() {
+Task<void> MainTask()
+{
     // 主动挂起自己并等待 Task1 执行完成。
     auto ret = co_await Task1(1);
 
@@ -37,23 +39,28 @@ Task<void> MainTask() {
     co_return {};
 }
 
-Task<void> MainTask2() {
+Task<void> MainTask2()
+{
     std::cout << "this will not run." << std::endl;
     co_return {};
 }
 
-TEST(Task, TestTask) {
+TEST(Task, TestTask)
+{
     // main 是一个普通函数，不是协程，所以不能直接使用 co_await, co_return 等协程关键字
-    PlatformContext context; // 创建平台默认上下文，该上下文中包含了协程的调度器，不同上下文支持的操作会有不同。
+    PlatformContext
+        context; // 创建平台默认上下文，该上下文中包含了协程的调度器，不同上下文支持的操作会有不同。
     std::cout << "main start" << std::endl;
     ilias_wait MainTask(); // 等待主任务完成, 通过 ilias_wait/ilias_go 提交任务到协程调度器中执行
     // ilias_wait将会等待协程调度器中的任务执行完成，并返回结果
     ilias_go MainTask2(); // 提交任务到协程调度器中执行，但不等待任务完成
-    // ilias_go 将会立即返回，不会等待任务完成，也不会进入调度器，所以任务不会被执行，除非主动进入调度器。
+    // ilias_go
+    // 将会立即返回，不会等待任务完成，也不会进入调度器，所以任务不会被执行，除非主动进入调度器。
     // 因此ilias_go主要用于提交不需要立即执行的任务，并在之后会挂起自己来执行其他被提交的任务。
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv)
+{
     testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
