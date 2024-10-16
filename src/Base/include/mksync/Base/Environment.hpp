@@ -32,5 +32,15 @@ MKS_BASE_BEGIN
 MKS_BASE_API char **convert_argc_argv(size_t argc, const wchar_t *const *wargv, std::string &args,
                                       std::vector<char *> &argvector);
 
+/**
+ * @brief
+ *
+ * @param str
+ * @param argc
+ * @param argvector
+ * @return MKS_BASE_API
+ */
+MKS_BASE_API std::string string_to_argc_argv(const std::string &str, int &argc, std::vector<const char *> &argvector);
+
 MKS_BASE_END
 MKS_END

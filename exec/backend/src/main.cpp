@@ -1,65 +1,51 @@
 #include "mksync/Base/osdep.h"
 
 #include <iostream>
+#include <functional>
+#include <string>
 
+#include <cxxopts.hpp>
 #include <ilias/platform.hpp>
 #include <ilias/fs/console.hpp>
 #include <ilias/task.hpp>
 #include <ilias/sync/scope.hpp>
-#include <functional>
-#include <span>
-#include <string>
-#include <iostream>
 
 #include "mksync/Base/Environment.hpp"
 #include "mksync/Proto/Proto.hpp"
 
-
-using ILIAS_NAMESPACE::Task;
-using ILIAS_NAMESPACE::PlatformContext;
 using ILIAS_NAMESPACE::Console;
-using ILIAS_NAMESPACE::Result;
 using ILIAS_NAMESPACE::Error;
+using ILIAS_NAMESPACE::PlatformContext;
+using ILIAS_NAMESPACE::Result;
 using ILIAS_NAMESPACE::SystemError;
+using ILIAS_NAMESPACE::Task;
 using ILIAS_NAMESPACE::TaskScope;
 
-#define argsparse(argc, argv) (void)argc; (void)argv;
-
-enum {
-    COMMAND = 0,
-    EXIT = 1,
-    CONFIG = 2,
-};
-
-struct Option {
-    int type;
-    std::string name;
-    void* args; // do something, or setting some value
-};
-
-
-Option inputParse(std::span<std::byte> arg) {
-    if (std::string_view(reinterpret_cast<char*>(arg.data()), arg.size() - 1) == "exit") {
-        return Option{EXIT, "", nullptr};
-    } else if (std::string_view(reinterpret_cast<char*>(arg.data()), arg.size() - 1) == "run") {
-        return Option{COMMAND, "task1", nullptr};
-    }
-    return Option{CONFIG, "", nullptr};
-}
+#define argsparse(argc, argv)                                                                                                  \
+    (void)argc;                                                                                                                \
+    (void)argv;
 
 struct Context {
-bool mIsExit = false;
-std::map<std::string, std::function<Task<void>(Context&, void*)>> mCommands;
+    bool                                                                mIsExit = false;
+    std::map<std::string, std::function<Task<void>(Context &, void *)>> mCommands;
 };
 
-Task<void> Task1(Context& ctxt, void* args) {
+Task<void> task1(Context &ctxt, void *args)
+{
     (void)args;
     (void)ctxt;
     std::cout << "run task1" << std::endl;
     co_return {};
 }
 
-Task<void> MainLoop(Context& ctx) {
+std::vector<std::string> split(const std::string &str)
+{
+    std::istringstream iss(str);
+    return {std::istream_iterator<std::string>{iss}, std::istream_iterator<std::string>{}};
+}
+
+Task<void> main_loop(Context &ctx)
+{
     std::cout << "main loop" << std::endl;
     auto ret = Console::fromStdin(*PlatformContext::currentThread());
     if (!ret) {
@@ -68,15 +54,19 @@ Task<void> MainLoop(Context& ctx) {
     }
     Console console = std::move(ret.value()); // get stdin console
 
-    ctx.mCommands["task1"] = std::bind(Task1, std::placeholders::_1, std::placeholders::_2); // bind a task to a command
+    cxxopts::Options opts("backend", "mksync's backend");
+    opts.add_options()("run", "running")("exit", "exit program")("command", "commands");
 
-    std::vector<std::byte> readBuffer;
-    readBuffer.resize(1024);
-    TaskScope scop; // create a task scope, which will be canceled when the scope is out of scope
+    ctx.mCommands["task1"] = std::bind(task1, std::placeholders::_1,
+                                       std::placeholders::_2); // bind a task to a command
+
+    std::string readBuffer(1024, '\0');
+    TaskScope   scop; // create a task scope, which will be canceled when the
+                      // scope is out of scope
     scop.setAutoCancel(true);
 
     while (!ctx.mIsExit) {
-        auto ret = co_await console.read(readBuffer); // TODO: read command from stdin
+        auto ret = co_await console.read(ilias::makeBuffer(readBuffer)); // TODO: read command from stdin
         if (!ret) {
             // TODO: error handling
             std::cout << "read error: " << ret.error().toString() << std::endl;
@@ -84,24 +74,32 @@ Task<void> MainLoop(Context& ctx) {
         }
         std::cout << "read " << ret.value() << std::endl;
         // TODO: process input
-        auto option = inputParse({readBuffer.data(), ret.value()});
-        switch (option.type) {
-            case COMMAND:
-                // create task and suspend it
-                scop.spawn(ctx.mCommands[option.name](ctx, option.args));
-                std::cout << "command: " << option.name << std::endl;
-                break;
-            case CONFIG:
-                // TODO: config main loop
-                std::cout << "config" << std::endl;
-                break;
-            case EXIT:
-                // TODO: exit main loop
-                ctx.mIsExit = true;
-                std::cout << "exit" << std::endl;
-                break;
-            default:
-                break;
+        int                       argc;
+        std::vector<const char *> argvector;
+        std::string               args =
+            mks::base::string_to_argc_argv(std::string(readBuffer.begin(), readBuffer.begin() + ret.value()), argc, argvector);
+
+        auto optres = opts.parse(argc, argvector.data());
+
+        for (auto &arg : argvector) {
+            std::cout << "p:" << (void *)arg << "arg:" << arg << "*\n";
+        }
+
+        if (optres.count("run") != 0) {
+            std::cout << "run" << std::endl;
+        }
+        else if (optres.count("exit") != 0) {
+            // TODO: exit main loop
+            ctx.mIsExit = true;
+            std::cout << "exit" << std::endl;
+        }
+        else if (optres.count("command") != 0) {
+            // TODO: config main loop
+            scop.spawn(std::bind(task1, ctx, nullptr));
+            std::cout << "command" << std::endl;
+        }
+        else {
+            std::cout << opts.help() << std::endl;
         }
     }
     // TODO: cancel and wait for all tasks to finish
@@ -124,14 +122,12 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char *argv[])
     [[maybe_unused]] char **argv      = mks::base::convert_argc_argv(argc, wargv, args, argvector);
 #endif
 
-    // ilias::Console console = {};
-
     argsparse(argc, argv); // parse arguments
     // TODO: initialize services, read arguments, etc.
 
     PlatformContext context;
-    Context ctx;
-    ilias_wait MainLoop(ctx); // start main loop
+    Context         ctx;
+    ilias_wait      main_loop(ctx); // start main loop
 
     return 0;
 }

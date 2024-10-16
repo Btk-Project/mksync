@@ -15,7 +15,7 @@ target("backend")
     add_deps("Proto")
     add_rules("targetclean")
 
-    add_packages("ilias")
+    add_packages("ilias", "cxxopts")
 
     -- version
     -- set_configdir("./")
