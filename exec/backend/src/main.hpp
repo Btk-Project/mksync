@@ -13,7 +13,7 @@
 #define MKS_BACKED_LOG_CRITICAL(...)    SPDLOG_CRITICAL(...)
 // clang-format on
 
-ilias::Task<int> main_loop();    // contains the following three event loops
-ilias::Task<int> console_loop(); // front-back end Command loop
-ilias::Task<int> network_loop(); // client-server network event loop
-ilias::Task<int> daemon_loop();  // command loops with the daemon
+ilias::Task<void> main_loop();    // contains the following three event loops
+ilias::Task<void> console_loop(); // front-back end Command loop
+ilias::Task<void> network_loop(); // client-server network event loop
+ilias::Task<void> daemon_loop();  // command loops with the daemon
