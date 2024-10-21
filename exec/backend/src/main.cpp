@@ -63,7 +63,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char *argv[])
     // work group and dispatcher
     auto coop = env.make_coop(); // main work group
     auto activeObjDisp =
-        so_5::disp::active_obj::make_dispatcher(env); // dispatcher (each agent in a thread)
+        so_5::disp::active_obj::make_dispatcher(env); // dispatcher (each agent in one thread)
     // make work groups
     (void)coop->make_agent_with_binder<TestAgent>(activeObjDisp.binder());
     // register and start work groups
@@ -77,16 +77,21 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char *argv[])
     return 0;
 }
 
-ilias::Task<int> main_loop()
+ilias::Task<void> main_loop()
 {
     auto [res1] = co_await ilias::whenAny(console_loop());
-    if (res1 && *res1) {
-        std::cout << "console loop end with: " << res1->value() << std::endl;
+    if (res1) {
+        if (!*res1) {
+            std::cout << "console loop end with error: " << res1->error().value() << std::endl;
+        }
+        else {
+            std::cout << "console loop end with no error\n";
+        }
     }
     co_return {};
 }
 
-ilias::Task<int> console_loop()
+ilias::Task<void> console_loop()
 {
     std::cout << "console loop" << std::endl;
 
@@ -98,7 +103,7 @@ ilias::Task<int> console_loop()
         auto res = ilias::Console::fromStdin(*ilias::PlatformContext::currentThread());
         if (!res) {
             std::cout << "read error: " << res.error().toString() << std::endl;
-            co_return ilias::Result<int>(res.error().value());
+            co_return ilias::Unexpected(res.error());
         }
         console = std::move(res.value()); // get stdin console
     }
@@ -112,7 +117,7 @@ ilias::Task<int> console_loop()
             auto res = co_await console.read(ilias::makeBuffer(readBuffer));
             if (!res) {
                 std::cout << "read error: " << res.error().toString() << std::endl;
-                co_return ilias::Result<int>(res.error().value());
+                co_return ilias::Unexpected(res.error());
             }
             readBytes = std::move(res.value());
         }
