@@ -15,7 +15,7 @@ target("backend")
     add_deps("proto")
     add_rules("targetclean")
 
-    add_packages("ilias", "cxxopts")
+    add_packages("cxxopts", "ilias", "sobjectizer", "spdlog")
 
     -- version
     -- set_configdir("./")
