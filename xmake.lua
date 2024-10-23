@@ -72,7 +72,8 @@ add_requireconfs("**.sobjectizer", {configs = {shared = is_config("third_party_k
 add_requireconfs("**.neko-proto", {configs = {shared = is_config("third_party_kind", "shared"), enable_simdjson = false, enable_rapidjson = true, enable_fmt = true, enable_communication = true}})
 if is_plat("linux") then
     add_requireconfs("**.libportal", {configs = {shared = is_config("third_party_kind", "shared")}})
-    -- apt::libgirepository1.0-dev apt::valac
+    -- apt::python3-pip apt::libgirepository1.0-dev apt::valac
+    -- sudo apt install python3-pip libgirepository1.0-dev valac
 end
 
 includes("src/*/xmake.lua")
