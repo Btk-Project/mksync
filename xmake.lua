@@ -62,11 +62,18 @@ add_requires("fmt", {configs = {shared = is_config("third_party_kind", "shared")
 add_requires("spdlog", {configs = {shared = is_config("third_party_kind", "shared"), header_only = false, fmt_external = true, wchar = true, wchar_filename = false, console_wchar = true}})
 add_requires("sobjectizer", {configs = {shared = is_config("third_party_kind", "shared")}})
 add_requires("neko-proto", {configs = {shared = is_config("third_party_kind", "shared"), enable_simdjson = false, enable_rapidjson = true, enable_fmt = true, enable_communication = true}})
+if is_plat("linux") then
+    add_requires("libportal", {configs = {shared = is_config("third_party_kind", "shared")}})
+end
 -- third party dependencies settings
 add_requireconfs("**.fmt", {configs = {shared = is_config("third_party_kind", "shared"), header_only = false}})
 add_requireconfs("**.spdlog", {configs = {shared = is_config("third_party_kind", "shared"), header_only = false, fmt_external = true, wchar = true, wchar_filename = false, console_wchar = true}})
 add_requireconfs("**.sobjectizer", {configs = {shared = is_config("third_party_kind", "shared")}})
 add_requireconfs("**.neko-proto", {configs = {shared = is_config("third_party_kind", "shared"), enable_simdjson = false, enable_rapidjson = true, enable_fmt = true, enable_communication = true}})
+if is_plat("linux") then
+    add_requireconfs("**.libportal", {configs = {shared = is_config("third_party_kind", "shared")}})
+    -- apt::libgirepository1.0-dev apt::valac
+end
 
 includes("src/*/xmake.lua")
 includes("exec/*/xmake.lua")
