@@ -1,7 +1,7 @@
 
 
 if is_host("linux") and not is_plat("corss") then
-target("helloworld")
+target("capture_portal")
     set_kind("binary")
     set_targetdir("$(testdir)")
 
