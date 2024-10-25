@@ -1,5 +1,5 @@
 ---
-Checks:                       'readability-*,-readability-redundant-member-init,-readability-redundant-access-specifiers,-readability-magic-numbers,-readability-avoid-return-with-void-value'
+Checks:                       'readability-*,-readability-redundant-member-init,-readability-redundant-access-specifiers,-readability-magic-numbers,-readability-avoid-return-with-void-value,-readability-isolate-declaration'
 WarningsAsErrors:             ''
 HeaderFileExtensions:         ['', 'h','hh','hpp','hxx']
 ImplementationFileExtensions: ['c','cc','cpp','cxx']
