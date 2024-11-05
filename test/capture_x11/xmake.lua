@@ -1,6 +1,6 @@
 
-
 if is_host("linux") and not is_plat("corss") then
+add_requires("libx11", "libxi")
 target("capture_x11")
     set_kind("binary")
     set_targetdir("$(testdir)")
@@ -8,6 +8,7 @@ target("capture_x11")
     add_deps("proto")
     add_rules("targetclean")
     add_packages("out_ptr", "sobjectizer", "spdlog")
+    add_packages("libx11", "libxi")
 
     -- version
     -- set_configdir("./")
