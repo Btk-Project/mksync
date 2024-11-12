@@ -8,6 +8,7 @@ target("capture_win")
     add_deps("proto")
     add_rules("targetclean")
     add_packages("out_ptr", "sobjectizer", "spdlog")
+    add_links("user32")
 
     -- version
     -- set_configdir("./")
