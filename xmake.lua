@@ -26,7 +26,7 @@ rule_end()
 
 option("third_party_kind")
     set_showmenu(true)
-    set_default("static")
+    set_default("shared")
     set_values("static", "shared")
 option_end()
 
