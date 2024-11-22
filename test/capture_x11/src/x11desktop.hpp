@@ -267,6 +267,7 @@ int x11Example()
     // 释放抓取
     desktop.release_keyboard();
     desktop.release_mouse();
+    return 0;
 }
 
 TEMP_NAMESPACE_END

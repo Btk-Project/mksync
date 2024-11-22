@@ -10,7 +10,7 @@ target("capture_x11")
     add_rules("targetclean")
     add_packages("out_ptr", "sobjectizer", "spdlog")
     add_packages("libx11", "libxi", "libxcb", "ilias")
-    add_links("X11", "Xi", "xcb", "xcb-keysyms")
+    add_links("X11", "Xi", "xcb", "xcb-keysyms", "Xtst")
 
     -- version
     -- set_configdir("./")

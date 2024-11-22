@@ -42,7 +42,7 @@ class XcbWindow {
 public:
     XcbWindow(XcbConnect *conn);
     XcbWindow(XcbWindow *parent);
-    XcbWindow(XcbConnect *conn, xcb_window_t window);
+    XcbWindow(XcbConnect *conn, xcb_window_t window, bool destroyAble = false);
 
     ~XcbWindow();
 
@@ -50,18 +50,27 @@ public:
     void hide();
     void destroy();
 
-    void grab_keyboard(bool grab, bool ownerEvents);
-    void grab_pointer(bool grab, bool ownerEvents);
+    int grab_keyboard(bool grab, bool ownerEvents = false);
+    int grab_pointer(bool grab, bool ownerEvents = false);
 
     auto set_geometry(int posx, int posy, int width, int height) -> void;
-    auto event_loop(std::unique_ptr<xcb_generic_event_t> &&event) -> Task<void>;
+    auto event_loop(std::unique_ptr<xcb_generic_event_t> event) -> Task<void>;
+    auto set_property(const std::string &name, const std::string &value) -> int;
+    auto set_attribute(uint32_t eventMask /* xcb_event_mask_t*/, uint32_t values[] /* value list */)
+        -> int;
+    auto set_transparent(uint32_t alpha) -> void;
+    auto native_handle() const -> xcb_window_t;
+
 private:
     auto _create_window() -> void;
 
 private:
-    xcb_window_t          _window   = XCB_WINDOW_NONE;
-    XcbConnect           *_conn     = nullptr;
-    std::set<XcbWindow *> _children = {};
+    xcb_window_t          _window          = XCB_WINDOW_NONE;
+    XcbConnect           *_conn            = nullptr;
+    std::set<XcbWindow *> _children        = {};
+    bool                  _grabbedKeyboard = false;
+    bool                  _grabbedPointer  = false;
+    bool                  _destroyAble     = true;
 };
 
 class XcbConnect {
@@ -80,7 +89,7 @@ public:
     auto connect(const char *displayname, int *screenp) -> Task<void>;
     auto disconnect() -> void;
     auto get_default_screen() -> xcb_screen_t *;
-    auto get_default_root_window() -> xcb_window_t;
+    auto get_default_root_window() -> XcbWindow;
 
     auto event_loop() -> Task<void>;
     auto send_key_press(xcb_keycode_t keycode) -> Task<void>;
@@ -88,7 +97,13 @@ public:
     auto send_mouse_move(int16_t rootX, int16_t rootY) -> Task<void>;
     auto send_mouse_button_press(xcb_button_t button) -> Task<void>;
     auto send_mouse_button_release(xcb_button_t button) -> Task<void>;
-    auto event_dispatcher(std::unique_ptr<xcb_generic_event_t> &&event) -> Task<void>;
+    auto event_dispatcher(std::unique_ptr<xcb_generic_event_t> event) -> Task<void>;
+    auto grab_pointer(XcbWindow *window, bool owner = false) -> int;
+    auto ungrab_pointer() -> int;
+    auto grab_keyboard(XcbWindow *window, bool owner = false) -> int;
+    auto ungrab_keyboard() -> int;
+
+    xcb_atom_t get_atom(const char *name);
 
     int               generate_id();
     xcb_connection_t *connection() { return _connection; }
@@ -110,12 +125,12 @@ private:
 
 private:
     xcb_connection_t *_connection = nullptr;
+    Display          *_display    = nullptr;
     IoDescriptor     *_fd         = nullptr;
     IoContext        *_context    = nullptr;
-    std::unique_ptr<xcb_key_symbols_t, std::function<void(xcb_key_symbols_t *)>> _keySymbols;
-    std::unordered_map<int, std::function<void(std::unique_ptr<xcb_generic_event_t> &&)>>
-                          _sequeueMap;
-    std::set<XcbWindow *> _windows;
+    std::unique_ptr<xcb_key_symbols_t, std::function<void(xcb_key_symbols_t *)>>       _keySymbols;
+    std::unordered_map<int, std::function<void(std::unique_ptr<xcb_generic_event_t>)>> _sequeueMap;
+    std::set<XcbWindow *>                                                              _windows;
 };
 
 inline Task<void> example()
@@ -132,6 +147,7 @@ inline Task<void> example()
     // 创建窗口
     // xcb_window_t window   = xcb.generate_id();
     XcbWindow window(&xcb);
+    window.set_property("WM_TYPE", "NORMAL"); // 设置窗口类型
 
     // 显示窗口
     window.show();
