@@ -1,8 +1,5 @@
 #include "xcbcapture.hpp"
-#include <X11/extensions/XTest.h>
-#include <X11/X.h>
-#include <X11/Xlib.h>
-#include <X11/Xutil.h>
+#include <xcb/xtest.h>
 
 XCB_NAMESPACE_BEGIN
 
@@ -28,39 +25,7 @@ auto XcbConnect::send_key_press(xcb_keycode_t keycode) -> Task<void>
     // XFlush(_display);
     // co_return {};
     //--------------------------
-    auto                         window              = get_default_root_window().native_handle();
-    xcb_get_input_focus_cookie_t getInputFocusCookie = xcb_get_input_focus(_connection);
-    std::unique_ptr<xcb_get_input_focus_reply_t> getInputFocusReply(
-        xcb_get_input_focus_reply(_connection, getInputFocusCookie, NULL));
-    xcb_window_t focus;
-    if (getInputFocusReply == nullptr) {
-        focus = window;
-    }
-    else {
-        focus = getInputFocusReply->focus;
-    }
-    printf("send key %d to window: %d\n", keycode, window);
-    // 发送按下事件
-    xcb_key_press_event_t event  = xcb_key_press_event_t{.response_type = XCB_KEY_PRESS,
-                                                         .detail        = keycode,
-                                                         .sequence      = 6,
-                                                         .time          = XCB_CURRENT_TIME,
-                                                         .root          = window,
-                                                         .event         = focus,
-                                                         .child         = XCB_NONE,
-                                                         .root_x        = 0,
-                                                         .root_y        = 0,
-                                                         .event_x       = 0,
-                                                         .event_y       = 0,
-                                                         .state         = 0,
-                                                         .same_screen   = 1,
-                                                         .pad0          = 0};
-    auto                  cookie = xcb_send_event_checked(_connection, 0, window, XCB_EVENT_MASK_KEY_PRESS,
-                                                  reinterpret_cast<const char *>(&event));
-    std::unique_ptr<xcb_generic_error_t> check(xcb_request_check(_connection, cookie));
-    if (check && check->error_code != 0) {
-        printf("Error: %d\n", check->error_code);
-    }
+    xcb_test_fake_input(_connection, XCB_KEY_PRESS, keycode, XCB_CURRENT_TIME, XCB_NONE, 0, 0, 0);
     flush();
     co_return {};
 }
@@ -72,139 +37,28 @@ auto XcbConnect::send_key_release(xcb_keycode_t keycode) -> Task<void>
     // XFlush(_display);
     // co_return {};
     //--------------------------
-    auto                         window              = get_default_root_window().native_handle();
-    xcb_get_input_focus_cookie_t getInputFocusCookie = xcb_get_input_focus_unchecked(_connection);
-    std::unique_ptr<xcb_get_input_focus_reply_t> getInputFocusReply(
-        xcb_get_input_focus_reply(_connection, getInputFocusCookie, NULL));
-    xcb_window_t focus;
-    if (getInputFocusReply == nullptr) {
-        focus = window;
-    }
-    else {
-        focus = getInputFocusReply->focus;
-    }
-
-    xcb_key_release_event_t event = {.response_type = XCB_KEY_RELEASE,
-                                     .detail        = keycode,
-                                     .sequence      = 0,
-                                     .time          = XCB_CURRENT_TIME,
-                                     .root          = window,
-                                     .event         = focus,
-                                     .child         = XCB_NONE,
-                                     .root_x        = 0,
-                                     .root_y        = 0,
-                                     .event_x       = 0,
-                                     .event_y       = 0,
-                                     .state         = 0,
-                                     .same_screen   = 1,
-                                     .pad0          = 0};
-    auto cookie = xcb_send_event(_connection, 0, window, XCB_EVENT_MASK_KEY_RELEASE,
-                                 reinterpret_cast<const char *>(&event));
-    (void)cookie;
+    xcb_test_fake_input(_connection, XCB_KEY_RELEASE, keycode, XCB_CURRENT_TIME, XCB_NONE, 0, 0, 0);
     flush();
     co_return {};
 }
 
 auto XcbConnect::send_mouse_move(int16_t rootX, int16_t rootY) -> Task<void>
 {
-    auto                         window              = get_default_root_window().native_handle();
-    xcb_get_input_focus_cookie_t getInputFocusCookie = xcb_get_input_focus_unchecked(_connection);
-    std::unique_ptr<xcb_get_input_focus_reply_t> getInputFocusReply(
-        xcb_get_input_focus_reply(_connection, getInputFocusCookie, NULL));
-    xcb_window_t focus;
-    if (getInputFocusReply == nullptr) {
-        focus = window;
-    }
-    else {
-        focus = getInputFocusReply->focus;
-    }
-    xcb_motion_notify_event_t event = {.response_type = XCB_MOTION_NOTIFY,
-                                       .detail        = 0,
-                                       .sequence      = 0,
-                                       .time          = XCB_CURRENT_TIME,
-                                       .root          = window,
-                                       .event         = focus,
-                                       .child         = XCB_NONE,
-                                       .root_x        = rootX,
-                                       .root_y        = rootY,
-                                       .event_x       = 0,
-                                       .event_y       = 0,
-                                       .state         = 0,
-                                       .same_screen   = 1,
-                                       .pad0          = 0};
-    auto coockie = xcb_send_event(_connection, 0, window, XCB_EVENT_MASK_POINTER_MOTION,
-                                  reinterpret_cast<const char *>(&event));
-    (void)coockie;
+    xcb_test_fake_input(_connection, XCB_MOTION_NOTIFY, 0, XCB_CURRENT_TIME, XCB_NONE, 0, rootX, rootY);
     flush();
     return {};
 }
 
 auto XcbConnect::send_mouse_button_press(xcb_button_t button) -> Task<void>
 {
-    auto                         window              = get_default_root_window().native_handle();
-    xcb_get_input_focus_cookie_t getInputFocusCookie = xcb_get_input_focus_unchecked(_connection);
-    std::unique_ptr<xcb_get_input_focus_reply_t> getInputFocusReply(
-        xcb_get_input_focus_reply(_connection, getInputFocusCookie, NULL));
-    xcb_window_t focus;
-    if (getInputFocusReply == nullptr) {
-        focus = window;
-    }
-    else {
-        focus = getInputFocusReply->focus;
-    }
-
-    xcb_button_press_event_t event = {.response_type = XCB_BUTTON_PRESS,
-                                      .detail        = button,
-                                      .sequence      = 0,
-                                      .time          = 0,
-                                      .root          = window,
-                                      .event         = focus,
-                                      .child         = XCB_NONE,
-                                      .root_x        = 0,
-                                      .root_y        = 0,
-                                      .event_x       = 0,
-                                      .event_y       = 0,
-                                      .state         = 0,
-                                      .same_screen   = 1,
-                                      .pad0          = 0};
-    auto coockie = xcb_send_event(_connection, 0, window, XCB_EVENT_MASK_BUTTON_PRESS,
-                                  reinterpret_cast<const char *>(&event));
-    (void)coockie;
+    xcb_test_fake_input(_connection, XCB_BUTTON_PRESS, button, XCB_CURRENT_TIME, XCB_NONE, 0, 0, 0);
     flush();
     return {};
 }
 
 auto XcbConnect::send_mouse_button_release(xcb_button_t button) -> Task<void>
 {
-    auto                         window              = get_default_root_window().native_handle();
-    xcb_get_input_focus_cookie_t getInputFocusCookie = xcb_get_input_focus_unchecked(_connection);
-    std::unique_ptr<xcb_get_input_focus_reply_t> getInputFocusReply(
-        xcb_get_input_focus_reply(_connection, getInputFocusCookie, NULL));
-    xcb_window_t focus;
-    if (getInputFocusReply == nullptr) {
-        focus = window;
-    }
-    else {
-        focus = getInputFocusReply->focus;
-    }
-    // 发送鼠标释放事件
-    xcb_button_release_event_t event = {.response_type = XCB_BUTTON_RELEASE,
-                                        .detail        = button,
-                                        .sequence      = 0,
-                                        .time          = 0,
-                                        .root          = window,
-                                        .event         = focus,
-                                        .child         = XCB_NONE,
-                                        .root_x        = 0,
-                                        .root_y        = 0,
-                                        .event_x       = 0,
-                                        .event_y       = 0,
-                                        .state         = 0,
-                                        .same_screen   = 1,
-                                        .pad0          = 0};
-    auto coockie = xcb_send_event(_connection, 0, window, XCB_EVENT_MASK_BUTTON_RELEASE,
-                                  reinterpret_cast<const char *>(&event));
-    (void)coockie;
+    xcb_test_fake_input(_connection, XCB_BUTTON_RELEASE, button, XCB_CURRENT_TIME, XCB_NONE, 0, 0, 0);
     flush();
     return {};
 }
