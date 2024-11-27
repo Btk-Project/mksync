@@ -8,6 +8,8 @@ set_warnings("allextra")
 set_languages("cxx20", "c17")
 set_exceptions("cxx")
 set_encodings("utf-8")
+add_cxxflags("-fcoroutines")
+add_links("rt")
 
 add_rules("mode.release", "mode.debug", "mode.releasedbg", "mode.minsizerel")
 add_rules("plugin.compile_commands.autoupdate", {lsp = "clangd", outputdir = ".vscode"})
