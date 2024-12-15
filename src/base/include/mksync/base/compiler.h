@@ -15,31 +15,31 @@
 #define MKS_HOST_LONG_BITS (__SIZEOF_POINTER__ * 8)
 
 #if defined __clang_analyzer__ || defined __COVERITY__
-#define MKS_STATIC_ANALYSIS 1
+    #define MKS_STATIC_ANALYSIS 1
 #endif
 
 #ifdef __cplusplus
-#define MKS_EXTERN_C extern "C"
-#define MKS_EXTERN_C_START                                                                         \
-    extern "C"                                                                                     \
-    {
-#define MKS_EXTERN_C_END }
+    #define MKS_EXTERN_C extern "C"
+    #define MKS_EXTERN_C_START                                                                     \
+        extern "C"                                                                                 \
+        {
+    #define MKS_EXTERN_C_END }
 #else
-#define MKS_EXTERN_C extern
-#define MKS_EXTERN_C_START
-#define MKS_EXTERN_C_END
+    #define MKS_EXTERN_C extern
+    #define MKS_EXTERN_C_START
+    #define MKS_EXTERN_C_END
 #endif
 
 #if defined(_WIN32) && !defined(__clang__) && !defined(__MINGW32__)
-#define MKS_PACKED
-#define MKS_ALIGN8 __declspec(align(8))
-#define MKS_ALIGN16 __declspec(align(16))
-#define MKS_ALIGN(X) __declspec(align(X))
+    #define MKS_PACKED
+    #define MKS_ALIGN8 __declspec(align(8))
+    #define MKS_ALIGN16 __declspec(align(16))
+    #define MKS_ALIGN(X) __declspec(align(X))
 #else
-#define MKS_PACKED __attribute__((packed))
-#define MKS_ALIGN8 __attribute__((aligned(8)))
-#define MKS_ALIGN16 __attribute__((aligned(16)))
-#define MKS_ALIGN(X) __attribute__((aligned(X)))
+    #define MKS_PACKED __attribute__((packed))
+    #define MKS_ALIGN8 __attribute__((aligned(8)))
+    #define MKS_ALIGN16 __attribute__((aligned(16)))
+    #define MKS_ALIGN(X) __attribute__((aligned(X)))
 #endif
 
 // How to packed with msvc:
@@ -55,31 +55,31 @@
 // #endif
 
 #ifndef __has_warning
-#define __has_warning(x) 0 /* compatibility with non-clang compilers */
+    #define __has_warning(x) 0 /* compatibility with non-clang compilers */
 #endif
 
 #ifndef __has_feature
-#define __has_feature(x) 0 /* compatibility with non-clang compilers */
+    #define __has_feature(x) 0 /* compatibility with non-clang compilers */
 #endif
 
 #ifndef __has_builtin
-#define __has_builtin(x) 0 /* compatibility with non-clang compilers */
+    #define __has_builtin(x) 0 /* compatibility with non-clang compilers */
 #endif
 
 #if __has_builtin(__builtin_assume_aligned) || !defined(__clang__)
-#define HAS_ASSUME_ALIGNED
+    #define HAS_ASSUME_ALIGNED
 #endif
 
 #ifndef __has_attribute
-#define __has_attribute(x) 0 /* compatibility with older GCC */
+    #define __has_attribute(x) 0 /* compatibility with older GCC */
 #endif
 
 #if defined(__SANITIZE_ADDRESS__) || __has_feature(address_sanitizer)
-#define MKS_SANITIZE_ADDRESS 1
+    #define MKS_SANITIZE_ADDRESS 1
 #endif
 
 #if defined(__SANITIZE_THREAD__) || __has_feature(thread_sanitizer)
-#define MKS_SANITIZE_THREAD 1
+    #define MKS_SANITIZE_THREAD 1
 #endif
 
 /*
@@ -88,9 +88,9 @@
  * "flatten" attribute but always has __has_attribute() to check for it.
  */
 #if __has_attribute(flatten) || !defined(__clang__)
-#define MKS_FLATTEN __attribute__((flatten))
+    #define MKS_FLATTEN __attribute__((flatten))
 #else
-#define MKS_FLATTEN
+    #define MKS_FLATTEN
 #endif
 
 /*
@@ -99,9 +99,9 @@
  * the missing symbol.
  */
 #if __has_attribute(error)
-#define MKS_ERROR(X) __attribute__((error(X)))
+    #define MKS_ERROR(X) __attribute__((error(X)))
 #else
-#define MKS_ERROR(X)
+    #define MKS_ERROR(X)
 #endif
 
 /*
@@ -114,9 +114,9 @@
  * manipulation function such as strncpy.
  */
 #if __has_attribute(nonstring)
-#define MKS_NONSTRING __attribute__((nonstring))
+    #define MKS_NONSTRING __attribute__((nonstring))
 #else
-#define MKS_NONSTRING
+    #define MKS_NONSTRING
 #endif
 
 /*
@@ -125,9 +125,9 @@
  * so disable it for a non-optimizing build.
  */
 #if defined(__OPTIMIZE__)
-#define MKS_ALWAYS_INLINE __attribute__((always_inline))
+    #define MKS_ALWAYS_INLINE __attribute__((always_inline))
 #else
-#define MKS_ALWAYS_INLINE
+    #define MKS_ALWAYS_INLINE
 #endif
 
 /**
@@ -136,23 +136,23 @@
  * with those. In that case you can use MKS_FALLTHROUGH instead.
  */
 #if __has_attribute(fallthrough)
-#define MKS_FALLTHROUGH __attribute__((fallthrough))
+    #define MKS_FALLTHROUGH __attribute__((fallthrough))
 #else
-#define MKS_FALLTHROUGH                                                                            \
-    do {                                                                                           \
-    } while (0) /* fallthrough */
+    #define MKS_FALLTHROUGH                                                                        \
+        do {                                                                                       \
+        } while (0) /* fallthrough */
 #endif
 
 #if __has_attribute(annotate)
-#define MKS_ANNOTATE(x) __attribute__((annotate(x)))
+    #define MKS_ANNOTATE(x) __attribute__((annotate(x)))
 #else
-#define MKS_ANNOTATE(x)
+    #define MKS_ANNOTATE(x)
 #endif
 
 #if __has_attribute(used)
-#define MKS_USED __attribute__((used))
+    #define MKS_USED __attribute__((used))
 #else
-#define MKS_USED
+    #define MKS_USED
 #endif
 
 #endif
