@@ -12,27 +12,27 @@
 #include "mksync/base/compiler.h"
 
 #ifdef _WIN32
-#ifndef _WIN32_WINNT
-#define _WIN32_WINNT 0x0601 // support Win7
-#endif
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#ifndef UNICODE
-#define UNICODE
-#endif
-#ifndef _UNICODE
-#define _UNICODE
-#endif
-#ifndef _CRT_SECURE_NO_WARNINGS
-#define _CRT_SECURE_NO_WARNINGS
-#endif
-#ifndef _SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING
-#define _SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING
-#endif
+    #ifndef _WIN32_WINNT
+        #define _WIN32_WINNT 0x0601 // support Win7
+    #endif
+    #ifndef WIN32_LEAN_AND_MEAN
+        #define WIN32_LEAN_AND_MEAN
+    #endif
+    #ifndef NOMINMAX
+        #define NOMINMAX
+    #endif
+    #ifndef UNICODE
+        #define UNICODE
+    #endif
+    #ifndef _UNICODE
+        #define _UNICODE
+    #endif
+    #ifndef _CRT_SECURE_NO_WARNINGS
+        #define _CRT_SECURE_NO_WARNINGS
+    #endif
+    #ifndef _SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING
+        #define _SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING
+    #endif
 #endif
 
 /**
@@ -50,9 +50,9 @@
  *   }
  */
 #ifdef __clang__
-#define mks_coroutine_fn MKS_ANNOTATE("coroutine_fn")
+    #define mks_coroutine_fn MKS_ANNOTATE("coroutine_fn")
 #else
-#define mks_coroutine_fn
+    #define mks_coroutine_fn
 #endif
 
 /**
@@ -60,9 +60,9 @@
  * but can handle running in non-coroutine context too.
  */
 #ifdef __clang__
-#define mks_coroutine_mixed_fn MKS_ANNOTATE("coroutine_mixed_fn")
+    #define mks_coroutine_mixed_fn MKS_ANNOTATE("coroutine_mixed_fn")
 #else
-#define mks_coroutine_mixed_fn
+    #define mks_coroutine_mixed_fn
 #endif
 
 /**
@@ -89,9 +89,9 @@
  *   }
  */
 #ifdef __clang__
-#define mks_no_coroutine_fn MKS_ANNOTATE("no_coroutine_fn")
+    #define mks_no_coroutine_fn MKS_ANNOTATE("no_coroutine_fn")
 #else
-#define mks_no_coroutine_fn
+    #define mks_no_coroutine_fn
 #endif
 
 #define MKS_BEGIN                                                                                  \

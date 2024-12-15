@@ -45,9 +45,6 @@ CheckOptions:
   ### 全局变量: g_camelBack
   readability-identifier-naming.GlobalVariableCase:   camelBack
   readability-identifier-naming.GlobalVariablePrefix: g_
-  ### 静态变量: k_camelBack
-  readability-identifier-naming.StaticVariableCase:   camelBack
-  readability-identifier-naming.StaticVariablePrefix: k_
   ### 编译期变量: CamelCase
   readability-identifier-naming.ConstexprVariableCase:    CamelCase
   readability-identifier-naming.ConstexprVariablePrefix:  ''
