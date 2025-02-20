@@ -59,14 +59,14 @@ add_requires(
     "out_ptr",
     -- tools
     "cxxopts",
-    "ilias",
     "rapidjson"
 )
+add_requires("ilias dev")
 -- Use dynamic libraries for direct dependencies and static libraries for indirect dependencies.
 add_requires("fmt", {configs = {shared = is_config("3rd_kind", "shared"), header_only = false}})
 add_requires("spdlog", {configs = {shared = is_config("3rd_kind", "shared"), header_only = false, fmt_external = true, wchar = true, wchar_filename = false, console_wchar = true}})
 add_requires("sobjectizer", {configs = {shared = is_config("3rd_kind", "shared")}})
-add_requires("neko-proto", {configs = {shared = is_config("3rd_kind", "shared"), enable_simdjson = false, enable_rapidjson = true, enable_fmt = true, enable_communication = true}})
+add_requires("neko-proto dev", {configs = {shared = is_config("3rd_kind", "shared"), enable_simdjson = false, enable_rapidjson = true, enable_fmt = true, enable_communication = true}})
 if is_plat("linux") then
     add_requires("libportal", {configs = {shared = is_config("3rd_kind", "shared")}})
 end
