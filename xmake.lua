@@ -74,7 +74,8 @@ end
 add_requireconfs("**.fmt", {configs = {shared = is_config("3rd_kind", "shared"), header_only = false}})
 add_requireconfs("**.spdlog", {configs = {shared = is_config("3rd_kind", "shared"), header_only = false, fmt_external = true, wchar = true, wchar_filename = false, console_wchar = true}})
 add_requireconfs("**.sobjectizer", {configs = {shared = is_config("3rd_kind", "shared")}})
-add_requireconfs("**.neko-proto", {configs = {shared = is_config("3rd_kind", "shared"), enable_simdjson = false, enable_rapidjson = true, enable_fmt = true, enable_communication = true}})
+add_requireconfs("**.neko-proto", {version = "dev", override = true, configs = {shared = is_config("3rd_kind", "shared"), enable_simdjson = false, enable_rapidjson = true, enable_fmt = true, enable_communication = true}})
+add_requireconfs("**.ilias", {version = "dev", override = true})
 if is_plat("linux") then
     add_requireconfs("**.libportal", {configs = {shared = is_config("3rd_kind", "shared")}})
     -- apt::python3-pip apt::libgirepository1.0-dev apt::valac
