@@ -12,6 +12,7 @@ target("proto")
         target:set("basename", Camel(project:name()) .. Camel(target:name()))
     end)
 
+    add_packages("neko-proto", "spdlog")
     add_deps("base")
     add_defines("MKS_PROTO_EXPORTS")
     add_rules("targetclean")

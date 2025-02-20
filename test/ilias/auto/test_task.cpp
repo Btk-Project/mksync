@@ -17,13 +17,13 @@ Task<void> task1(int id)
 {
     // 一个普通任务一旦可以被执行，就会立刻执行完。
     std::cout << "run task" << id << std::endl;
-    co_return {};
+    co_return;
 }
 
 Task<void> main_task()
 {
     // 主动挂起自己并等待 Task1 执行完成。
-    auto ret = co_await task1(1);
+    co_await task1(1);
 
     // 提交一个任务
     ilias_go task1(2);
@@ -33,13 +33,13 @@ Task<void> main_task()
     auto ret2 = co_await ILIAS_NAMESPACE::sleep(std::chrono::milliseconds(1000));
     std::cout << "sleep 1000ms, main task countinue..." << std::endl;
     // 最后结束。
-    co_return {};
+    co_return;
 }
 
 Task<void> main_task2()
 {
     std::cout << "this will not run." << std::endl;
-    co_return {};
+    co_return;
 }
 
 TEST(Task, TestTask)
