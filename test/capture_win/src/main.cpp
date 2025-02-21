@@ -202,12 +202,12 @@ public:
     ~EventListener();
     ///> 获取一个事件，如果没有就等待
     auto get_event() -> Task<NekoProto::IProto>;
+    auto notify() -> void;
 
 private:
     LRESULT _mouse_proc(int ncode, WPARAM wp, LPARAM lp);
     LRESULT _keyboard_proc(int ncode, WPARAM wp, LPARAM lp);
     ///> 唤起正在等待事件的协程
-    auto _notify() -> void;
 
     HHOOK    _mosueHook;
     HHOOK    _keyboardHook;
@@ -229,7 +229,7 @@ auto EventListener::get_event() -> Task<NekoProto::IProto>
     co_return std::move(proto);
 }
 
-auto EventListener::_notify() -> void
+auto EventListener::notify() -> void
 {
     _syncEvent.set();
 }
@@ -261,6 +261,7 @@ EventListener::EventListener() : _events(10)
 
 EventListener::~EventListener()
 {
+    notify();
     UnhookWindowsHookEx(_mosueHook);
     UnhookWindowsHookEx(_keyboardHook);
 }
@@ -328,10 +329,13 @@ LRESULT EventListener::_mouse_proc(int ncode, WPARAM wp, LPARAM lp)
         break;
     case WM_MOUSEWHEEL:
         proto = mks::MouseWheelEvent::emplaceProto(
-            (float)hookStruct->mouseData / WHEEL_DELTA, 0.F,
+            (float)(GET_WHEEL_DELTA_WPARAM(hookStruct->mouseData) / WHEEL_DELTA), 0.F,
             (uint64_t)std::chrono::system_clock::now().time_since_epoch().count());
-        std::cout << "Mouse Wheel Delta: " << HIWORD(hookStruct->mouseData) << std::endl;
         break;
+    case WM_MOUSEHWHEEL:
+        proto = mks::MouseWheelEvent::emplaceProto(
+            0.F, (float)(GET_WHEEL_DELTA_WPARAM(hookStruct->mouseData) / WHEEL_DELTA),
+            (uint64_t)std::chrono::system_clock::now().time_since_epoch().count());
     default:
         return CallNextHookEx(nullptr, ncode, wp, lp);
     }
@@ -354,8 +358,12 @@ LRESULT EventListener::_keyboard_proc(int ncode, WPARAM wp, LPARAM lp)
     GetKeyNameTextA(hookStruct->scanCode << 16, name, 256);
     uint16_t rawcode;
     bool     virtualKey;
-    auto     keycode = mks::windows_scan_code_to_key_code(hookStruct->scanCode, hookStruct->vkCode,
-                                                          &rawcode, &virtualKey);
+    uint32_t scanCode = hookStruct->scanCode;
+    if ((hookStruct->flags & LLKHF_EXTENDED) != 0U) {
+        scanCode |= (KF_EXTENDED << 16);
+    }
+    auto keycode =
+        mks::windows_scan_code_to_key_code(scanCode, hookStruct->vkCode, &rawcode, &virtualKey);
 
     mks::KeyMod keymod = mks::KeyMod::eKmodNone;
     if ((GetAsyncKeyState(VK_LMENU) & 0x8000) != 0) {
@@ -413,17 +421,9 @@ public:
     void send_button_event(const mks::MouseButtonEvent &event) const;
     void send_wheel_event(const mks::MouseWheelEvent &event) const;
     void send_keyboard_event(const mks::KeyEvent &event) const;
-
-private:
-    uint64_t _screenWidth;
-    uint64_t _screenHeight;
 };
 
-EventSender::EventSender()
-{
-    _screenWidth  = GetSystemMetrics(SM_CXSCREEN);
-    _screenHeight = GetSystemMetrics(SM_CYSCREEN);
-}
+EventSender::EventSender() {}
 
 EventSender::~EventSender() {}
 
@@ -431,8 +431,8 @@ void EventSender::send_motion_event(const mks::MouseMotionEvent &event) const
 {
     INPUT input          = {0};
     input.type           = INPUT_MOUSE;
-    input.mi.dx          = (LONG)(event.x * _screenWidth);
-    input.mi.dy          = (LONG)(event.y * _screenHeight);
+    input.mi.dx          = (LONG)(event.x * 65535);
+    input.mi.dy          = (LONG)(event.y * 65535);
     input.mi.mouseData   = 0;
     input.mi.dwFlags     = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE;
     input.mi.time        = 0;
@@ -445,7 +445,7 @@ void EventSender::send_button_event(const mks::MouseButtonEvent &event) const
     std::unique_ptr<INPUT[]> input;
     int                      count = 1;
     if (event.clicks <= 1) {
-        input = std::make_unique<INPUT[]>(0);
+        input = std::make_unique<INPUT[]>(1);
     }
     else {
         count = event.clicks;
@@ -489,15 +489,21 @@ void EventSender::send_button_event(const mks::MouseButtonEvent &event) const
 
 void EventSender::send_wheel_event(const mks::MouseWheelEvent &event) const
 {
-    INPUT input          = {0};
-    input.type           = INPUT_MOUSE;
-    input.mi.dx          = 0;
-    input.mi.dy          = 0;
-    input.mi.mouseData   = (LONG)(event.x * WHEEL_DELTA);
-    input.mi.dwFlags     = MOUSEEVENTF_WHEEL;
-    input.mi.time        = 0;
-    input.mi.dwExtraInfo = 0;
-    SendInput(1, &input, sizeof(INPUT));
+    bool                     is_vertical   = std::abs(event.x - 1e-6) > 1e-6;
+    bool                     is_horizontal = std::abs(event.y - 1e-6) > 1e-6;
+    std::unique_ptr<INPUT[]> input         = std::make_unique<INPUT[]>(is_horizontal + is_vertical);
+    memset(input.get(), 0, sizeof(INPUT) * (is_horizontal + is_vertical));
+    if (is_vertical) {
+        input[0].type         = INPUT_MOUSE;
+        input[0].mi.mouseData = (LONG)(event.x * WHEEL_DELTA);
+        input[0].mi.dwFlags   = MOUSEEVENTF_WHEEL;
+    }
+    if (is_horizontal) {
+        input[is_vertical].type         = INPUT_MOUSE;
+        input[is_vertical].mi.mouseData = (LONG)(event.y * WHEEL_DELTA);
+        input[is_vertical].mi.dwFlags   = MOUSEEVENTF_HWHEEL;
+    }
+    SendInput(is_horizontal + is_vertical, input.get(), sizeof(INPUT));
 }
 
 void EventSender::send_keyboard_event(const mks::KeyEvent &event) const
@@ -708,14 +714,14 @@ auto App::connect_to(IPEndpoint endpoint) -> Task<void>
     _eventSender = std::make_unique<EventSender>();
     auto ret     = co_await TcpClient::make(AF_INET);
     if (!ret) {
-        ILIAS_ERROR("mksync-test", "TcpClient::make failed {}", ret.error().message());
+        spdlog::error("TcpClient::make failed {}", ret.error().message());
         co_return;
     }
     auto tcpClient = std::move(ret.value());
     _isClienting   = true;
     auto ret1      = co_await tcpClient.connect(endpoint);
     if (!ret1) {
-        ILIAS_ERROR("mksync-test", "TcpClient::connect failed {}", ret1.error().message());
+        spdlog::error("TcpClient::connect failed {}", ret1.error().message());
         co_return;
     }
     _protoStreamClient = // 构造用于传输协议的壳
@@ -724,7 +730,7 @@ auto App::connect_to(IPEndpoint endpoint) -> Task<void>
     while (_isClienting) {
         auto ret2 = co_await _protoStreamClient->recv();
         if (!ret2) {
-            ILIAS_ERROR("mksync-test", "ProtoStreamClient::recv failed {}", ret2.error().message());
+            spdlog::error("ProtoStreamClient::recv failed {}", ret2.error().message());
             disconnect();
             co_return;
         }
@@ -743,7 +749,7 @@ auto App::connect_to(IPEndpoint endpoint) -> Task<void>
                 _eventSender->send_wheel_event(*msg.cast<mks::MouseWheelEvent>());
             }
             else {
-                ILIAS_ERROR("mksync-test", "unused message type {}", msg.protoName());
+                spdlog::error("unused message type {}", msg.protoName());
             }
         }
     }
@@ -785,7 +791,7 @@ auto App::start_server(IPEndpoint endpoint) -> Task<void>
     while (_isServering) {
         auto ret1 = co_await tcpServer.accept();
         if (!ret1) {
-            ILIAS_ERROR("mksync-test", "TcpListener::accept failed {}", ret1.error().message());
+            spdlog::error("TcpListener::accept failed {}", ret1.error().message());
             stop_server();
             co_return;
         }
@@ -825,7 +831,7 @@ auto App::start_console() -> Task<void>
     }
     auto ret = co_await ILIAS_NAMESPACE::Console::fromStdin();
     if (!ret) {
-        ILIAS_ERROR("mksync-test", "Console::fromStdin failed {}", ret.error().message());
+        spdlog::error("Console::fromStdin failed {}", ret.error().message());
         co_return;
     }
     ILIAS_NAMESPACE::Console console       = std::move(ret.value());
@@ -835,7 +841,7 @@ auto App::start_console() -> Task<void>
         memset(strBuffer.get(), 0, 1024);
         auto ret1 = co_await console.read({strBuffer.get(), 1024});
         if (!ret1) {
-            ILIAS_ERROR("mksync-test", "Console::read failed {}", ret1.error().message());
+            spdlog::error("Console::read failed {}", ret1.error().message());
             stop_console();
             co_return;
         }
@@ -913,9 +919,9 @@ auto App::exec() -> Task<void>
 auto App::stop() -> void
 {
     _isRuning = false;
-    stop_server();
     stop_capture();
     disconnect();
+    stop_server();
     stop_console();
 }
 
@@ -933,11 +939,15 @@ auto App::start_capture() -> Task<void>
     _listener    = std::make_unique<EventListener>();
     while (_isCapturing) {
         NekoProto::IProto proto = (co_await _listener->get_event());
-        spdlog::debug("protoName {}", proto.protoName());
+        if (proto == nullptr) {
+            spdlog::error("get_event failed");
+            stop_capture();
+            co_return;
+        }
         if (_protoStreamClient) {
             auto ret2 = co_await _protoStreamClient->send(proto);
             if (!ret2) {
-                ILIAS_ERROR("mksync-test", "send proto failed {}", ret2.error().message());
+                spdlog::error("send proto failed {}", ret2.error().message());
                 stop_capture();
                 co_return;
             }
@@ -948,6 +958,9 @@ auto App::start_capture() -> Task<void>
 auto App::stop_capture() -> void
 {
     _isCapturing = false;
+    if (_listener) {
+        _listener->notify();
+    }
     _listener.reset();
 }
 
