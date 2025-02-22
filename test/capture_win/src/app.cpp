@@ -89,8 +89,8 @@ App::App() : _commandParser(this)
     // 注册退出程序命令
     _commandParser.install_cmd(
         {
-            {"stop", "quit", "q"},
-            "stop keyboard/mouse capture",
+            {"exit", "quit", "q"},
+            "exit the program",
             [this](const std::vector<std::string> &  /*unused*/,
                    const std::map<std::string, std::string> &  /*unused*/) -> std::string {
                 stop();
@@ -134,7 +134,7 @@ App::App() : _commandParser(this)
     _commandParser.install_cmd(
         {
             {"thread", "t"},
-            "Enable independent thread for serialization",
+            "<enable/disable> to enable independent thread for serialization",
             [this](const std::vector<std::string> &args,
                    const std::map<std::string, std::string> &  /*unused*/) -> std::string {
                 if (args.empty()) {
@@ -248,14 +248,14 @@ auto App::start_server(IPEndpoint endpoint) -> Task<void>
         co_return;
     }
     spdlog::info("start server with {}", endpoint.toString());
-    auto tcpServer = std::move(ret.value());
-    auto ret2      = tcpServer.bind(endpoint);
+    _server   = std::move(ret.value());
+    auto ret2 = _server.bind(endpoint);
     if (!ret2) {
         spdlog::error("TcpListener::bind failed {}", ret2.error().message());
     }
     _isServering = true;
     while (_isServering) {
-        auto ret1 = co_await tcpServer.accept();
+        auto ret1 = co_await _server.accept();
         if (!ret1) {
             spdlog::error("TcpListener::accept failed {}", ret1.error().message());
             stop_server();
@@ -269,6 +269,7 @@ auto App::start_server(IPEndpoint endpoint) -> Task<void>
 auto App::stop_server() -> void
 {
     _isServering = false;
+    _server.close();
 }
 
 auto App::start_console() -> Task<void>
