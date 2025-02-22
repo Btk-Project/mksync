@@ -1,4 +1,5 @@
 #include "mksync/proto/keycode_converter.hpp"
+#include "mksync/proto/proto.hpp"
 
 #include <spdlog/spdlog.h>
 
@@ -43,7 +44,7 @@ namespace mks
         }
 
         // Pack scan code into one byte to make the index.
-        index = LOBYTE(scanCode) | (HIBYTE(scanCode) ? 0x80 : 0x00);
+        index    = LOBYTE(scanCode) | (HIBYTE(scanCode) ? 0x80 : 0x00);
         code     = g_keycodeTable[index];
         *rawcode = scanCode;
 

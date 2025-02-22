@@ -14,6 +14,9 @@ target("proto")
 
     add_packages("neko-proto", "spdlog")
     add_deps("base")
+    if is_plat("windows", "mingw") then
+        add_syslinks("user32")
+    end 
     add_defines("MKS_PROTO_EXPORTS")
     add_rules("targetclean")
 
