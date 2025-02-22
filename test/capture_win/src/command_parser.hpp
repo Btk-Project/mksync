@@ -39,7 +39,8 @@ public:
     auto install_cmd(CommandsData &&command, std::string_view module = "") -> bool;
     auto parser(std::string_view cmdline) -> std::string;
     auto parser(std::vector<std::string_view> cmdline) -> std::string;
-    auto show_help() -> void;
+    auto show_help(const ArgsType &args, const OptionsType &options) -> std::string;
+    auto show_version(const ArgsType &args, const OptionsType &options) -> std::string;
 
 private:
     static auto _split(std::string_view str, char ch = ' ') -> std::vector<std::string_view>;

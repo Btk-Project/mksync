@@ -9,21 +9,17 @@ CommandParser::CommandParser(App *app) : _app(app)
     install_cmd(
         {
             {"help", "h", "?"},
-            "show help",
-            [this](const ArgsType &, const OptionsType &) -> std::string {
-                show_help();
-                return "";
-             }
+            "show help, can specify module name, e.g. help [$module1] ...",
+            std::bind(&CommandParser::show_help, this, std::placeholders::_1,
+                      std::placeholders::_2)
     },
         "Core");
     install_cmd(
         {
             {"version", "v"},
             "show version",
-            [](const ArgsType &, const OptionsType &) -> std::string {
-                printf("%s %s\n", App::app_name(), App::app_version());
-                return "";
-             }
+            std::bind(&CommandParser::show_version, this, std::placeholders::_1,
+                      std::placeholders::_2)
     },
         "Core");
 }
@@ -32,14 +28,14 @@ auto CommandParser::install_cmd(const CommandsData &command, std::string_view mo
 {
     for (const auto &cmd : command.command) {
         if (_trie.search(cmd)) {
-            spdlog::error("command {} already exists", cmd);
+            spdlog::error("command \"{}\" already exists", cmd);
             return false;
         }
     }
     _commands.push_back(command);
     _modules.insert({std::string(module), _commands.size() - 1});
     for (const auto &cmd : command.command) {
-        _trie.insert(cmd, _commands.size() - 1);
+        _trie.insert(cmd, (int)_commands.size() - 1);
     }
     return true;
 }
@@ -48,14 +44,14 @@ auto CommandParser::install_cmd(CommandsData &&command, std::string_view module)
 {
     for (const auto &cmd : command.command) {
         if (_trie.search(cmd)) {
-            spdlog::error("command {} already exists", cmd);
+            spdlog::error("command \"{}\" already exists", cmd);
             return false;
         }
     }
     _commands.emplace_back(std::forward<CommandsData>(command));
     _modules.insert({std::string(module), _commands.size() - 1});
     for (const auto &cmd : _commands.back().command) {
-        _trie.insert(cmd, _commands.size() - 1);
+        _trie.insert(cmd, (int)_commands.size() - 1);
     }
     return true;
 }
@@ -89,23 +85,38 @@ auto CommandParser::parser(std::vector<std::string_view> cmdline) -> std::string
         }
     }
     auto item = _trie.search(cmd);
-    if (!item) {
-        spdlog::error("command {} not found", cmd);
-        return "";
+    if (item) {
+        int index = item.value();
+        if (index >= 0 && index < (int)_commands.size()) {
+            return _commands[index].callback(args, options);
+        }
     }
-    int index = item.value();
-    if (index >= 0 && index < (int)_commands.size()) {
-        return _commands[index].callback(args, options);
-    }
-    spdlog::error("command {} not found", cmd);
+    spdlog::error("command \"{}\" not found", cmd);
+    return "";
+}
+auto CommandParser::show_version([[maybe_unused]] const ArgsType    &args,
+                                 [[maybe_unused]] const OptionsType &options) -> std::string
+{
+    printf("%s %s\n", App::app_name(), App::app_version());
     return "";
 }
 
-auto CommandParser::show_help() -> void
+auto CommandParser::show_help([[maybe_unused]] const ArgsType    &args,
+                              [[maybe_unused]] const OptionsType &options) -> std::string
 {
     printf("Usage: $%s [command] [args] [options]\n", App::app_name());
     std::string module;
     for (auto item = _modules.begin(); item != _modules.end(); ++item) {
+        if (!args.empty() &&
+            !std::ranges::any_of(args.begin(), args.end(), [&item](std::string_view arg) {
+                std::string i1(arg);
+                std::string i2(item->first);
+                std::transform(i1.begin(), i1.end(), i1.begin(), ::tolower);
+                std::transform(i2.begin(), i2.end(), i2.begin(), ::tolower);
+                return i1 == i2;
+            })) {
+            continue;
+        }
         if (module != item->first) {
             module = item->first;
             printf("\n%s:\n", module.c_str());
@@ -124,6 +135,7 @@ auto CommandParser::show_help() -> void
         }
         printf(":\n        %s\n", command.description.c_str());
     }
+    return "";
 }
 
 auto CommandParser::_split(std::string_view str, char ch) -> std::vector<std::string_view>

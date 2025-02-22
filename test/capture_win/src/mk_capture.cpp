@@ -5,7 +5,7 @@
 #include "mksync/proto/proto.hpp"
 
 template <typename T>
-using Task = ILIAS_NAMESPACE::Task<T>;
+using Task = ilias::Task<T>;
 
 auto MKCapture::get_event() -> Task<NekoProto::IProto>
 {

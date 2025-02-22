@@ -27,20 +27,20 @@ public:
      *
      * @param str
      * @param value
-     * @return ILIAS_NAMESPACE::Result<void>
+     * @return ilias::Result<void>
      */
-    auto insert(std::string_view str, const value_type &value) -> ILIAS_NAMESPACE::Result<void>;
+    auto insert(std::string_view str, const value_type &value) -> ilias::Result<void>;
     template <typename... Args>
-    auto emplace(std::string_view str, Args &&...args) -> ILIAS_NAMESPACE::Result<void>;
+    auto emplace(std::string_view str, Args &&...args) -> ilias::Result<void>;
     /**
      * @brief search in trie
      *
      * @param str
-     * @return ILIAS_NAMESPACE::Result<T>
+     * @return ilias::Result<T>
      */
     auto at(std::string_view str) const -> const value_type &;
     auto at(std::string_view str) -> value_type &;
-    auto search(std::string_view str) -> ILIAS_NAMESPACE::Result<value_type>;
+    auto search(std::string_view str) -> ilias::Result<value_type>;
     /**
      * @brief clear the trie
      *
@@ -57,7 +57,7 @@ private:
 };
 
 template <typename T>
-auto Trie<T>::insert(std::string_view str, const value_type &value) -> ILIAS_NAMESPACE::Result<void>
+auto Trie<T>::insert(std::string_view str, const value_type &value) -> ilias::Result<void>
 {
     auto node = _root.get();
     for (auto ch : str) {
@@ -73,7 +73,7 @@ auto Trie<T>::insert(std::string_view str, const value_type &value) -> ILIAS_NAM
 
 template <typename T>
 template <typename... Args>
-auto Trie<T>::emplace(std::string_view str, Args &&...args) -> ILIAS_NAMESPACE::Result<void>
+auto Trie<T>::emplace(std::string_view str, Args &&...args) -> ilias::Result<void>
 {
     auto node = _root.get();
     for (int i = 0; i < (int)str.size(); ++i) {
@@ -93,20 +93,19 @@ auto Trie<T>::emplace(std::string_view str, Args &&...args) -> ILIAS_NAMESPACE::
 }
 
 template <typename T>
-auto Trie<T>::search(std::string_view str) -> ILIAS_NAMESPACE::Result<value_type>
+auto Trie<T>::search(std::string_view str) -> ilias::Result<value_type>
 {
     auto node = _root.get();
     for (auto ch : str) {
         if (node->children.find(ch) == node->children.end()) {
-            return ILIAS_NAMESPACE::Unexpected<ILIAS_NAMESPACE::Error>(
-                ILIAS_NAMESPACE::Error::Unknown);
+            return ilias::Unexpected<ilias::Error>(ilias::Error::Unknown);
         }
         node = node->children.at(ch).get();
     }
     if (node->isEndOfWord) {
         return node->value;
     }
-    return ILIAS_NAMESPACE::Unexpected<ILIAS_NAMESPACE::Error>(ILIAS_NAMESPACE::Error::Unknown);
+    return ilias::Unexpected<ilias::Error>(ilias::Error::Unknown);
 }
 
 template <typename T>
