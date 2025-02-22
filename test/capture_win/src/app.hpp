@@ -75,6 +75,7 @@ private:
     bool                  _isConsoleListening = false;
     NekoProto::StreamFlag _streamflags        = NekoProto::StreamFlag::None;
 
+    ILIAS_NAMESPACE::TcpListener                    _server;
     CommandParser                                   _commandParser;
     std::unordered_map<std::string, std::any>       _optionsMap;
     std::unique_ptr<MKCapture>                      _listener;
