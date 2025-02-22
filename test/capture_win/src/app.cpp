@@ -3,157 +3,70 @@
 #include <spdlog/spdlog.h>
 
 template <typename T>
-using Task = ILIAS_NAMESPACE::Task<T>;
+using Task = ilias::Task<T>;
 template <typename T>
-using IoTask      = ILIAS_NAMESPACE::IoTask<T>;
-using IPEndpoint  = ILIAS_NAMESPACE::IPEndpoint;
-using TcpClient   = ILIAS_NAMESPACE::TcpClient;
-using TcpListener = ILIAS_NAMESPACE::TcpListener;
+using IoTask      = ilias::IoTask<T>;
+using IPEndpoint  = ilias::IPEndpoint;
+using TcpClient   = ilias::TcpClient;
+using TcpListener = ilias::TcpListener;
 
 App::App() : _commandParser(this)
 {
+    using CallbackType =
+        std::string (App::*)(const CommandParser::ArgsType &, const CommandParser::OptionsType &);
+    auto serverInstaller = command_installer("Server");
     // 注册启动服务命令
-    _commandParser.install_cmd(
-        {
-            {"start", "s"},
-            "start server, e.g. start 127.0.0.1 12345",
-            [this](const std::vector<std::string>           &args,
-                   const std::map<std::string, std::string> &options) -> std::string {
-                IPEndpoint ipendpoint("127.0.0.1:12345");
-                if (args.size() == 2) {
-                    auto ret = IPEndpoint::fromString(args[0] + ":" + args[1]);
-                    if (ret) {
-                        ipendpoint = ret.value();
-                    }
-                    else {
-                        spdlog::error("ip endpoint error {}", ret.error().message());
-                    }
-                }
-                else if (args.size() == 1) {
-                    auto ret = IPEndpoint::fromString(args[0]);
-                    if (ret) {
-                        ipendpoint = ret.value();
-                    }
-                    else {
-                        spdlog::error("ip endpoint error {}", ret.error().message());
-                    }
-                }
-                else {
-                    auto it      = options.find("address");
-                    auto address = it == options.end() ? "127.0.0.1" : it->second;
-                    it           = options.find("port");
-                    auto port    = it == options.end() ? "12345" : it->second;
-                    auto ret     = IPEndpoint::fromString(address + ":" + port);
-                    if (ret) {
-                        ipendpoint = ret.value();
-                    }
-                    else {
-                        spdlog::error("ip endpoint error {}", ret.error().message());
-                    }
-                }
-                ilias_go start_server(ipendpoint);
-                return "";
-             }
-    },
-        "Server");
-    _commandParser.install_cmd(
-        {{"stopserver"},
-         "stop the server",
-         [this](const std::vector<std::string> & /*unused*/,
-                const std::map<std::string, std::string> & /*unused*/) -> std::string {
-             stop_server();
-             return "";
-         }},
-        "Server");
+    serverInstaller({
+        {"start", "s"},
+        "start server, e.g. start 127.0.0.1 12345",
+        std::bind(static_cast<CallbackType>(&App::start_server), this, std::placeholders::_1,
+                  std::placeholders::_2)
+    });
+    serverInstaller({{"stopserver"},
+                     "stop the server",
+                     std::bind(static_cast<CallbackType>(&App::stop_server), this,
+                               std::placeholders::_1, std::placeholders::_2)});
     // 注册开始捕获键鼠事件命令
-    _commandParser.install_cmd(
-        {
-            {"capture", "c"},
-            "start keyboard/mouse capture",
-            [this](const std::vector<std::string> &  /*unused*/,
-                   const std::map<std::string, std::string> &  /*unused*/) -> std::string {
-                ilias_go start_capture();
-                return "";
-             }
-    },
-        "Server");
-    _commandParser.install_cmd(
-        {{"stopcapture"},
-         "stop keyboard/mouse capture",
-         [this](const std::vector<std::string> & /*unused*/,
-                const std::map<std::string, std::string> & /*unused*/) -> std::string {
-             stop_capture();
-             return "";
-         }},
-        "Server");
+    serverInstaller({
+        {"capture", "c"},
+        "start keyboard/mouse capture",
+        std::bind(static_cast<CallbackType>(&App::start_capture), this, std::placeholders::_1,
+                  std::placeholders::_2)
+    });
+    serverInstaller({{"stopcapture"},
+                     "stop keyboard/mouse capture",
+                     std::bind(static_cast<CallbackType>(&App::stop_capture), this,
+                               std::placeholders::_1, std::placeholders::_2)});
     // 注册退出程序命令
     _commandParser.install_cmd(
         {
             {"exit", "quit", "q"},
             "exit the program",
-            [this](const std::vector<std::string> &  /*unused*/,
-                   const std::map<std::string, std::string> &  /*unused*/) -> std::string {
-                stop();
-                return "";
-             }
+            std::bind(
+                static_cast<std::string (App::*)(const CommandParser::ArgsType &,
+                                                 const CommandParser::OptionsType &)>(&App::stop),
+                this, std::placeholders::_1, std::placeholders::_2)
     },
-        "Server");
+        "Core");
+    auto clientInstaller = command_installer("Client");
     // 注册连接到服务器命令
-    _commandParser.install_cmd(
-        {{"connect"},
-         "connect to server, e.g. connect 127.0.0.1 12345",
-         [this](const std::vector<std::string>           &args,
-                const std::map<std::string, std::string> &options) -> std::string {
-             if (args.size() == 2) {
-                 ilias_go connect_to(IPEndpoint(args[0] + ":" + args[1]));
-             }
-             else if (args.size() == 1) {
-                 ilias_go connect_to(IPEndpoint(args[0]));
-             }
-             else {
-                 auto it       = options.find("address");
-                 auto address  = it == options.end() ? "127.0.0.1" : it->second;
-                 it            = options.find("port");
-                 auto     port = it == options.end() ? "12345" : it->second;
-                 ilias_go connect_to(IPEndpoint(address + ":" + port));
-             }
-             return "";
-         }},
-        "Client");
-    _commandParser.install_cmd(
-        {
-            {"disconnect", "dcon"},
-            "disconnect from server",
-            [this](const std::vector<std::string> &  /*unused*/,
-                   const std::map<std::string, std::string> &  /*unused*/) -> std::string {
-                disconnect();
-                return "";
-             }
-    },
-        "Client");
-    _commandParser.install_cmd(
-        {
-            {"thread", "t"},
-            "<enable/disable> to enable independent thread for serialization",
-            [this](const std::vector<std::string> &args,
-                   const std::map<std::string, std::string> &  /*unused*/) -> std::string {
-                if (args.empty()) {
-                    return "thread <enabled/disabled>";
-                }
-                if (args[0] == "enabled") {
-                    set_option("communication-enable-thread", true);
-                    _streamflags = _streamflags | NekoProto::StreamFlag::SerializerInThread;
-                }
-                else {
-                    set_option("communication-enable-thread", false);
-                    _streamflags = (NekoProto::StreamFlag)(
-                        (uint32_t)_streamflags &
-                        (~(uint32_t)NekoProto::StreamFlag::SerializerInThread));
-                }
-                return "";
-             }
-    },
-        "Communication");
+    clientInstaller({{"connect"},
+                     "connect to server, e.g. connect 127.0.0.1 12345",
+                     std::bind(static_cast<CallbackType>(&App::connect_to), this,
+                               std::placeholders::_1, std::placeholders::_2)});
+    clientInstaller({
+        {"disconnect", "dcon"},
+        "disconnect from server",
+        std::bind(static_cast<CallbackType>(&App::disconnect), this, std::placeholders::_1,
+                  std::placeholders::_2)
+    });
+    auto communicationInstaller = command_installer("Communication");
+    communicationInstaller({
+        {"thread", "t"},
+        "<enable/disable> to enable independent thread for serialization",
+        std::bind(static_cast<CallbackType>(&App::set_communication_options), this,
+                  std::placeholders::_1, std::placeholders::_2)
+    });
 }
 
 App::~App() {}
@@ -168,6 +81,34 @@ auto App::app_version() -> const char *
     return "0.0.1";
 }
 
+auto App::command_installer(std::string_view module)
+    -> std::function<bool(CommandParser::CommandsData &&)>
+{
+    return std::bind(
+        static_cast<bool (CommandParser::*)(CommandParser::CommandsData &&, std::string_view)>(
+            &CommandParser::install_cmd),
+        &_commandParser, std::placeholders::_1, module);
+}
+
+auto App::set_communication_options(const CommandParser::ArgsType                     &args,
+                                    [[maybe_unused]] const CommandParser::OptionsType &options)
+    -> std::string
+{
+    if (args.empty()) {
+        return "please usage: thread <enabled/disabled>";
+    }
+    if (args[0] == "enabled") {
+        set_option("communication-enable-thread", true);
+        _streamflags = _streamflags | NekoProto::StreamFlag::SerializerInThread;
+    }
+    else {
+        set_option("communication-enable-thread", false);
+        _streamflags = (NekoProto::StreamFlag)(
+            (uint32_t)_streamflags & (~(uint32_t)NekoProto::StreamFlag::SerializerInThread));
+    }
+    return "";
+}
+
 auto App::connect_to(IPEndpoint endpoint) -> Task<void>
 {
     if (_isServering) { // 确保没有启动服务模式
@@ -178,7 +119,7 @@ auto App::connect_to(IPEndpoint endpoint) -> Task<void>
         co_return;
     }
     _eventSender = std::make_unique<MKSender>();
-    auto ret     = co_await TcpClient::make(AF_INET);
+    auto ret     = co_await TcpClient::make(endpoint.family());
     if (!ret) {
         spdlog::error("TcpClient::make failed {}", ret.error().message());
         co_return;
@@ -222,6 +163,32 @@ auto App::connect_to(IPEndpoint endpoint) -> Task<void>
     co_return;
 }
 
+auto App::connect_to([[maybe_unused]] const CommandParser::ArgsType    &args,
+                     [[maybe_unused]] const CommandParser::OptionsType &options) -> std::string
+{
+    if (args.size() == 2) {
+        ilias_go connect_to(IPEndpoint(args[0] + ":" + args[1]));
+    }
+    else if (args.size() == 1) {
+        ilias_go connect_to(IPEndpoint(args[0]));
+    }
+    else {
+        auto it       = options.find("address");
+        auto address  = it == options.end() ? "127.0.0.1" : it->second;
+        it            = options.find("port");
+        auto     port = it == options.end() ? "12345" : it->second;
+        ilias_go connect_to(IPEndpoint(address + ":" + port));
+    }
+    return "";
+}
+
+auto App::disconnect([[maybe_unused]] const CommandParser::ArgsType    &args,
+                     [[maybe_unused]] const CommandParser::OptionsType &options) -> std::string
+{
+    disconnect();
+    return "";
+}
+
 auto App::disconnect() -> void
 {
     _isClienting = false;
@@ -230,6 +197,45 @@ auto App::disconnect() -> void
         _protoStreamClient->close().wait();
     }
     _eventSender.reset();
+}
+
+auto App::start_server(const CommandParser::ArgsType    &args,
+                       const CommandParser::OptionsType &options) -> std::string
+{
+    IPEndpoint ipendpoint("127.0.0.1:12345");
+    if (args.size() == 2) {
+        auto ret = IPEndpoint::fromString(args[0] + ":" + args[1]);
+        if (ret) {
+            ipendpoint = ret.value();
+        }
+        else {
+            spdlog::error("ip endpoint error {}", ret.error().message());
+        }
+    }
+    else if (args.size() == 1) {
+        auto ret = IPEndpoint::fromString(args[0]);
+        if (ret) {
+            ipendpoint = ret.value();
+        }
+        else {
+            spdlog::error("ip endpoint error {}", ret.error().message());
+        }
+    }
+    else {
+        auto it      = options.find("address");
+        auto address = it == options.end() ? "127.0.0.1" : it->second;
+        it           = options.find("port");
+        auto port    = it == options.end() ? "12345" : it->second;
+        auto ret     = IPEndpoint::fromString(address + ":" + port);
+        if (ret) {
+            ipendpoint = ret.value();
+        }
+        else {
+            spdlog::error("ip endpoint error {}", ret.error().message());
+        }
+    }
+    ilias_go start_server(ipendpoint);
+    return "";
 }
 
 auto App::start_server(IPEndpoint endpoint) -> Task<void>
@@ -242,7 +248,7 @@ auto App::start_server(IPEndpoint endpoint) -> Task<void>
         spdlog::error("server is already running");
         co_return;
     }
-    auto ret = co_await TcpListener::make(AF_INET);
+    auto ret = co_await TcpListener::make(endpoint.family());
     if (!ret) {
         spdlog::error("TcpListener::make failed {}", ret.error().message());
         co_return;
@@ -266,6 +272,13 @@ auto App::start_server(IPEndpoint endpoint) -> Task<void>
     }
 }
 
+auto App::stop_server([[maybe_unused]] const CommandParser::ArgsType    &args,
+                      [[maybe_unused]] const CommandParser::OptionsType &options) -> std::string
+{
+    stop_server();
+    return "";
+}
+
 auto App::stop_server() -> void
 {
     _isServering = false;
@@ -278,17 +291,17 @@ auto App::start_console() -> Task<void>
         spdlog::error("console is already listening");
         co_return;
     }
-    auto ret = co_await ILIAS_NAMESPACE::Console::fromStdin();
+    auto ret = co_await ilias::Console::fromStdin();
     if (!ret) {
         spdlog::error("Console::fromStdin failed {}", ret.error().message());
         co_return;
     }
-    ILIAS_NAMESPACE::Console console       = std::move(ret.value());
+    ilias::Console console                 = std::move(ret.value());
     _isConsoleListening                    = true;
     std::unique_ptr<std::byte[]> strBuffer = std::make_unique<std::byte[]>(1024);
     while (_isConsoleListening) {
         memset(strBuffer.get(), 0, 1024);
-        printf("%s >>>", App::app_name());
+        printf("%s >>> ", App::app_name());
         auto ret1 = co_await console.read({strBuffer.get(), 1024});
         if (!ret1) {
             spdlog::error("Console::read failed {}", ret1.error().message());
@@ -300,9 +313,9 @@ auto App::start_console() -> Task<void>
         while (lineView.size() > 0 && (lineView.back() == '\r' || lineView.back() == '\n')) {
             lineView.remove_suffix(1);
         }
-        auto ret = _commandParser.parser(lineView);
-        if (!ret.empty()) {
-            spdlog::warn("exec {} warn: {}", lineView, ret.c_str());
+        auto ret2 = _commandParser.parser(lineView);
+        if (!ret2.empty()) {
+            spdlog::warn("exec {} warn: {}", lineView, ret2.c_str());
         }
     }
 }
@@ -340,6 +353,13 @@ auto App::exec(int argc, const char *const *argv) -> Task<void>
         co_await start_console();
     }
     co_return;
+}
+
+auto App::stop([[maybe_unused]] const CommandParser::ArgsType    &args,
+               [[maybe_unused]] const CommandParser::OptionsType &options) -> std::string
+{
+    stop();
+    return "";
 }
 
 auto App::stop() -> void
@@ -381,6 +401,13 @@ auto App::start_capture() -> Task<void>
     }
 }
 
+auto App::start_capture([[maybe_unused]] const CommandParser::ArgsType    &args,
+                        [[maybe_unused]] const CommandParser::OptionsType &options) -> std::string
+{
+    ilias_go start_capture();
+    return "";
+}
+
 auto App::stop_capture() -> void
 {
     _isCapturing = false;
@@ -388,4 +415,11 @@ auto App::stop_capture() -> void
         _listener->notify();
     }
     _listener.reset();
+}
+
+auto App::stop_capture([[maybe_unused]] const CommandParser::ArgsType    &args,
+                       [[maybe_unused]] const CommandParser::OptionsType &options) -> std::string
+{
+    stop_capture();
+    return "";
 }
