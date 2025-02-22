@@ -76,6 +76,7 @@ LRESULT MKCapture::_mouse_proc(int ncode, WPARAM wp, LPARAM lp)
         proto = mks::MouseButtonEvent::emplaceProto(
             mks::MouseButtonState::eClick, mks::MouseButton::eButtonLeft, (uint8_t)2,
             (uint64_t)std::chrono::system_clock::now().time_since_epoch().count());
+        spdlog::info("Left Mouse Button Double Click");
         break;
     case WM_RBUTTONDOWN:
         proto = mks::MouseButtonEvent::emplaceProto(
@@ -93,21 +94,25 @@ LRESULT MKCapture::_mouse_proc(int ncode, WPARAM wp, LPARAM lp)
         proto = mks::MouseButtonEvent::emplaceProto(
             mks::MouseButtonState::eClick, mks::MouseButton::eButtonRight, (uint8_t)2,
             (uint64_t)std::chrono::system_clock::now().time_since_epoch().count());
+        spdlog::info("Right Mouse Button Double Click");
         break;
     case WM_MBUTTONDOWN:
         proto = mks::MouseButtonEvent::emplaceProto(
             mks::MouseButtonState::eButtonDown, mks::MouseButton::eButtonMiddle, (uint8_t)1,
             (uint64_t)std::chrono::system_clock::now().time_since_epoch().count());
+        spdlog::info("Middle Mouse Button Down");
         break;
     case WM_MBUTTONUP:
         proto = mks::MouseButtonEvent::emplaceProto(
             mks::MouseButtonState::eButtonUp, mks::MouseButton::eButtonMiddle, (uint8_t)1,
             (uint64_t)std::chrono::system_clock::now().time_since_epoch().count());
+        spdlog::info("Middle Mouse Button Up");
         break;
     case WM_MBUTTONDBLCLK:
         proto = mks::MouseButtonEvent::emplaceProto(
             mks::MouseButtonState::eClick, mks::MouseButton::eButtonMiddle, (uint8_t)2,
             (uint64_t)std::chrono::system_clock::now().time_since_epoch().count());
+        spdlog::info("Middle Mouse Button Double Click");
         break;
     case WM_MOUSEMOVE:
         proto = mks::MouseMotionEvent::emplaceProto(
@@ -119,11 +124,13 @@ LRESULT MKCapture::_mouse_proc(int ncode, WPARAM wp, LPARAM lp)
         proto = mks::MouseWheelEvent::emplaceProto(
             (float)(GET_WHEEL_DELTA_WPARAM(hookStruct->mouseData) / WHEEL_DELTA), 0.F,
             (uint64_t)std::chrono::system_clock::now().time_since_epoch().count());
+        spdlog::info("Mouse Wheel {}", GET_WHEEL_DELTA_WPARAM(hookStruct->mouseData));
         break;
     case WM_MOUSEHWHEEL:
         proto = mks::MouseWheelEvent::emplaceProto(
             0.F, (float)(GET_WHEEL_DELTA_WPARAM(hookStruct->mouseData) / WHEEL_DELTA),
             (uint64_t)std::chrono::system_clock::now().time_since_epoch().count());
+        spdlog::info("Mouse HWheel {}", GET_WHEEL_DELTA_WPARAM(hookStruct->mouseData));
     default:
         return CallNextHookEx(nullptr, ncode, wp, lp);
     }
@@ -135,15 +142,15 @@ LRESULT MKCapture::_mouse_proc(int ncode, WPARAM wp, LPARAM lp)
 LRESULT MKCapture::_keyboard_proc(int ncode, WPARAM wp, LPARAM lp)
 {
     auto *hookStruct = reinterpret_cast<KBDLLHOOKSTRUCT *>(lp);
+    char  name[256]{0};
+    GetKeyNameTextA(hookStruct->scanCode << 16, name, 256);
     switch (wp) {
     case WM_KEYDOWN:
-        spdlog::info("Key Down ");
+        spdlog::info("Key {} Down ", name);
         break;
     case WM_KEYUP:
-        spdlog::info("Key Up ");
+        spdlog::info("Key {} Up ", name);
     }
-    char name[256]{0};
-    GetKeyNameTextA(hookStruct->scanCode << 16, name, 256);
     uint16_t rawcode;
     bool     virtualKey;
     uint32_t scanCode = hookStruct->scanCode;
