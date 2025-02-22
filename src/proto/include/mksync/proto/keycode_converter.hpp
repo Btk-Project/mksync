@@ -8,6 +8,8 @@
  * @copyright Copyright (c) 2025
  *
  */
+#pragma once
+
 #ifdef _WIN32
     #include <windows.h>
 #else
