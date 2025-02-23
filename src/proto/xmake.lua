@@ -13,7 +13,7 @@ target("proto")
     end)
 
     add_packages("neko-proto", "spdlog")
-    add_deps("base")
+    -- add_deps("base")
     if is_plat("windows", "mingw") then
         add_syslinks("user32")
     end 

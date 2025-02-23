@@ -12,7 +12,8 @@ target("base")
         target:set("basename", Camel(project:name()) .. Camel(target:name()))
     end)
 
-    -- add_deps("base")
+    add_deps("proto")
+    add_packages("ilias", "neko-proto", "spdlog")
     add_rules("targetclean")
     -- Pre-Define
     if is_kind("shared") then
