@@ -7,7 +7,7 @@ target("capture_x11")
     set_targetdir("$(testdir)")
 
     add_deps("proto")
-    add_rules("targetclean")
+    add_rules("target.clean")
     add_packages("out_ptr", "sobjectizer", "spdlog")
     add_packages("libx11", "libxi", "libxcb", "ilias")
     add_links("X11", "Xi", "xcb", "xcb-keysyms")

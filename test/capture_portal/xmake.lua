@@ -6,7 +6,7 @@ target("capture_portal")
     set_targetdir("$(testdir)")
 
     add_deps("proto")
-    add_rules("targetclean")
+    add_rules("target.clean")
     add_packages("libportal", "out_ptr", "sobjectizer", "spdlog")
 
     -- version

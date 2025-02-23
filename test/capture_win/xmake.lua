@@ -1,6 +1,6 @@
 
 
-if is_host("windows") and not is_plat("corss") then
+if is_plat("windows", "mingw") then
 target("capture_win")
     set_kind("binary")
     set_targetdir("$(testdir)")
@@ -8,7 +8,7 @@ target("capture_win")
     add_deps("base")
     add_defines("ILIAS_ENABLE_LOG")
     add_defines("NEKO_PROTO_LOG_CONTEXT")
-    add_rules("targetclean")
+    add_rules("target.clean")
     add_packages("out_ptr", "sobjectizer", "spdlog", "ilias", "neko-proto")
     add_links("user32")
 

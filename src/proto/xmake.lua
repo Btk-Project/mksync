@@ -4,21 +4,8 @@ target("proto")
     set_kind("$(kind)")
     set_targetdir("$(libdir)")
 
-    on_load(function (target)
-        function Camel(str)
-            return str:sub(1, 1):upper() .. str:sub(2)
-        end
-        import("core.project.project")
-        target:set("basename", Camel(project:name()) .. Camel(target:name()))
-    end)
-
-    add_packages("neko-proto", "spdlog")
     -- add_deps("base")
-    if is_plat("windows", "mingw") then
-        add_syslinks("user32")
-    end 
-    add_defines("MKS_PROTO_EXPORTS")
-    add_rules("targetclean")
+    add_rules("target.clean", "target.autoname", "library.autodefine")
 
     -- version
     -- set_configdir("./")
@@ -29,4 +16,9 @@ target("proto")
     add_headerfiles("include/(**)")
     -- add_headerfiles("src/**.hpp", "src/**.h", {install = false})
     add_files("src/**.cpp")
+
+    add_packages("neko-proto", "spdlog")
+    if is_plat("windows", "mingw") then
+        add_syslinks("user32")
+    end
 target_end()

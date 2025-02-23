@@ -9,7 +9,7 @@
 #ifndef _MKSYNC_PROTO_LIBRARY_H_
 #define _MKSYNC_PROTO_LIBRARY_H_
 
-#if defined(_WIN32) && defined(MKS_DLL)
+#if defined(_WIN32) && defined(MKS_PROTO_DLL)
     #if defined(MKS_PROTO_EXPORTS)
         #define MKS_PROTO_API __declspec(dllexport)
     #else
