@@ -5,7 +5,7 @@ target("capture_win")
     set_kind("binary")
     set_targetdir("$(testdir)")
 
-    add_deps("proto")
+    add_deps("base")
     add_defines("ILIAS_ENABLE_LOG")
     add_defines("NEKO_PROTO_LOG_CONTEXT")
     add_rules("targetclean")
