@@ -121,6 +121,10 @@ namespace mks::base
             co_return;
         }
         _eventSender = MKSender::make();
+        if (!_eventSender) {
+            spdlog::error("MKSender make failed, this platform may not support in this feature");
+            co_return;
+        }
         auto ret     = co_await TcpClient::make(endpoint.family());
         if (!ret) {
             spdlog::error("TcpClient::make failed {}", ret.error().message());
@@ -306,6 +310,7 @@ namespace mks::base
         while (_isConsoleListening) {
             memset(strBuffer.get(), 0, 1024);
             printf("%s >>> ", App::app_name());
+            fflush(stdout);
             auto ret1 = co_await console.read({strBuffer.get(), 1024});
             if (!ret1) {
                 spdlog::error("Console::read failed {}", ret1.error().message());
@@ -387,6 +392,10 @@ namespace mks::base
         }
         _isCapturing = true;
         _listener    = MKCapture::make();
+        if (_listener == nullptr) {
+            spdlog::error("MKCapture make failed, this platform may not support in this feature");
+            co_return;
+        }
         while (_isCapturing) {
             NekoProto::IProto proto = (co_await _listener->get_event());
             if (proto == nullptr) {

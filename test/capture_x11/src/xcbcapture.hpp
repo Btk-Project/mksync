@@ -1,5 +1,13 @@
 #pragma once
 // sudo apt-get install libxcb1-dev libxcb-util0-dev
+#include <sys/mman.h>
+#include <iostream>
+#include <ilias/ilias.hpp>
+#include <ilias/fs/console.hpp>
+#include <ilias/fs/file.hpp>
+#include <ilias/sync/scope.hpp>
+#include <ilias/sync/oneshot.hpp>
+#include <ilias/platform.hpp>
 
 #include <set>
 #include <xcb/xcb.h>
@@ -7,14 +15,6 @@
 #include <xcb/xcb_event.h>
 #include <xcb/xcb_util.h>
 #include <X11/Xutil.h>
-
-#include <iostream>
-#include <ilias/platform.hpp>
-#include <ilias/fs/file.hpp>
-#include <ilias/task.hpp>
-#include <ilias/fs/console.hpp>
-#include <ilias/sync/scope.hpp>
-#include <ilias/sync/oneshot.hpp>
 
 #define XCB_NAMESPACE xcbspace
 #define XCB_NAMESPACE_BEGIN                                                                        \
@@ -31,6 +31,7 @@ using ILIAS_NAMESPACE::IoDescriptor;
 using ILIAS_NAMESPACE::PlatformContext;
 using ILIAS_NAMESPACE::PollEvent;
 using ILIAS_NAMESPACE::Task;
+using ILIAS_NAMESPACE::IoTask;
 using ILIAS_NAMESPACE::Unexpected;
 using ILIAS_NAMESPACE::oneshot::channel;
 using ILIAS_NAMESPACE::oneshot::Receiver;
@@ -54,7 +55,7 @@ public:
     int grab_pointer(bool grab, bool ownerEvents = false);
 
     auto set_geometry(int posx, int posy, int width, int height) -> void;
-    auto event_loop(std::unique_ptr<xcb_generic_event_t> event) -> Task<void>;
+    auto event_loop(std::unique_ptr<xcb_generic_event_t> event) -> IoTask<void>;
     auto set_property(const std::string &name, const std::string &value) -> int;
     auto set_attribute(uint32_t eventMask /* xcb_event_mask_t*/, uint32_t values[] /* value list */)
         -> int;
@@ -86,18 +87,18 @@ public:
     }
     ~XcbConnect() { disconnect(); }
 
-    auto connect(const char *displayname, int *screenp) -> Task<void>;
+    auto connect(const char *displayname, int *screenp) -> IoTask<void>;
     auto disconnect() -> void;
     auto get_default_screen() -> xcb_screen_t *;
     auto get_default_root_window() -> XcbWindow;
 
-    auto event_loop() -> Task<void>;
-    auto send_key_press(xcb_keycode_t keycode) -> Task<void>;
-    auto send_key_release(xcb_keycode_t keycode) -> Task<void>;
-    auto send_mouse_move(int16_t rootX, int16_t rootY) -> Task<void>;
-    auto send_mouse_button_press(xcb_button_t button) -> Task<void>;
-    auto send_mouse_button_release(xcb_button_t button) -> Task<void>;
-    auto event_dispatcher(std::unique_ptr<xcb_generic_event_t> event) -> Task<void>;
+    auto event_loop() -> IoTask<void>;
+    auto send_key_press(xcb_keycode_t keycode) -> IoTask<void>;
+    auto send_key_release(xcb_keycode_t keycode) -> IoTask<void>;
+    auto send_mouse_move(int16_t rootX, int16_t rootY) -> IoTask<void>;
+    auto send_mouse_button_press(xcb_button_t button) -> IoTask<void>;
+    auto send_mouse_button_release(xcb_button_t button) -> IoTask<void>;
+    auto event_dispatcher(std::unique_ptr<xcb_generic_event_t> event) -> IoTask<void>;
     auto grab_pointer(XcbWindow *window, bool owner = false) -> int;
     auto ungrab_pointer() -> int;
     auto grab_keyboard(XcbWindow *window, bool owner = false) -> int;
@@ -121,7 +122,7 @@ public:
 private:
     auto _init_io_descriptor() -> void;
     auto _destroy_io_descriptor() -> void;
-    auto _poll_event() -> Task<void>;
+    auto _poll_event() -> IoTask<void>;
 
 private:
     xcb_connection_t *_connection = nullptr;
@@ -133,7 +134,7 @@ private:
     std::set<XcbWindow *>                                                              _windows;
 };
 
-inline Task<void> example()
+inline IoTask<void> example()
 {
     // 打开 X 连接
     XcbConnect xcb(PlatformContext::currentThread());

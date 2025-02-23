@@ -5,13 +5,13 @@
 #include <iostream>
 #include <gtest/gtest.h>
 
-using ILIAS_NAMESPACE::Console;
-using ILIAS_NAMESPACE::Error;
-using ILIAS_NAMESPACE::PlatformContext;
-using ILIAS_NAMESPACE::Result;
-using ILIAS_NAMESPACE::SystemError;
-using ILIAS_NAMESPACE::Task;
-using ILIAS_NAMESPACE::TaskScope;
+using ilias::Console;
+using ilias::Error;
+using ilias::PlatformContext;
+using ilias::Result;
+using ilias::SystemError;
+using ilias::Task;
+using ilias::TaskScope;
 
 Task<void> task1(int id)
 {
@@ -30,7 +30,7 @@ Task<void> main_task()
     // 此时不会立刻执行，而是等待 Task1 执行完成之后才会执行 Task2, 因为当前函数还在执行。
     std::cout << "post task2, now task2 is not running, main task countinue..." << std::endl;
     // 此时可以通过sleep或挂起其他io操作来让出当前线程，让其他任务有机会执行。
-    auto ret2 = co_await ILIAS_NAMESPACE::sleep(std::chrono::milliseconds(1000));
+    auto ret2 = co_await ilias::sleep(std::chrono::milliseconds(1000));
     std::cout << "sleep 1000ms, main task countinue..." << std::endl;
     // 最后结束。
     co_return;

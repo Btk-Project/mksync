@@ -20,5 +20,7 @@ target("base")
     add_packages("ilias", "neko-proto", "spdlog")
     if is_plat("windows", "mingw") then
         add_syslinks("user32")
+    elseif is_plat("linux") then
+        add_links("xcb", "xcb-keysyms", "xcb-util", "xcb-xtest")
     end
 target_end()
