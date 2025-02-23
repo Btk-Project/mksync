@@ -21,7 +21,6 @@
 #include "mksync/base/mk_capture.hpp"
 #include "mksync/base/mk_sender.hpp"
 #include "mksync/base/base_library.h"
-#include "mksync/base/io_context.hpp"
 
 namespace mks::base
 {

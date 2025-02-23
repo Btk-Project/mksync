@@ -64,7 +64,7 @@ namespace mks::base
 
     WinMKCapture::~WinMKCapture()
     {
-        stop_capture().wait();
+        stop().wait();
     }
 
     LRESULT WinMKCapture::_mouse_proc(int ncode, WPARAM wp, LPARAM lp)
