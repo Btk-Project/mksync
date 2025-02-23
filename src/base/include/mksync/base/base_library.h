@@ -9,7 +9,7 @@
 #ifndef _MKSYNC_BASE_LIBRARY_H_
 #define _MKSYNC_BASE_LIBRARY_H_
 
-#if defined(_WIN32) && defined(MKS_DLL)
+#if defined(_WIN32) && defined(MKS_BASE_DLL)
     #if defined(MKS_BASE_EXPORTS)
         #define MKS_BASE_API __declspec(dllexport)
     #else

@@ -4,22 +4,8 @@ target("base")
     set_kind("$(kind)")
     set_targetdir("$(libdir)")
 
-    on_load(function (target)
-        function Camel(str)
-            return str:sub(1, 1):upper() .. str:sub(2)
-        end
-        import("core.project.project")
-        target:set("basename", Camel(project:name()) .. Camel(target:name()))
-    end)
-
     add_deps("proto")
-    add_packages("ilias", "neko-proto", "spdlog")
-    add_rules("targetclean")
-    -- Pre-Define
-    if is_kind("shared") then
-        add_defines("MKS_DLL", {public = true})
-    end
-    add_defines("MKS_BASE_EXPORTS")
+    add_rules("target.clean", "target.autoname", "library.autodefine")
 
     -- version
     -- set_configdir("./")
@@ -30,4 +16,9 @@ target("base")
     add_headerfiles("include/(**)")
     -- add_headerfiles("src/**.hpp", "src/**.h", {install = false})
     add_files("src/**.cpp")
+
+    add_packages("ilias", "neko-proto", "spdlog")
+    if is_plat("windows", "mingw") then
+        add_syslinks("user32")
+    end
 target_end()
