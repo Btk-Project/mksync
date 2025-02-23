@@ -16,14 +16,17 @@
 
 namespace mks::base
 {
-
+    class App;
     class MKS_BASE_API MKCapture {
     public:
-        MKCapture()          = default;
-        virtual ~MKCapture() = default;
+        MKCapture()                                = default;
+        virtual ~MKCapture()                       = default;
+        virtual auto start() -> ::ilias::Task<int> = 0;
+        virtual auto stop() -> ::ilias::Task<int>  = 0;
+
         ///> 获取一个事件，如果没有就等待
         virtual auto get_event() -> ::ilias::Task<NekoProto::IProto> = 0;
         virtual auto notify() -> void                                = 0;
-        static auto  make() -> std::unique_ptr<MKCapture>;
+        static auto  make(App &app) -> std::unique_ptr<MKCapture>;
     };
 } // namespace mks::base

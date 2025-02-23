@@ -24,14 +24,16 @@ namespace mks::base
     public:
         WinMKCapture();
         ~WinMKCapture();
+        auto start() -> ::ilias::Task<int> override;
+        auto stop() -> ::ilias::Task<int> override;
         ///> 获取一个事件，如果没有就等待
         auto get_event() -> ILIAS_NAMESPACE::Task<NekoProto::IProto> override;
+        ///> 唤起正在等待事件的协程
         auto notify() -> void override;
 
     private:
         LRESULT _mouse_proc(int ncode, WPARAM wp, LPARAM lp);
         LRESULT _keyboard_proc(int ncode, WPARAM wp, LPARAM lp);
-        ///> 唤起正在等待事件的协程
 
         HHOOK    _mosueHook;
         HHOOK    _keyboardHook;

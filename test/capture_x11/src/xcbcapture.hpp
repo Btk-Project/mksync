@@ -42,7 +42,6 @@ class XcbConnect;
 class XcbWindow {
 public:
     XcbWindow(XcbConnect *conn);
-    XcbWindow(XcbWindow *parent);
     XcbWindow(XcbConnect *conn, xcb_window_t window, bool destroyAble = false);
 
     ~XcbWindow();
@@ -68,7 +67,6 @@ private:
 private:
     xcb_window_t          _window          = XCB_WINDOW_NONE;
     XcbConnect           *_conn            = nullptr;
-    std::set<XcbWindow *> _children        = {};
     bool                  _grabbedKeyboard = false;
     bool                  _grabbedPointer  = false;
     bool                  _destroyAble     = true;
