@@ -41,7 +41,6 @@ namespace mks::base
         App                                       *_app = nullptr;
         RingBuffer<NekoProto::IProto>              _events;
         std::unique_ptr<XcbConnect>                _xcbConnect;
-        std::unique_ptr<XcbWindow>                 _xcbWindow;
         ::ilias::Event                             _syncEvent;
         ::ilias::WaitHandle<::ilias::Result<void>> _grabEventHandle;
     };

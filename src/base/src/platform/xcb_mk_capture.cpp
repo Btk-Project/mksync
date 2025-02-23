@@ -13,7 +13,6 @@ namespace mks::base
     XcbMKCapture::~XcbMKCapture()
     {
         stop().wait();
-        _xcbWindow.reset();
         _xcbConnect.reset();
     }
 
@@ -27,21 +26,15 @@ namespace mks::base
                 co_return -1;
             }
         }
-        if (!_xcbWindow) {
-            _xcbWindow = std::make_unique<XcbWindow>(_xcbConnect.get());
-            _xcbWindow->set_property("WM_TYPE", "NORMAL");
-            _xcbWindow->show();
-            xcb_flush(_xcbConnect->connection());
-        }
-
-        auto ret = _xcbConnect->grab_keyboard(
-            _xcbWindow.get(), [this](xcb_generic_event_t *event) { keyboard_proc(event); });
+        auto xcbWindow = _xcbConnect->get_default_root_window();
+        auto ret       = _xcbConnect->grab_keyboard(
+            &xcbWindow, [this](xcb_generic_event_t *event) { keyboard_proc(event); });
         if (ret != 0) {
             spdlog::error("xcb grab keyboard failed!");
             co_return ret;
         }
         auto ret1 = _xcbConnect->grab_pointer(
-            _xcbWindow.get(), [this](xcb_generic_event_t *event) { pointer_proc(event); });
+            &xcbWindow, [this](xcb_generic_event_t *event) { pointer_proc(event); });
         if (ret1 != 0) {
             spdlog::error("xcb grab pointer failed!");
             co_return ret1;
@@ -59,7 +52,6 @@ namespace mks::base
             _xcbConnect->ungrab_pointer();
             _xcbConnect->ungrab_keyboard();
         }
-        _xcbWindow.reset();
     }
 
     auto XcbMKCapture::pointer_proc(void *ev) -> void
