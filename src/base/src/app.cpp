@@ -12,7 +12,7 @@ namespace mks::base
     using TcpClient   = ::ilias::TcpClient;
     using TcpListener = ::ilias::TcpListener;
 
-    App::App() : _commandParser(this)
+    App::App(::ilias::IoContext *ctx) : _ctx(ctx), _commandParser(this)
     {
         using CallbackType   = std::string (App::*)(const CommandParser::ArgsType &,
                                                   const CommandParser::OptionsType &);
@@ -83,6 +83,11 @@ namespace mks::base
         return "0.0.1";
     }
 
+    auto App::get_io_context() const -> ::ilias::IoContext *
+    {
+        return _ctx;
+    }
+
     auto App::command_installer(std::string_view module)
         -> std::function<bool(CommandParser::CommandsData &&)>
     {
@@ -120,12 +125,17 @@ namespace mks::base
         if (_eventSender) { // 确保当前没有正在作为客户端运行
             co_return;
         }
-        _eventSender = MKSender::make();
+        _eventSender = MKSender::make(*this);
         if (!_eventSender) {
             spdlog::error("MKSender make failed, this platform may not support in this feature");
             co_return;
         }
-        auto ret     = co_await TcpClient::make(endpoint.family());
+        auto ret3 = co_await _eventSender->start();
+        if (ret3 != 0) {
+            spdlog::error("MKSender start failed with {}", ret3);
+            co_return;
+        }
+        auto ret = co_await TcpClient::make(endpoint.family());
         if (!ret) {
             spdlog::error("TcpClient::make failed {}", ret.error().message());
             co_return;
@@ -391,9 +401,14 @@ namespace mks::base
             co_return;
         }
         _isCapturing = true;
-        _listener    = MKCapture::make();
+        _listener    = MKCapture::make(*this);
         if (_listener == nullptr) {
             spdlog::error("MKCapture make failed, this platform may not support in this feature");
+            co_return;
+        }
+        auto ret = co_await _listener->start();
+        if (ret != 0) {
+            spdlog::error("MKCapture start failed with {}", ret);
             co_return;
         }
         while (_isCapturing) {
@@ -426,6 +441,7 @@ namespace mks::base
     {
         _isCapturing = false;
         if (_listener) {
+            _listener->stop().wait();
             _listener->notify();
         }
         _listener.reset();

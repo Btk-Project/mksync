@@ -6,8 +6,44 @@
 
 namespace mks::base
 {
+
     template <typename T>
     using Task = ::ilias::Task<T>;
+
+    auto WinMKCapture::start() -> Task<int>
+    {
+        static WinMKCapture *self = nullptr;
+        self                      = this;
+        _mosueHook                = SetWindowsHookExW(
+            WH_MOUSE_LL,
+            [](int ncode, WPARAM wp, LPARAM lp) { return self->_mouse_proc(ncode, wp, lp); },
+            nullptr, 0);
+        if (_mosueHook == nullptr) {
+            spdlog::error("SetWindowsHookExW failed: {}", GetLastError());
+            co_return GetLastError();
+        }
+
+        _keyboardHook = SetWindowsHookExW(
+            WH_KEYBOARD_LL,
+            [](int ncode, WPARAM wp, LPARAM lp) { return self->_keyboard_proc(ncode, wp, lp); },
+            nullptr, 0);
+        if (_keyboardHook == nullptr) {
+            spdlog::error("SetWindowsHookExW failed: {}", GetLastError());
+            co_return GetLastError();
+        }
+        _screenWidth  = GetSystemMetrics(SM_CXSCREEN);
+        _screenHeight = GetSystemMetrics(SM_CYSCREEN);
+        co_return 0;
+    }
+
+    auto WinMKCapture::stop() -> Task<int>
+    {
+        notify();
+        UnhookWindowsHookEx(_mosueHook);
+        UnhookWindowsHookEx(_keyboardHook);
+        co_return 0;
+    }
+
     auto WinMKCapture::get_event() -> Task<NekoProto::IProto>
     {
         if (_events.size() == 0) {
@@ -24,36 +60,11 @@ namespace mks::base
         _syncEvent.set();
     }
 
-    WinMKCapture::WinMKCapture() : _events(10)
-    {
-        static WinMKCapture *self = nullptr;
-        self                      = this;
-        _mosueHook                = SetWindowsHookExW(
-            WH_MOUSE_LL,
-            [](int ncode, WPARAM wp, LPARAM lp) { return self->_mouse_proc(ncode, wp, lp); },
-            nullptr, 0);
-        if (_mosueHook == nullptr) {
-            spdlog::error("SetWindowsHookExW failed: {}", GetLastError());
-            return;
-        }
-
-        _keyboardHook = SetWindowsHookExW(
-            WH_KEYBOARD_LL,
-            [](int ncode, WPARAM wp, LPARAM lp) { return self->_keyboard_proc(ncode, wp, lp); },
-            nullptr, 0);
-        if (_keyboardHook == nullptr) {
-            spdlog::error("SetWindowsHookExW failed: {}", GetLastError());
-            return;
-        }
-        _screenWidth  = GetSystemMetrics(SM_CXSCREEN);
-        _screenHeight = GetSystemMetrics(SM_CYSCREEN);
-    }
+    WinMKCapture::WinMKCapture() : _events(10) {}
 
     WinMKCapture::~WinMKCapture()
     {
-        notify();
-        UnhookWindowsHookEx(_mosueHook);
-        UnhookWindowsHookEx(_keyboardHook);
+        stop_capture().wait();
     }
 
     LRESULT WinMKCapture::_mouse_proc(int ncode, WPARAM wp, LPARAM lp)

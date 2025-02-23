@@ -21,16 +21,18 @@
 #include "mksync/base/mk_capture.hpp"
 #include "mksync/base/mk_sender.hpp"
 #include "mksync/base/base_library.h"
+#include "mksync/base/io_context.hpp"
 
 namespace mks::base
 {
     class MKS_BASE_API App {
     public:
-        App();
+        App(::ilias::IoContext *ctx);
         ~App();
 
         static auto app_name() -> const char *;
         static auto app_version() -> const char *;
+        auto        get_io_context() const -> ::ilias::IoContext *;
 
         // main loop
         auto exec(int argc = 0, const char *const *argv = nullptr) -> ilias::Task<void>;
@@ -98,6 +100,7 @@ namespace mks::base
         bool                  _isRuning           = false;
         bool                  _isConsoleListening = false;
         NekoProto::StreamFlag _streamflags        = NekoProto::StreamFlag::None;
+        ::ilias::IoContext   *_ctx                = nullptr;
 
         ilias::TcpListener                              _server;
         CommandParser                                   _commandParser;

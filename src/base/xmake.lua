@@ -5,6 +5,7 @@ target("base")
     set_targetdir("$(libdir)")
 
     add_deps("proto")
+
     add_rules("target.clean", "target.autoname", "library.autodefine")
 
     -- version

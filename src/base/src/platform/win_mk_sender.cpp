@@ -7,8 +7,23 @@ namespace mks::base
 
     WinMKSender::~WinMKSender() {}
 
+    auto WinMKSender::start() -> ::ilias::Task<int>
+    {
+        _isStart = true;
+        co_return 0;
+    }
+
+    auto WinMKSender::stop() -> ::ilias::Task<int>
+    {
+        _isStart = false;
+        co_return 0;
+    }
+
     void WinMKSender::send_motion_event(const mks::MouseMotionEvent &event) const
     {
+        if (!_isStart) {
+            return;
+        }
         INPUT input          = {0};
         input.type           = INPUT_MOUSE;
         input.mi.dx          = (LONG)(event.x * 65535);
@@ -22,6 +37,9 @@ namespace mks::base
 
     void WinMKSender::send_button_event(const mks::MouseButtonEvent &event) const
     {
+        if (!_isStart) {
+            return;
+        }
         std::unique_ptr<INPUT[]> input;
         int                      count = 1;
         if (event.clicks <= 1) {
@@ -69,6 +87,9 @@ namespace mks::base
 
     void WinMKSender::send_wheel_event(const mks::MouseWheelEvent &event) const
     {
+        if (!_isStart) {
+            return;
+        }
         bool                     is_vertical   = std::abs(event.x - 1e-6) > 1e-6;
         bool                     is_horizontal = std::abs(event.y - 1e-6) > 1e-6;
         std::unique_ptr<INPUT[]> input = std::make_unique<INPUT[]>(is_horizontal + is_vertical);
@@ -88,6 +109,9 @@ namespace mks::base
 
     void WinMKSender::send_keyboard_event(const mks::KeyEvent &event) const
     {
+        if (!_isStart) {
+            return;
+        }
         INPUT input          = {0};
         input.type           = INPUT_KEYBOARD;
         input.ki.wVk         = 0;

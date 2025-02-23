@@ -337,14 +337,6 @@ XcbWindow::XcbWindow(XcbConnect *conn)
     _create_window();
 }
 
-XcbWindow::XcbWindow(XcbWindow *parent)
-{
-    _conn   = parent->_conn;
-    _window = _conn->generate_id();
-    parent->_children.insert(this);
-    _create_window();
-}
-
 auto XcbWindow::_create_window() -> void
 {
     auto    *screen   = _conn->get_default_screen();
@@ -375,9 +367,6 @@ XcbWindow::~XcbWindow()
 void XcbWindow::destroy()
 {
     if (_window != XCB_WINDOW_NONE && _destroyAble) {
-        for (const auto &child : _children) {
-            child->destroy();
-        }
         xcb_destroy_window(_conn->connection(), _window);
         _window = 0;
     }
