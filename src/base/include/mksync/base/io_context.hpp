@@ -17,7 +17,7 @@ namespace mks::base
 {
     using IoContext = WinContext;
 }
-#elif defined(_linux_)
+#elif defined(__linux__)
     #include <ilias/platform.hpp>
 namespace mks::base
 {

@@ -4,8 +4,9 @@ if is_host("linux") and not is_plat("corss") then
 target("capture_portal")
     set_kind("binary")
     set_targetdir("$(testdir)")
+    set_default(false)
 
-    add_deps("proto")
+    add_deps("base")
     add_rules("target.clean")
     add_packages("libportal", "out_ptr", "sobjectizer", "spdlog")
 

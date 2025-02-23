@@ -1,4 +1,5 @@
 #include "xcbcapture.hpp"
+
 #include <xcb/xtest.h>
 
 XCB_NAMESPACE_BEGIN
@@ -18,7 +19,7 @@ auto XcbConnect::get_default_root_window() -> XcbWindow
     return XcbWindow(this, get_default_screen()->root, false);
 }
 
-auto XcbConnect::send_key_press(xcb_keycode_t keycode) -> Task<void>
+auto XcbConnect::send_key_press(xcb_keycode_t keycode) -> IoTask<void>
 {
     //--------------------------
     // XTestFakeKeyEvent(_display, keycode, 1, CurrentTime);
@@ -30,7 +31,7 @@ auto XcbConnect::send_key_press(xcb_keycode_t keycode) -> Task<void>
     co_return {};
 }
 
-auto XcbConnect::send_key_release(xcb_keycode_t keycode) -> Task<void>
+auto XcbConnect::send_key_release(xcb_keycode_t keycode) -> IoTask<void>
 {
     //--------------------------
     // XTestFakeKeyEvent(_display, keycode, 0, CurrentTime);
@@ -42,25 +43,25 @@ auto XcbConnect::send_key_release(xcb_keycode_t keycode) -> Task<void>
     co_return {};
 }
 
-auto XcbConnect::send_mouse_move(int16_t rootX, int16_t rootY) -> Task<void>
+auto XcbConnect::send_mouse_move(int16_t rootX, int16_t rootY) -> IoTask<void>
 {
     xcb_test_fake_input(_connection, XCB_MOTION_NOTIFY, 0, XCB_CURRENT_TIME, XCB_NONE, 0, rootX, rootY);
     flush();
-    return {};
+    co_return {};
 }
 
-auto XcbConnect::send_mouse_button_press(xcb_button_t button) -> Task<void>
+auto XcbConnect::send_mouse_button_press(xcb_button_t button) -> IoTask<void>
 {
     xcb_test_fake_input(_connection, XCB_BUTTON_PRESS, button, XCB_CURRENT_TIME, XCB_NONE, 0, 0, 0);
     flush();
-    return {};
+    co_return {};
 }
 
-auto XcbConnect::send_mouse_button_release(xcb_button_t button) -> Task<void>
+auto XcbConnect::send_mouse_button_release(xcb_button_t button) -> IoTask<void>
 {
     xcb_test_fake_input(_connection, XCB_BUTTON_RELEASE, button, XCB_CURRENT_TIME, XCB_NONE, 0, 0, 0);
     flush();
-    return {};
+    co_return {};
 }
 
 auto XcbConnect::_init_io_descriptor() -> void
@@ -77,7 +78,7 @@ auto XcbConnect::_destroy_io_descriptor() -> void
     }
 }
 
-auto XcbConnect::_poll_event() -> Task<void>
+auto XcbConnect::_poll_event() -> IoTask<void>
 {
     auto ret = co_await _context->poll(_fd, PollEvent::In);
     if (ret && ret.value() == PollEvent::In) {
@@ -86,7 +87,7 @@ auto XcbConnect::_poll_event() -> Task<void>
     co_return Unexpected<Error>(ret.error_or(Error::Unknown));
 }
 
-auto XcbConnect::connect(const char *displayname, int *screenp) -> Task<void>
+auto XcbConnect::connect(const char *displayname, int *screenp) -> IoTask<void>
 {
     _connection = xcb_connect(displayname, screenp);
     _display    = XOpenDisplay(displayname);
@@ -114,7 +115,7 @@ auto XcbConnect::disconnect() -> void
     }
 }
 
-auto XcbConnect::event_loop() -> Task<void>
+auto XcbConnect::event_loop() -> IoTask<void>
 {
     if (_connection == nullptr || _fd == nullptr) {
         std::cerr << "connection is null" << std::endl;
@@ -236,7 +237,7 @@ auto XcbConnect::ungrab_keyboard() -> int
     return 0;
 }
 
-auto XcbConnect::event_dispatcher(std::unique_ptr<xcb_generic_event_t> event) -> Task<void>
+auto XcbConnect::event_dispatcher(std::unique_ptr<xcb_generic_event_t> event) -> IoTask<void>
 {
     auto *keysyms = key_symbols();
     switch (event->response_type & ~0x80) {
@@ -460,7 +461,7 @@ void XcbWindow::set_geometry(int posx, int posy, int width, int height)
     }
 }
 
-auto XcbWindow::event_loop(std::unique_ptr<xcb_generic_event_t> event) -> Task<void>
+auto XcbWindow::event_loop(std::unique_ptr<xcb_generic_event_t> event) -> IoTask<void>
 {
     auto *keysyms = _conn->key_symbols();
     switch (event->response_type & ~0x80) {
