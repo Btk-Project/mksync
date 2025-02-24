@@ -54,6 +54,8 @@ namespace mks::base
         if (!_isStart || !_xcbConnect) {
             return;
         }
+        spdlog::info("Mouse motion event: x={}, y={}", event.x * _screenWidth,
+                     event.y * _screenHeight);
         _xcbConnect->send_mouse_move(event.x * _screenWidth, event.y * _screenHeight);
     }
 
@@ -62,6 +64,7 @@ namespace mks::base
         if (!_isStart || !_xcbConnect) {
             return;
         }
+        spdlog::info("Button event: {} {}", (int)event.button, (int)event.state);
         int button = 0;
         switch (event.button) {
         case mks::MouseButton::eButtonLeft:
@@ -124,6 +127,7 @@ namespace mks::base
         if (!_isStart || !_xcbConnect) {
             return;
         }
+        spdlog::info("send keyboard event: {}", (int)event.key);
         auto *keysyms = _xcbConnect->key_symbols();
         int   keysym  = key_code_to_linux_keysym(event.key);
         if (keysym != 0) {
