@@ -53,6 +53,7 @@ namespace mks::base
         void destroy();
 
         auto set_geometry(int posx, int posy, int width, int height) -> void;
+        auto get_geometry(int &posx, int &posy, int &width, int &height) -> void;
         auto set_property(const std::string &name, const std::string &value) -> int;
         auto set_attribute(uint32_t eventMask /* xcb_event_mask_t*/,
                            uint32_t values[] /* value list */) -> int;
@@ -100,18 +101,12 @@ namespace mks::base
         auto grab_keyboard(XcbWindow *window, std::function<void(xcb_generic_event_t *)> callback,
                            bool owner = false) -> int;
         auto ungrab_keyboard() -> int;
-
         xcb_atom_t get_atom(const char *name);
 
-        int               generate_id();
-        xcb_connection_t *connection() { return _connection; }
-        int               flush()
-        {
-            if (_connection != nullptr) {
-                return xcb_flush(_connection);
-            }
-            return -1;
-        }
+        int                generate_id();
+        xcb_connection_t  *connection() { return _connection; }
+        auto               get_keyboard_map() -> std::unordered_map<uint32_t, xcb_keysym_t>;
+        int                flush();
         xcb_key_symbols_t *key_symbols() { return _keySymbols.get(); }
 
     private:

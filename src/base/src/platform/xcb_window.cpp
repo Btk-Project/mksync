@@ -11,6 +11,42 @@ namespace mks::base
         return xcb_generate_id(_connection);
     }
 
+    int XcbConnect::flush()
+    {
+        if (_connection != nullptr) {
+            return xcb_flush(_connection);
+        }
+        return -1;
+    }
+
+    auto XcbConnect::get_keyboard_map() -> std::unordered_map<uint32_t, xcb_keysym_t>
+    {
+        std::unordered_map<uint32_t, xcb_keysym_t> keysymsMap;
+        const xcb_setup_t                         *setup           = xcb_get_setup(_connection);
+        xcb_get_keyboard_mapping_reply_t          *keyboardMapping = xcb_get_keyboard_mapping_reply(
+            _connection,
+            xcb_get_keyboard_mapping(_connection, setup->min_keycode,
+                                              setup->max_keycode - setup->min_keycode + 1),
+            NULL);
+
+        int           nkeycodes = keyboardMapping->length / keyboardMapping->keysyms_per_keycode;
+        int           nkeysyms  = keyboardMapping->length;
+        xcb_keysym_t *keysyms =
+            (xcb_keysym_t *)(keyboardMapping + 1); // `xcb_keycode_t` is just a `typedef u8`, and
+                                                   // `xcb_keysym_t` is just a `typedef u32`
+        printf("nkeycodes %u  nkeysyms %u  keysyms_per_keycode %u\n\n", nkeycodes, nkeysyms,
+               keyboardMapping->keysyms_per_keycode);
+
+        for (int keycodeIdx = 0; keycodeIdx < nkeycodes; ++keycodeIdx) {
+            keysymsMap[setup->min_keycode + keycodeIdx] =
+                keysyms[0 + (keycodeIdx * keyboardMapping->keysyms_per_keycode)];
+            putchar('\n');
+        }
+
+        free(keyboardMapping);
+        return keysymsMap;
+    }
+
     auto XcbConnect::get_default_screen() -> xcb_screen_t *
     {
         return xcb_setup_roots_iterator(xcb_get_setup(_connection)).data;
@@ -39,8 +75,8 @@ namespace mks::base
 
     auto XcbConnect::send_mouse_move(int16_t rootX, int16_t rootY) -> IoTask<void>
     {
-        xcb_test_fake_input(_connection, XCB_MOTION_NOTIFY, 0, XCB_CURRENT_TIME, XCB_NONE, 0, rootX,
-                            rootY);
+        xcb_test_fake_input(_connection, XCB_MOTION_NOTIFY, 0, XCB_CURRENT_TIME, XCB_NONE, rootX,
+                            rootY, 0);
         flush();
         co_return {};
     }
@@ -122,11 +158,13 @@ namespace mks::base
         while (true) {
             auto result = co_await _poll_event();
             if (!result) {
+                spdlog::error("poll_event failed, {}", result.error().message());
                 break;
             }
             while (true) {
                 event.reset(xcb_poll_for_event(_connection));
                 if (event == nullptr) {
+                    spdlog::error("xcb_poll_for_event failed");
                     break;
                 }
                 if (event->response_type == 0) {
@@ -329,6 +367,22 @@ namespace mks::base
                                  XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y |
                                      XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT,
                                  data);
+        }
+        else {
+            spdlog::error("Window not created\n");
+        }
+    }
+
+    void XcbWindow::get_geometry(int &posx, int &posy, int &width, int &height)
+    {
+        if (_window != XCB_WINDOW_NONE) {
+            xcb_get_geometry_reply_t *reply = xcb_get_geometry_reply(
+                _conn->connection(), xcb_get_geometry(_conn->connection(), _window), nullptr);
+            posx   = reply->x;
+            posy   = reply->y;
+            width  = reply->width;
+            height = reply->height;
+            free(reply);
         }
         else {
             spdlog::error("Window not created\n");

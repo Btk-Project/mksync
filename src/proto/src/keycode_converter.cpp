@@ -1,13 +1,24 @@
-#include "mksync/proto/keycode_converter.hpp"
 #include "mksync/proto/proto.hpp"
 
 #include <spdlog/spdlog.h>
+#ifdef _WIN32
+    #include <windows.h>
+#else
+    #include <xcb/xcb.h>
+    #include <xcb/xcb_keysyms.h>
+    #include <X11/keysym.h>
+    #include <unordered_map>
+#endif
 
 namespace mks
 {
 #ifdef _WIN32
-    KeyCode windows_scan_code_to_key_code(uint32_t scancode, uint32_t vkcode, uint16_t *rawcode,
-                                          bool *virtualKey)
+    #define SCANCODE_MAP(WinVk, KeyCode, linuxCode) KeyCode
+    const static KeyCode g_keycodeTable[] =
+    #include "mksync/proto/win_keycode_table.inc"
+    #undef SCANCODE_MAP
+        KeyCode windows_scan_code_to_key_code(uint32_t scancode, uint32_t vkcode, uint16_t *rawcode,
+                                              bool *virtualKey)
     {
         KeyCode  code;
         uint8_t  index;
@@ -69,6 +80,34 @@ namespace mks
             }
         }
         return scanCode;
+    }
+#elif defined(__linux__)
+    #define SCANCODE_MAP(WinVk, KeyCode, linuxCode) {linuxCode, KeyCode}
+    const static std::unordered_map<uint32_t, KeyCode>     g_keycodeTable =
+    #include "mksync/proto/win_keycode_table.inc"
+    #undef SCANCODE_MAP
+    #define SCANCODE_MAP(WinVk, KeyCode, linuxCode) {KeyCode, linuxCode}
+        const static std::unordered_map<KeyCode, uint32_t> g_keycodeTableReverse =
+    #include "mksync/proto/win_keycode_table.inc"
+    #undef SCANCODE_MAP
+            /**
+             * @brief Convert linux keycode or keysym to keycode
+             *
+             * @param keysyms nullptr or xcb_key_symbols_t* from xcb, nullptr means use keycode
+             * @param keysym  keysym from xcb, 0 means use keycode
+             * @param keycode  keycode from xcb, 0 means use keysym
+             * @return KeyCode
+             */
+        KeyCode linux_keysym_to_key_code(uint32_t keysym)
+    {
+        auto item = g_keycodeTable.find(keysym);
+        return (item != g_keycodeTable.end()) ? item->second : KeyCode::eUnknown;
+    }
+
+    uint32_t key_code_to_linux_keysym(KeyCode keyCode)
+    {
+        auto item = g_keycodeTableReverse.find(keyCode);
+        return (item != g_keycodeTableReverse.end()) ? item->second : XK_VoidSymbol;
     }
 
 #endif
