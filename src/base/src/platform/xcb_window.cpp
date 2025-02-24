@@ -57,44 +57,39 @@ namespace mks::base
         return XcbWindow(this, get_default_screen()->root, false);
     }
 
-    auto XcbConnect::send_key_press(xcb_keycode_t keycode) -> IoTask<void>
+    auto XcbConnect::send_key_press(xcb_keycode_t keycode) -> void
     {
         xcb_test_fake_input(_connection, XCB_KEY_PRESS, keycode, XCB_CURRENT_TIME, XCB_NONE, 0, 0,
                             0);
         flush();
-        co_return {};
     }
 
-    auto XcbConnect::send_key_release(xcb_keycode_t keycode) -> IoTask<void>
+    auto XcbConnect::send_key_release(xcb_keycode_t keycode) -> void
     {
         xcb_test_fake_input(_connection, XCB_KEY_RELEASE, keycode, XCB_CURRENT_TIME, XCB_NONE, 0, 0,
                             0);
         flush();
-        co_return {};
     }
 
-    auto XcbConnect::send_mouse_move(int16_t rootX, int16_t rootY) -> IoTask<void>
+    auto XcbConnect::send_mouse_move(int16_t rootX, int16_t rootY) -> void
     {
         xcb_test_fake_input(_connection, XCB_MOTION_NOTIFY, 0, XCB_CURRENT_TIME, XCB_NONE, rootX,
                             rootY, 0);
         flush();
-        co_return {};
     }
 
-    auto XcbConnect::send_mouse_button_press(xcb_button_t button) -> IoTask<void>
+    auto XcbConnect::send_mouse_button_press(xcb_button_t button) -> void
     {
         xcb_test_fake_input(_connection, XCB_BUTTON_PRESS, button, XCB_CURRENT_TIME, XCB_NONE, 0, 0,
                             0);
         flush();
-        co_return {};
     }
 
-    auto XcbConnect::send_mouse_button_release(xcb_button_t button) -> IoTask<void>
+    auto XcbConnect::send_mouse_button_release(xcb_button_t button) -> void
     {
         xcb_test_fake_input(_connection, XCB_BUTTON_RELEASE, button, XCB_CURRENT_TIME, XCB_NONE, 0,
                             0, 0);
         flush();
-        co_return {};
     }
 
     auto XcbConnect::_init_io_descriptor() -> void
@@ -164,7 +159,6 @@ namespace mks::base
             while (true) {
                 event.reset(xcb_poll_for_event(_connection));
                 if (event == nullptr) {
-                    spdlog::error("xcb_poll_for_event failed");
                     break;
                 }
                 if (event->response_type == 0) {

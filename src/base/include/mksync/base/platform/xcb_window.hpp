@@ -90,11 +90,11 @@ namespace mks::base
         auto get_default_root_window() -> XcbWindow;
 
         auto event_loop() -> IoTask<void>;
-        auto send_key_press(xcb_keycode_t keycode) -> IoTask<void>;
-        auto send_key_release(xcb_keycode_t keycode) -> IoTask<void>;
-        auto send_mouse_move(int16_t rootX, int16_t rootY) -> IoTask<void>;
-        auto send_mouse_button_press(xcb_button_t button) -> IoTask<void>;
-        auto send_mouse_button_release(xcb_button_t button) -> IoTask<void>;
+        auto send_key_press(xcb_keycode_t keycode) -> void;
+        auto send_key_release(xcb_keycode_t keycode) -> void;
+        auto send_mouse_move(int16_t rootX, int16_t rootY) -> void;
+        auto send_mouse_button_press(xcb_button_t button) -> void;
+        auto send_mouse_button_release(xcb_button_t button) -> void;
         auto grab_pointer(XcbWindow *window, std::function<void(xcb_generic_event_t *)> callback,
                           bool owner = false) -> int;
         auto ungrab_pointer() -> int;
