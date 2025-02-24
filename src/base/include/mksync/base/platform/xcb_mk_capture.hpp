@@ -43,6 +43,8 @@ namespace mks::base
         std::unique_ptr<XcbConnect>                _xcbConnect;
         ::ilias::Event                             _syncEvent;
         ::ilias::WaitHandle<::ilias::Result<void>> _grabEventHandle;
+        int                                        _screenWidth  = 0;
+        int                                        _screenHeight = 0;
     };
 } // namespace mks::base
 #endif

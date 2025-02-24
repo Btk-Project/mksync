@@ -42,6 +42,8 @@ namespace mks::base
         App                                       *_app     = nullptr;
         std::unique_ptr<XcbConnect>                _xcbConnect;
         ::ilias::WaitHandle<::ilias::Result<void>> _eventLoopHandle;
+        int                                        _screenWidth  = 0;
+        int                                        _screenHeight = 0;
     };
 } // namespace mks::base
 #endif
