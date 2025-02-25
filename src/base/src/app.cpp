@@ -130,9 +130,8 @@ namespace mks::base
             spdlog::error("MKSender make failed, this platform may not support in this feature");
             co_return;
         }
-        auto ret3 = co_await _eventSender->start();
-        if (ret3 != 0) {
-            spdlog::error("MKSender start failed with {}", ret3);
+        if (auto res = co_await _eventSender->start(); res != 0) {
+            spdlog::error("MKSender start failed with {}", res);
             co_return;
         }
         auto ret = co_await TcpClient::make(endpoint.family());
@@ -142,22 +141,21 @@ namespace mks::base
         }
         auto tcpClient = std::move(ret.value());
         _isClienting   = true;
-        auto ret1      = co_await tcpClient.connect(endpoint);
-        if (!ret1) {
-            spdlog::error("TcpClient::connect failed {}", ret1.error().message());
+        if (auto res = co_await tcpClient.connect(endpoint); !res) {
+            spdlog::error("TcpClient::connect failed {}", res.error().message());
             co_return;
         }
         _protoStreamClient = // 构造用于传输协议的壳
             std::make_unique<NekoProto::ProtoStreamClient<>>(_protofactory, std::move(tcpClient));
         _isClienting = true;
         while (_isClienting) {
-            auto ret2 = co_await _protoStreamClient->recv(_streamflags);
-            if (!ret2) {
-                spdlog::error("ProtoStreamClient::recv failed {}", ret2.error().message());
+            auto res = co_await _protoStreamClient->recv(_streamflags);
+            if (!res) {
+                spdlog::error("ProtoStreamClient::recv failed {}", res.error().message());
                 disconnect();
                 co_return;
             }
-            auto msg = std::move(ret2.value());
+            auto msg = std::move(res.value());
             if (_eventSender) {
                 if (msg.type() == NekoProto::ProtoFactory::protoType<mks::KeyEvent>()) {
                     _eventSender->send_keyboard_event(*msg.cast<mks::KeyEvent>());
@@ -185,17 +183,17 @@ namespace mks::base
                          [[maybe_unused]] const CommandParser::OptionsType &options) -> std::string
     {
         if (args.size() == 2) {
-            ilias_go connect_to(IPEndpoint(args[0] + ":" + args[1]));
+            ::ilias::spawn(*_ctx, connect_to(IPEndpoint(args[0] + ":" + args[1])));
         }
         else if (args.size() == 1) {
-            ilias_go connect_to(IPEndpoint(args[0]));
+            ::ilias::spawn(*_ctx, connect_to(IPEndpoint(args[0])));
         }
         else {
-            auto it       = options.find("address");
-            auto address  = it == options.end() ? "127.0.0.1" : it->second;
-            it            = options.find("port");
-            auto     port = it == options.end() ? "12345" : it->second;
-            ilias_go connect_to(IPEndpoint(address + ":" + port));
+            auto it      = options.find("address");
+            auto address = it == options.end() ? "127.0.0.1" : it->second;
+            it           = options.find("port");
+            auto port    = it == options.end() ? "12345" : it->second;
+            ::ilias::spawn(*_ctx, connect_to(IPEndpoint(address + ":" + port)));
         }
         return "";
     }
@@ -222,8 +220,7 @@ namespace mks::base
     {
         IPEndpoint ipendpoint("127.0.0.1:12345");
         if (args.size() == 2) {
-            auto ret = IPEndpoint::fromString(args[0] + ":" + args[1]);
-            if (ret) {
+            if (auto ret = IPEndpoint::fromString(args[0] + ":" + args[1]); ret) {
                 ipendpoint = ret.value();
             }
             else {
@@ -231,8 +228,7 @@ namespace mks::base
             }
         }
         else if (args.size() == 1) {
-            auto ret = IPEndpoint::fromString(args[0]);
-            if (ret) {
+            if (auto ret = IPEndpoint::fromString(args[0]); ret) {
                 ipendpoint = ret.value();
             }
             else {
@@ -252,7 +248,7 @@ namespace mks::base
                 spdlog::error("ip endpoint error {}", ret.error().message());
             }
         }
-        ilias_go start_server(ipendpoint);
+        ::ilias::spawn(*_ctx, start_server(ipendpoint));
         return "";
     }
 
@@ -273,9 +269,8 @@ namespace mks::base
         }
         spdlog::info("start server with {}", endpoint.toString());
         _server   = std::move(ret.value());
-        auto ret2 = _server.bind(endpoint);
-        if (!ret2) {
-            spdlog::error("TcpListener::bind failed {}", ret2.error().message());
+        if (auto res = _server.bind(endpoint); !res) {
+            spdlog::error("TcpListener::bind failed {}", res.error().message());
         }
         _isServering = true;
         while (_isServering) {
@@ -285,8 +280,8 @@ namespace mks::base
                 stop_server();
                 co_return;
             }
-            auto     tcpClient = std::move(ret1.value());
-            ilias_go _accept_client(std::move(tcpClient.first));
+            auto tcpClient = std::move(ret1.value());
+            ::ilias::spawn(*_ctx, _accept_client(std::move(tcpClient.first)));
         }
     }
 
@@ -309,19 +304,18 @@ namespace mks::base
             spdlog::error("console is already listening");
             co_return;
         }
-        auto ret = co_await ilias::Console::fromStdin();
-        if (!ret) {
-            spdlog::error("Console::fromStdin failed {}", ret.error().message());
+        auto console = co_await ilias::Console::fromStdin();
+        if (!console) {
+            spdlog::error("Console::fromStdin failed {}", console.error().message());
             co_return;
         }
-        ilias::Console console                 = std::move(ret.value());
         _isConsoleListening                    = true;
         std::unique_ptr<std::byte[]> strBuffer = std::make_unique<std::byte[]>(1024);
         while (_isConsoleListening) {
             memset(strBuffer.get(), 0, 1024);
             printf("%s >>> ", App::app_name());
             fflush(stdout);
-            auto ret1 = co_await console.read({strBuffer.get(), 1024});
+            auto ret1 = co_await console->read({strBuffer.get(), 1024});
             if (!ret1) {
                 spdlog::error("Console::read failed {}", ret1.error().message());
                 stop_console();
@@ -332,9 +326,8 @@ namespace mks::base
             while (lineView.size() > 0 && (lineView.back() == '\r' || lineView.back() == '\n')) {
                 lineView.remove_suffix(1);
             }
-            auto ret2 = _commandParser.parser(lineView);
-            if (!ret2.empty()) {
-                spdlog::warn("exec {} warn: {}", lineView, ret2.c_str());
+            if (auto res = _commandParser.parser(lineView); !res.empty()) {
+                spdlog::warn("exec {} warn: {}", lineView, res.c_str());
             }
         }
     }
@@ -419,9 +412,8 @@ namespace mks::base
                 co_return;
             }
             if (_protoStreamClient) {
-                auto ret2 = co_await _protoStreamClient->send(proto, _streamflags);
-                if (!ret2) {
-                    spdlog::error("send proto failed {}", ret2.error().message());
+                if (auto res = co_await _protoStreamClient->send(proto, _streamflags); !res) {
+                    spdlog::error("send proto failed {}", res.error().message());
                     stop_capture();
                     co_return;
                 }
@@ -433,7 +425,7 @@ namespace mks::base
                             [[maybe_unused]] const CommandParser::OptionsType &options)
         -> std::string
     {
-        ilias_go start_capture();
+        ::ilias::spawn(*_ctx, start_capture());
         return "";
     }
 

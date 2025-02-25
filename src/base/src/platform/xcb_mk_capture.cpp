@@ -170,7 +170,7 @@ namespace mks::base
     }
 
     ///> 获取一个事件，如果没有就等待
-    auto XcbMKCapture::get_event() -> ILIAS_NAMESPACE::Task<NekoProto::IProto>
+    auto XcbMKCapture::get_event() -> ilias::Task<NekoProto::IProto>
     {
         if (_events.size() == 0) {
             _syncEvent.clear();

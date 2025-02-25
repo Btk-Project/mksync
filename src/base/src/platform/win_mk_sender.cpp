@@ -1,4 +1,5 @@
 #include "mksync/base/platform/win_mk_sender.hpp"
+#include <windows.h>
 
 #ifdef _WIN32
 namespace mks::base
