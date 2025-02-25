@@ -1,6 +1,8 @@
 #include "mksync/base/app.hpp"
 
+#include <spdlog/sinks/callback_sink.h>
 #include <spdlog/spdlog.h>
+#include <csignal>
 
 namespace mks::base
 {
@@ -69,6 +71,26 @@ namespace mks::base
             std::bind(static_cast<CallbackType>(&App::set_communication_options), this,
                       std::placeholders::_1, std::placeholders::_2)
         });
+        auto statusInstaller = command_installer("Status");
+        statusInstaller({
+            {"status", "st"},
+            "show the status of the program",
+            std::bind(static_cast<CallbackType>(&App::show_status), this, std::placeholders::_1,
+                      std::placeholders::_2)
+        });
+
+#if defined(SIGPIPE)
+        ::signal(SIGPIPE, SIG_IGN); // 忽略SIGPIPE信号 防止多跑一秒就会爆炸
+#endif // defined(SIGPIPE)
+        auto sink = std::make_shared<spdlog::sinks::callback_sink_st>([this](const auto &msg) {
+            if (_statusList.size() == _statusListMaxSize) {
+                _statusList.pop_front();
+            }
+            auto &payload = msg.payload;
+            _statusList.emplace_back(std::string(payload.data(), payload.size()));
+        });
+        spdlog::default_logger()->sinks().push_back(sink);
+
     }
 
     App::~App() {}
@@ -97,6 +119,16 @@ namespace mks::base
             &_commandParser, std::placeholders::_1, module);
     }
 
+    auto App::show_status([[maybe_unused]] const CommandParser::ArgsType    &args,
+                          [[maybe_unused]] const CommandParser::OptionsType &options) -> std::string
+    {
+        ::fprintf(stdout, "status: %d items\n", int(_statusList.size()));
+        for (const auto &msg : _statusList) {
+            ::fprintf(stdout, "%s\n", msg.c_str());
+        }
+        ::fflush(stdout);
+        return "";
+    }
     auto App::set_communication_options(const CommandParser::ArgsType                     &args,
                                         [[maybe_unused]] const CommandParser::OptionsType &options)
         -> std::string

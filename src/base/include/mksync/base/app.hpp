@@ -88,6 +88,10 @@ namespace mks::base
         auto command_installer(std::string_view module)
             -> std::function<bool(CommandParser::CommandsData &&)>;
 
+        // status
+        auto show_status(const CommandParser::ArgsType    &args,
+                         const CommandParser::OptionsType &options) -> std::string;
+
     private:
         // for server
         auto _accept_client(ilias::TcpClient client) -> ilias::Task<void>;
@@ -108,6 +112,8 @@ namespace mks::base
         std::unique_ptr<MKSender>                       _eventSender;
         std::unique_ptr<NekoProto::ProtoStreamClient<>> _protoStreamClient;
         NekoProto::ProtoFactory                         _protofactory;
+        std::deque<std::string>                         _statusList; // For internal log storage
+        size_t                                          _statusListMaxSize = 100;
     };
 
     template <typename T>
