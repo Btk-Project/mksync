@@ -13,6 +13,7 @@
 
 #include <string>
 #include <any>
+#include <set>
 #include <ilias/ilias.hpp>
 #include <ilias/net/tcp.hpp>
 #include <ilias/fs/console.hpp>
@@ -21,10 +22,21 @@
 #include "mksync/base/mk_capture.hpp"
 #include "mksync/base/mk_sender.hpp"
 #include "mksync/base/base_library.h"
+#include "mksync/base/nodebase.hpp"
 
 namespace mks::base
 {
     class MKS_BASE_API App {
+        enum NodeStatus
+        {
+            eNodeStatusRunning = 1,
+            eNodeStatusStopped = 2,
+        };
+        struct NodeData {
+            std::unique_ptr<NodeBase, void (*)(NodeBase *)> node;
+            NodeStatus                                      status;
+        };
+
     public:
         App(::ilias::IoContext *ctx);
         ~App();
@@ -35,6 +47,10 @@ namespace mks::base
 
         // main loop
         auto exec(int argc = 0, const char *const *argv = nullptr) -> ilias::Task<void>;
+        auto distribution(NekoProto::IProto &&proto) -> void;
+        auto install_node(std::unique_ptr<NodeBase, void (*)(NodeBase *)> &&node) -> void;
+        auto start_node(std::string_view name) -> ilias::Task<int>;
+        auto stop_node(std::string_view name) -> ilias::Task<int>;
         auto stop() -> void;
         auto stop(const CommandParser::ArgsType &args, const CommandParser::OptionsType &options)
             -> std::string;
@@ -43,44 +59,6 @@ namespace mks::base
         auto set_option(std::string_view option, const T &value);
         template <typename T>
         auto get_option(std::string_view option) -> ilias::Result<T>;
-
-        // server
-        /**
-         * @brief start server
-         * 如果需要ilias_go参数列表必须复制。
-         * @param endpoint
-         * @return Task<void>
-         */
-        auto start_server(ilias::IPEndpoint endpoint) -> ilias::Task<void>;
-        auto stop_server() -> void;
-        auto start_capture() -> ilias::Task<void>;
-        auto stop_capture() -> void;
-        auto start_server(const CommandParser::ArgsType    &args,
-                          const CommandParser::OptionsType &options) -> std::string;
-        auto stop_server(const CommandParser::ArgsType    &args,
-                         const CommandParser::OptionsType &options) -> std::string;
-        auto start_capture(const CommandParser::ArgsType    &args,
-                           const CommandParser::OptionsType &options) -> std::string;
-        auto stop_capture(const CommandParser::ArgsType    &args,
-                          const CommandParser::OptionsType &options) -> std::string;
-
-        // client
-        /**
-         * @brief connect to server
-         * 如果需要ilias_go参数列表必须复制。
-         * @param endpoint
-         * @return Task<void>
-         */
-        auto connect_to(ilias::IPEndpoint endpoint) -> ilias::Task<void>;
-        auto disconnect() -> void;
-        auto connect_to(const CommandParser::ArgsType    &args,
-                        const CommandParser::OptionsType &options) -> std::string;
-        auto disconnect(const CommandParser::ArgsType    &args,
-                        const CommandParser::OptionsType &options) -> std::string;
-
-        // communication
-        auto set_communication_options(const CommandParser::ArgsType    &args,
-                                       const CommandParser::OptionsType &options) -> std::string;
 
         // commands
         auto start_console() -> ilias::Task<void>;
@@ -97,23 +75,17 @@ namespace mks::base
         auto _accept_client(ilias::TcpClient client) -> ilias::Task<void>;
 
     private:
-        bool                  _isClienting        = false;
-        bool                  _isServering        = false;
-        bool                  _isCapturing        = false;
-        bool                  _isRuning           = false;
-        bool                  _isConsoleListening = false;
-        NekoProto::StreamFlag _streamflags        = NekoProto::StreamFlag::None;
-        ::ilias::IoContext   *_ctx                = nullptr;
+        bool                _isRuning           = false;
+        bool                _isConsoleListening = false;
+        ::ilias::IoContext *_ctx                = nullptr;
 
-        ilias::TcpListener                              _server;
-        CommandParser                                   _commandParser;
-        std::unordered_map<std::string, std::any>       _optionsMap;
-        std::unique_ptr<MKCapture>                      _listener;
-        std::unique_ptr<MKSender>                       _eventSender;
-        std::unique_ptr<NekoProto::ProtoStreamClient<>> _protoStreamClient;
-        NekoProto::ProtoFactory                         _protofactory;
-        std::deque<std::string>                         _statusList; // For internal log storage
-        size_t                                          _statusListMaxSize = 100;
+        CommandParser                                                 _commandParser;
+        std::unordered_map<std::string, std::any>                     _optionsMap;
+        std::unordered_map<std::string_view, NodeData>                _nodeMap;
+        std::unordered_map<int, std::set<Consumer *>>                 _consumerMap;
+        std::unordered_map<std::string_view, ilias::WaitHandle<void>> _cancelHandleMap;
+        std::deque<std::string> _statusList; // For internal log storage
+        size_t                  _statusListMaxSize = 100;
     };
 
     template <typename T>

@@ -14,6 +14,8 @@
 
 #include "mksync/proto/proto.hpp"
 #include "mksync/base/base_library.h"
+#include "mksync/base/nodebase.hpp"
+#include "mksync/base/command_parser.hpp"
 
 namespace mks::base
 {
@@ -23,17 +25,24 @@ namespace mks::base
      * 系统事件构造对象，用于将接收的事件构造并发送给系统。
      *
      */
-    class MKS_BASE_API MKSender {
+    class MKS_BASE_API MKSender : public NodeBase, public Consumer {
     public:
-        MKSender()          = default;
+        MKSender(::ilias::IoContext *ctx) : _ctx(ctx) {}
         virtual ~MKSender() = default;
+        auto start() -> ::ilias::Task<int> override;
+        auto stop() -> ::ilias::Task<int> override;
 
-        virtual auto start() -> ::ilias::Task<int>                               = 0;
-        virtual auto stop() -> ::ilias::Task<int>                                = 0;
-        virtual void send_motion_event(const mks::MouseMotionEvent &event) const = 0;
-        virtual void send_button_event(const mks::MouseButtonEvent &event) const = 0;
-        virtual void send_wheel_event(const mks::MouseWheelEvent &event) const   = 0;
-        virtual void send_keyboard_event(const mks::KeyEvent &event) const       = 0;
-        static auto  make(App &app) -> std::unique_ptr<MKSender>;
+        virtual auto start_sender() -> ::ilias::Task<int> = 0;
+        virtual auto stop_sender() -> ::ilias::Task<int>  = 0;
+        auto         start_sender(const CommandParser::ArgsType    &args,
+                                  const CommandParser::OptionsType &options) -> std::string;
+        auto         stop_sender(const CommandParser::ArgsType    &args,
+                                 const CommandParser::OptionsType &options) -> std::string;
+
+        static auto make(App &app) -> std::unique_ptr<MKSender, void (*)(NodeBase *)>;
+
+    private:
+        bool                _isEnable = false;
+        ::ilias::IoContext *_ctx      = nullptr;
     };
 } // namespace mks::base

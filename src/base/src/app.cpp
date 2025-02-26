@@ -4,6 +4,8 @@
 #include <spdlog/spdlog.h>
 #include <csignal>
 
+#include "mksync/base/communication.hpp"
+
 namespace mks::base
 {
     template <typename T>
@@ -19,28 +21,7 @@ namespace mks::base
         using CallbackType   = std::string (App::*)(const CommandParser::ArgsType &,
                                                   const CommandParser::OptionsType &);
         auto serverInstaller = command_installer("Server");
-        // 注册启动服务命令
-        serverInstaller({
-            {"start", "s"},
-            "start server, e.g. start 127.0.0.1 12345",
-            std::bind(static_cast<CallbackType>(&App::start_server), this, std::placeholders::_1,
-                      std::placeholders::_2)
-        });
-        serverInstaller({{"stopserver"},
-                         "stop the server",
-                         std::bind(static_cast<CallbackType>(&App::stop_server), this,
-                                   std::placeholders::_1, std::placeholders::_2)});
-        // 注册开始捕获键鼠事件命令
-        serverInstaller({
-            {"capture", "c"},
-            "start keyboard/mouse capture",
-            std::bind(static_cast<CallbackType>(&App::start_capture), this, std::placeholders::_1,
-                      std::placeholders::_2)
-        });
-        serverInstaller({{"stopcapture"},
-                         "stop keyboard/mouse capture",
-                         std::bind(static_cast<CallbackType>(&App::stop_capture), this,
-                                   std::placeholders::_1, std::placeholders::_2)});
+
         // 注册退出程序命令
         _commandParser.install_cmd(
             {
@@ -52,25 +33,6 @@ namespace mks::base
                           this, std::placeholders::_1, std::placeholders::_2)
         },
             "Core");
-        auto clientInstaller = command_installer("Client");
-        // 注册连接到服务器命令
-        clientInstaller({{"connect"},
-                         "connect to server, e.g. connect 127.0.0.1 12345",
-                         std::bind(static_cast<CallbackType>(&App::connect_to), this,
-                                   std::placeholders::_1, std::placeholders::_2)});
-        clientInstaller({
-            {"disconnect", "dcon"},
-            "disconnect from server",
-            std::bind(static_cast<CallbackType>(&App::disconnect), this, std::placeholders::_1,
-                      std::placeholders::_2)
-        });
-        auto communicationInstaller = command_installer("Communication");
-        communicationInstaller({
-            {"thread", "t"},
-            "<enable/disable> to enable independent thread for serialization",
-            std::bind(static_cast<CallbackType>(&App::set_communication_options), this,
-                      std::placeholders::_1, std::placeholders::_2)
-        });
         auto statusInstaller = command_installer("Status");
         statusInstaller({
             {"status", "st"},
@@ -78,10 +40,13 @@ namespace mks::base
             std::bind(static_cast<CallbackType>(&App::show_status), this, std::placeholders::_1,
                       std::placeholders::_2)
         });
+        install_node(MKCommunication::make(*this));
+        install_node(MKCapture::make(*this));
+        install_node(MKSender::make(*this));
 
 #if defined(SIGPIPE)
         ::signal(SIGPIPE, SIG_IGN); // 忽略SIGPIPE信号 防止多跑一秒就会爆炸
-#endif // defined(SIGPIPE)
+#endif                              // defined(SIGPIPE)
         auto sink = std::make_shared<spdlog::sinks::callback_sink_st>([this](const auto &msg) {
             if (_statusList.size() == _statusListMaxSize) {
                 _statusList.pop_front();
@@ -90,10 +55,100 @@ namespace mks::base
             _statusList.emplace_back(std::string(payload.data(), payload.size()));
         });
         spdlog::default_logger()->sinks().push_back(sink);
-
     }
 
     App::~App() {}
+
+    auto App::install_node(std::unique_ptr<NodeBase, void (*)(NodeBase *)> &&node) -> void
+    {
+        if (node == nullptr) {
+            return;
+        }
+        const auto *name = node->name();
+        spdlog::info("install node: {}<{}>", name, (void *)node.get());
+        _nodeMap.emplace(
+            std::make_pair(name, NodeData{std::move(node), NodeStatus::eNodeStatusStopped}));
+        start_node(name).wait();
+    }
+
+    auto App::start_node(std::string_view name) -> ilias::Task<int>
+    {
+        auto item = _nodeMap.find(name);
+        if (item == _nodeMap.end()) {
+            spdlog::error("node {} not found", name);
+            co_return -1;
+        }
+        auto &node = item->second;
+        spdlog::info("start node: {}<{}>", name, (void *)node.node.get());
+        if (node.status == NodeStatus::eNodeStatusStopped) {
+            auto ret = co_await node.node->start();
+            if (ret != 0) {
+                co_return ret;
+            }
+            node.status    = NodeStatus::eNodeStatusRunning;
+            auto *consumer = dynamic_cast<Consumer *>(node.node.get());
+            if (consumer != nullptr) {
+                for (int type : consumer->get_subscribers()) {
+                    _consumerMap[type].insert(consumer);
+                }
+            }
+            auto *producer = dynamic_cast<Producer *>(node.node.get());
+            if (producer != nullptr) {
+                _cancelHandleMap[name] = ::ilias::spawn(*_ctx, [this, producer]() -> Task<void> {
+                    while (true) {
+                        if (auto ret = co_await producer->get_event(); ret) {
+                            distribution(std::move(ret.value()));
+                        }
+                        else {
+                            break;
+                        }
+                    }
+                }());
+            }
+            co_return 0;
+        }
+        co_return -2;
+    }
+
+    auto App::stop_node(std::string_view name) -> ilias::Task<int>
+    {
+        auto item = _nodeMap.find(name);
+        if (item != _nodeMap.end()) {
+            auto &node = item->second;
+            if (node.status == NodeStatus::eNodeStatusRunning) {
+                node.status    = NodeStatus::eNodeStatusStopped;
+                auto *consumer = dynamic_cast<Consumer *>(node.node.get());
+                if (consumer != nullptr) {
+                    for (int type : consumer->get_subscribers()) {
+                        _consumerMap[type].erase(consumer);
+                    }
+                }
+                auto *producer = dynamic_cast<Producer *>(node.node.get());
+                if (producer != nullptr) {
+                    auto handle = _cancelHandleMap.find(name);
+                    if (handle != _cancelHandleMap.end() && handle->second) {
+                        handle->second.cancel();
+                    }
+                    _cancelHandleMap.erase(handle);
+                }
+                co_return co_await node.node->stop();
+            }
+            co_return -2;
+        }
+        spdlog::error("node {} not found", name);
+        co_return -1;
+    }
+
+    auto App::distribution(NekoProto::IProto &&proto) -> void
+    {
+        int type = proto.type();
+        for (auto *consumer : _consumerMap[type]) {
+            if (proto == nullptr) {
+                break;
+            }
+            consumer->handle_event(proto);
+        }
+    }
 
     auto App::app_name() -> const char *
     {
@@ -128,206 +183,6 @@ namespace mks::base
         }
         ::fflush(stdout);
         return "";
-    }
-    auto App::set_communication_options(const CommandParser::ArgsType                     &args,
-                                        [[maybe_unused]] const CommandParser::OptionsType &options)
-        -> std::string
-    {
-        if (args.empty()) {
-            return "please usage: thread <enabled/disabled>";
-        }
-        if (args[0] == "enabled") {
-            set_option("communication-enable-thread", true);
-            _streamflags = _streamflags | NekoProto::StreamFlag::SerializerInThread;
-        }
-        else {
-            set_option("communication-enable-thread", false);
-            _streamflags = (NekoProto::StreamFlag)(
-                (uint32_t)_streamflags & (~(uint32_t)NekoProto::StreamFlag::SerializerInThread));
-        }
-        return "";
-    }
-
-    auto App::connect_to(IPEndpoint endpoint) -> Task<void>
-    {
-        if (_isServering) { // 确保没有启动服务模式
-            spdlog::error("please quit server mode first");
-            co_return;
-        }
-        if (_eventSender) { // 确保当前没有正在作为客户端运行
-            co_return;
-        }
-        _eventSender = MKSender::make(*this);
-        if (!_eventSender) {
-            spdlog::error("MKSender make failed, this platform may not support in this feature");
-            co_return;
-        }
-        if (auto res = co_await _eventSender->start(); res != 0) {
-            spdlog::error("MKSender start failed with {}", res);
-            co_return;
-        }
-        auto ret = co_await TcpClient::make(endpoint.family());
-        if (!ret) {
-            spdlog::error("TcpClient::make failed {}", ret.error().message());
-            co_return;
-        }
-        auto tcpClient = std::move(ret.value());
-        _isClienting   = true;
-        if (auto res = co_await tcpClient.connect(endpoint); !res) {
-            spdlog::error("TcpClient::connect failed {}", res.error().message());
-            co_return;
-        }
-        _protoStreamClient = // 构造用于传输协议的壳
-            std::make_unique<NekoProto::ProtoStreamClient<>>(_protofactory, std::move(tcpClient));
-        _isClienting = true;
-        while (_isClienting) {
-            auto res = co_await _protoStreamClient->recv(_streamflags);
-            if (!res) {
-                spdlog::error("ProtoStreamClient::recv failed {}", res.error().message());
-                disconnect();
-                co_return;
-            }
-            auto msg = std::move(res.value());
-            if (_eventSender) {
-                if (msg.type() == NekoProto::ProtoFactory::protoType<mks::KeyEvent>()) {
-                    _eventSender->send_keyboard_event(*msg.cast<mks::KeyEvent>());
-                }
-                else if (msg.type() ==
-                         NekoProto::ProtoFactory::protoType<mks::MouseButtonEvent>()) {
-                    _eventSender->send_button_event(*msg.cast<mks::MouseButtonEvent>());
-                }
-                else if (msg.type() ==
-                         NekoProto::ProtoFactory::protoType<mks::MouseMotionEvent>()) {
-                    _eventSender->send_motion_event(*msg.cast<mks::MouseMotionEvent>());
-                }
-                else if (msg.type() == NekoProto::ProtoFactory::protoType<mks::MouseWheelEvent>()) {
-                    _eventSender->send_wheel_event(*msg.cast<mks::MouseWheelEvent>());
-                }
-                else {
-                    spdlog::error("unused message type {}", msg.protoName());
-                }
-            }
-        }
-        co_return;
-    }
-
-    auto App::connect_to([[maybe_unused]] const CommandParser::ArgsType    &args,
-                         [[maybe_unused]] const CommandParser::OptionsType &options) -> std::string
-    {
-        if (args.size() == 2) {
-            ::ilias::spawn(*_ctx, connect_to(IPEndpoint(args[0] + ":" + args[1])));
-        }
-        else if (args.size() == 1) {
-            ::ilias::spawn(*_ctx, connect_to(IPEndpoint(args[0])));
-        }
-        else {
-            auto it      = options.find("address");
-            auto address = it == options.end() ? "127.0.0.1" : it->second;
-            it           = options.find("port");
-            auto port    = it == options.end() ? "12345" : it->second;
-            ::ilias::spawn(*_ctx, connect_to(IPEndpoint(address + ":" + port)));
-        }
-        return "";
-    }
-
-    auto App::disconnect([[maybe_unused]] const CommandParser::ArgsType    &args,
-                         [[maybe_unused]] const CommandParser::OptionsType &options) -> std::string
-    {
-        disconnect();
-        return "";
-    }
-
-    auto App::disconnect() -> void
-    {
-        _isClienting = false;
-        _eventSender.reset();
-        if (_protoStreamClient) {
-            _protoStreamClient->close().wait();
-        }
-        _eventSender.reset();
-    }
-
-    auto App::start_server(const CommandParser::ArgsType    &args,
-                           const CommandParser::OptionsType &options) -> std::string
-    {
-        IPEndpoint ipendpoint("127.0.0.1:12345");
-        if (args.size() == 2) {
-            if (auto ret = IPEndpoint::fromString(args[0] + ":" + args[1]); ret) {
-                ipendpoint = ret.value();
-            }
-            else {
-                spdlog::error("ip endpoint error {}", ret.error().message());
-            }
-        }
-        else if (args.size() == 1) {
-            if (auto ret = IPEndpoint::fromString(args[0]); ret) {
-                ipendpoint = ret.value();
-            }
-            else {
-                spdlog::error("ip endpoint error {}", ret.error().message());
-            }
-        }
-        else {
-            auto it      = options.find("address");
-            auto address = it == options.end() ? "127.0.0.1" : it->second;
-            it           = options.find("port");
-            auto port    = it == options.end() ? "12345" : it->second;
-            auto ret     = IPEndpoint::fromString(address + ":" + port);
-            if (ret) {
-                ipendpoint = ret.value();
-            }
-            else {
-                spdlog::error("ip endpoint error {}", ret.error().message());
-            }
-        }
-        ::ilias::spawn(*_ctx, start_server(ipendpoint));
-        return "";
-    }
-
-    auto App::start_server(IPEndpoint endpoint) -> Task<void>
-    {
-        if (_isClienting) { // 确保没有作为客户端模式运行
-            spdlog::error("please quit client mode first");
-            co_return;
-        }
-        if (_isServering) { // 确保没有正在作为服务端运行
-            spdlog::error("server is already running");
-            co_return;
-        }
-        auto ret = co_await TcpListener::make(endpoint.family());
-        if (!ret) {
-            spdlog::error("TcpListener::make failed {}", ret.error().message());
-            co_return;
-        }
-        spdlog::info("start server with {}", endpoint.toString());
-        _server   = std::move(ret.value());
-        if (auto res = _server.bind(endpoint); !res) {
-            spdlog::error("TcpListener::bind failed {}", res.error().message());
-        }
-        _isServering = true;
-        while (_isServering) {
-            auto ret1 = co_await _server.accept();
-            if (!ret1) {
-                spdlog::error("TcpListener::accept failed {}", ret1.error().message());
-                stop_server();
-                co_return;
-            }
-            auto tcpClient = std::move(ret1.value());
-            ::ilias::spawn(*_ctx, _accept_client(std::move(tcpClient.first)));
-        }
-    }
-
-    auto App::stop_server([[maybe_unused]] const CommandParser::ArgsType    &args,
-                          [[maybe_unused]] const CommandParser::OptionsType &options) -> std::string
-    {
-        stop_server();
-        return "";
-    }
-
-    auto App::stop_server() -> void
-    {
-        _isServering = false;
-        _server.close();
     }
 
     auto App::start_console() -> Task<void>
@@ -369,15 +224,6 @@ namespace mks::base
         _isConsoleListening = false;
     }
 
-    auto App::_accept_client(TcpClient client) -> Task<void>
-    { // 服务端处理客户连接
-        spdlog::debug("accept client {}", client.remoteEndpoint()->toString());
-        // do some thing for client
-        _protoStreamClient =
-            std::make_unique<NekoProto::ProtoStreamClient<>>(_protofactory, std::move(client));
-        co_return;
-    }
-
     /**
      * @brief
      * server:
@@ -409,73 +255,12 @@ namespace mks::base
     auto App::stop() -> void
     {
         _isRuning = false;
-        stop_capture();
-        disconnect();
-        stop_server();
         stop_console();
-    }
-
-    auto App::start_capture() -> Task<void>
-    {
-        if (_isClienting || !_isServering || !_isRuning) { // 确保是作为服务端运行中
-            spdlog::error("please start capture in server mode");
-            co_return;
-        }
-        spdlog::debug("start_capture");
-        if (_listener && _isCapturing) { // 已经启动了
-            co_return;
-        }
-        _isCapturing = true;
-        _listener    = MKCapture::make(*this);
-        if (_listener == nullptr) {
-            spdlog::error("MKCapture make failed, this platform may not support in this feature");
-            co_return;
-        }
-        auto ret = co_await _listener->start();
-        if (ret != 0) {
-            spdlog::error("MKCapture start failed with {}", ret);
-            co_return;
-        }
-        while (_isCapturing) {
-            NekoProto::IProto proto = (co_await _listener->get_event());
-            if (proto == nullptr) {
-                spdlog::error("get_event failed");
-                stop_capture();
-                co_return;
-            }
-            if (_protoStreamClient) {
-                if (auto res = co_await _protoStreamClient->send(proto, _streamflags); !res) {
-                    spdlog::error("send proto failed {}", res.error().message());
-                    stop_capture();
-                    co_return;
-                }
+        for (auto &handle : _cancelHandleMap) {
+            if (handle.second) {
+                handle.second.cancel();
             }
         }
-    }
-
-    auto App::start_capture([[maybe_unused]] const CommandParser::ArgsType    &args,
-                            [[maybe_unused]] const CommandParser::OptionsType &options)
-        -> std::string
-    {
-        ::ilias::spawn(*_ctx, start_capture());
-        return "";
-    }
-
-    auto App::stop_capture() -> void
-    {
-        _isCapturing = false;
-        if (_listener) {
-            _listener->stop().wait();
-            _listener->notify();
-        }
-        _listener.reset();
-    }
-
-    auto App::stop_capture([[maybe_unused]] const CommandParser::ArgsType    &args,
-                           [[maybe_unused]] const CommandParser::OptionsType &options)
-        -> std::string
-    {
-        stop_capture();
-        return "";
+        _cancelHandleMap.clear();
     }
 } // namespace mks::base
