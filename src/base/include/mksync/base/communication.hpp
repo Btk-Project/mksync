@@ -16,6 +16,8 @@
 #include "mksync/base/nodebase.hpp"
 #include "mksync/base/command_parser.hpp"
 
+#include <ilias/sync/event.hpp>
+
 namespace mks::base
 {
     class App;
@@ -80,6 +82,7 @@ namespace mks::base
         std::unique_ptr<NekoProto::ProtoStreamClient<>> _protoStreamClient;
         NekoProto::ProtoFactory                         _protofactory;
         ilias::CancelHandle                             _cancelHandle;
+        ::ilias::Event                                  _syncEvent;
         Status                                          _status = eDisable;
         NekoProto::StreamFlag                           _flags  = NekoProto::StreamFlag::None;
         ::ilias::IoContext                             *_ctx    = nullptr;
