@@ -19,23 +19,19 @@ namespace mks::base
 
     App::App(::ilias::IoContext *ctx) : _ctx(ctx), _commandParser(this)
     {
-        using CallbackType   = std::string (App::*)(const CommandParser::ArgsType &,
+        using CallbackType = std::string (App::*)(const CommandParser::ArgsType &,
                                                   const CommandParser::OptionsType &);
-        auto serverInstaller = command_installer("Server");
-
+        auto coreInstaller = command_installer("Core");
         // 注册退出程序命令
-        _commandParser.install_cmd(
-            {
-                {"exit", "quit", "q"},
-                "exit the program",
-                std::bind(static_cast<std::string (App::*)(const CommandParser::ArgsType &,
-                                                           const CommandParser::OptionsType &)>(
-                              &App::stop),
-                          this, std::placeholders::_1, std::placeholders::_2)
-        },
-            "Core");
-        auto statusInstaller = command_installer("Status");
-        statusInstaller(
+        coreInstaller({
+            {"exit", "quit", "q"},
+            "exit the program",
+            std::bind(
+                static_cast<std::string (App::*)(const CommandParser::ArgsType &,
+                                                 const CommandParser::OptionsType &)>(&App::stop),
+                this, std::placeholders::_1, std::placeholders::_2)
+        });
+        coreInstaller(
             {{"log"},
              " : show the logs of the program, \n"
              "       -max_log=$max_log_number :  set the max log number, default is 100. \n"
@@ -98,7 +94,7 @@ namespace mks::base
     {
         while (true) {
             if (auto ret = co_await producer->get_event(); ret) {
-                distribution(std::move(ret.value()));
+                co_await dispatch(std::move(ret.value()));
             }
             else {
                 break;
@@ -130,15 +126,16 @@ namespace mks::base
         co_return 0;
     }
 
-    auto App::distribution(NekoProto::IProto &&proto) -> void
+    auto App::dispatch(NekoProto::IProto &&proto) -> Task<void>
     {
         int type = proto.type();
         for (auto *consumer : _consumerMap[type]) {
             if (proto == nullptr) {
                 break;
             }
-            consumer->handle_event(proto);
+            co_await consumer->handle_event(proto);
         }
+        co_return;
     }
 
     auto App::app_name() -> const char *
@@ -171,7 +168,7 @@ namespace mks::base
         if (options.contains("max_log")) {
             const auto &str = options.at("max_log");
             int         maxLog;
-            auto        ret = std::from_chars(str.begin().base(), str.end().base(), maxLog);
+            auto        ret = std::from_chars(str.data(), str.data() + str.length(), maxLog);
             if (ret.ec == std::errc()) {
                 _statusList.resize(maxLog);
             }

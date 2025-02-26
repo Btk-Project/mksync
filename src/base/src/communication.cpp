@@ -50,14 +50,26 @@ namespace mks::base
     auto MKCommunication::handle_event(NekoProto::IProto &event) -> ::ilias::Task<void>
     {
         if (_protoStreamClient) {
-            co_await _protoStreamClient->send(event, _flags);
+            SPDLOG_INFO("send {}", event.protoName());
+            auto ret = co_await _protoStreamClient->send(event, _flags);
+            if (!ret) {
+                SPDLOG_ERROR("send event failed {}", ret.error().message());
+            }
         }
     }
 
     auto MKCommunication::get_event() -> ::ilias::IoTask<NekoProto::IProto>
     {
+        if (!_protoStreamClient) {
+            auto ret = co_await _syncEvent;
+            if (!ret) {
+                co_return Unexpected<Error>(ret.error());
+            }
+        }
         if (_protoStreamClient) {
-            co_return co_await _protoStreamClient->recv(_flags);
+            auto ret = co_await _protoStreamClient->recv(_flags);
+            SPDLOG_INFO("recv {}", ret->protoName());
+            co_return ret;
         }
         co_return ilias::Unexpected<ilias::Error>(ilias::Error::InvalidArgument);
     }
@@ -109,6 +121,7 @@ namespace mks::base
                 auto tcpClient     = std::move(ret1.value());
                 _protoStreamClient = std::make_unique<NekoProto::ProtoStreamClient<>>(
                     _protofactory, std::move(tcpClient.first));
+                _syncEvent.set();
             }
         }
     }
@@ -202,6 +215,8 @@ namespace mks::base
         }
         _protoStreamClient = // 构造用于传输协议的壳
             std::make_unique<NekoProto::ProtoStreamClient<>>(_protofactory, std::move(tcpClient));
+        _syncEvent.set();
+        SPDLOG_INFO("connect to {}", endpoint.toString());
         _status = eClient;
         co_return;
     }

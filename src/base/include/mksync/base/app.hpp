@@ -47,7 +47,7 @@ namespace mks::base
 
         // main loop
         auto exec(int argc = 0, const char *const *argv = nullptr) -> ilias::Task<void>;
-        auto distribution(NekoProto::IProto &&proto) -> void;
+        auto dispatch(NekoProto::IProto &&proto) -> ::ilias::Task<void>;
         auto get_event(Producer *producer) -> ::ilias::Task<void>;
         auto install_node(std::unique_ptr<NodeBase, void (*)(NodeBase *)> &&node) -> void;
         auto start_node(NodeData &node) -> ilias::Task<int>;
