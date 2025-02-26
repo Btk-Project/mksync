@@ -22,7 +22,7 @@ namespace mks::base
 {
     class App;
 
-    class CommandParser {
+    class MKS_BASE_API CommandParser {
     public:
         using CommandsType = std::vector<std::string>;
         using ArgsType     = std::vector<std::string>;

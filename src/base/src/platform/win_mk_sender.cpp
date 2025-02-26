@@ -4,28 +4,66 @@
 #ifdef _WIN32
 namespace mks::base
 {
-    WinMKSender::WinMKSender() {}
+    WinMKSender::WinMKSender(::ilias::IoContext *ctx) : MKSender(ctx) {}
 
     WinMKSender::~WinMKSender() {}
 
-    auto WinMKSender::start() -> ::ilias::Task<int>
+    auto WinMKSender::start_sender() -> ::ilias::Task<int>
     {
         _isStart = true;
         co_return 0;
     }
 
-    auto WinMKSender::stop() -> ::ilias::Task<int>
+    auto WinMKSender::stop_sender() -> ::ilias::Task<int>
     {
         _isStart = false;
         co_return 0;
     }
 
-    void WinMKSender::send_motion_event(const mks::MouseMotionEvent &event) const
+    auto WinMKSender::name() -> const char *
+    {
+        return "sender";
+    }
+
+    auto WinMKSender::get_subscribers() -> std::vector<int>
+    {
+        return {NekoProto::ProtoFactory::protoType<MouseMotionEvent>(),
+                NekoProto::ProtoFactory::protoType<MouseButtonEvent>(),
+                NekoProto::ProtoFactory::protoType<MouseWheelEvent>(),
+                NekoProto::ProtoFactory::protoType<KeyEvent>()};
+    }
+
+    auto WinMKSender::handle_event(NekoProto::IProto &event) -> ::ilias::Task<void>
+    {
+        if (event == nullptr) {
+            co_return;
+        }
+        if (event.type() == NekoProto::ProtoFactory::protoType<MouseMotionEvent>()) {
+            ILIAS_ASSERT(event.cast<MouseMotionEvent>() != nullptr);
+            _send_motion_event(*event.cast<MouseMotionEvent>());
+        }
+        else if (event.type() == NekoProto::ProtoFactory::protoType<MouseButtonEvent>()) {
+            ILIAS_ASSERT(event.cast<MouseButtonEvent>() != nullptr);
+            _send_button_event(*event.cast<MouseButtonEvent>());
+        }
+        else if (event.type() == NekoProto::ProtoFactory::protoType<MouseWheelEvent>()) {
+            ILIAS_ASSERT(event.cast<MouseWheelEvent>() != nullptr);
+            _send_wheel_event(*event.cast<MouseWheelEvent>());
+        }
+        else if (event.type() == NekoProto::ProtoFactory::protoType<KeyEvent>()) {
+            ILIAS_ASSERT(event.cast<KeyEvent>() != nullptr);
+            _send_keyboard_event(*event.cast<KeyEvent>());
+        }
+        co_return;
+    }
+
+    void WinMKSender::_send_motion_event(const mks::MouseMotionEvent &event) const
     {
         if (!_isStart) {
             return;
         }
-        INPUT input          = {0};
+        INPUT input = {};
+        memset(&input, 0, sizeof(INPUT));
         input.type           = INPUT_MOUSE;
         input.mi.dx          = (LONG)(event.x * 65535);
         input.mi.dy          = (LONG)(event.y * 65535);
@@ -36,7 +74,7 @@ namespace mks::base
         SendInput(1, &input, sizeof(INPUT));
     }
 
-    void WinMKSender::send_button_event(const mks::MouseButtonEvent &event) const
+    void WinMKSender::_send_button_event(const mks::MouseButtonEvent &event) const
     {
         if (!_isStart) {
             return;
@@ -86,34 +124,38 @@ namespace mks::base
         SendInput(count, input.get(), sizeof(INPUT));
     }
 
-    void WinMKSender::send_wheel_event(const mks::MouseWheelEvent &event) const
+    void WinMKSender::_send_wheel_event(const mks::MouseWheelEvent &event) const
     {
         if (!_isStart) {
             return;
         }
-        bool                     is_vertical   = std::abs(event.x - 1e-6) > 1e-6;
-        bool                     is_horizontal = std::abs(event.y - 1e-6) > 1e-6;
-        std::unique_ptr<INPUT[]> input = std::make_unique<INPUT[]>(is_horizontal + is_vertical);
-        memset(input.get(), 0, sizeof(INPUT) * (is_horizontal + is_vertical));
-        if (is_vertical) {
+        bool                     isVertical   = std::abs(event.x - 1e-6) > 1e-6;
+        bool                     isHorizontal = std::abs(event.y - 1e-6) > 1e-6;
+        std::unique_ptr<INPUT[]> input = std::make_unique<INPUT[]>(static_cast<int>(isHorizontal) +
+                                                                   static_cast<int>(isVertical));
+        memset(input.get(), 0,
+               sizeof(INPUT) * (static_cast<int>(isHorizontal) + static_cast<int>(isVertical)));
+        if (isVertical) {
             input[0].type         = INPUT_MOUSE;
             input[0].mi.mouseData = (LONG)(event.x * WHEEL_DELTA);
             input[0].mi.dwFlags   = MOUSEEVENTF_WHEEL;
         }
-        if (is_horizontal) {
-            input[is_vertical].type         = INPUT_MOUSE;
-            input[is_vertical].mi.mouseData = (LONG)(event.y * WHEEL_DELTA);
-            input[is_vertical].mi.dwFlags   = MOUSEEVENTF_HWHEEL;
+        if (isHorizontal) {
+            input[static_cast<size_t>(isVertical)].type         = INPUT_MOUSE;
+            input[static_cast<size_t>(isVertical)].mi.mouseData = (LONG)(event.y * WHEEL_DELTA);
+            input[static_cast<size_t>(isVertical)].mi.dwFlags   = MOUSEEVENTF_HWHEEL;
         }
-        SendInput(is_horizontal + is_vertical, input.get(), sizeof(INPUT));
+        SendInput(static_cast<int>(isHorizontal) + static_cast<int>(isVertical), input.get(),
+                  sizeof(INPUT));
     }
 
-    void WinMKSender::send_keyboard_event(const mks::KeyEvent &event) const
+    void WinMKSender::_send_keyboard_event(const mks::KeyEvent &event) const
     {
         if (!_isStart) {
             return;
         }
-        INPUT input          = {0};
+        INPUT input = {};
+        memset(&input, 0, sizeof(INPUT));
         input.type           = INPUT_KEYBOARD;
         input.ki.wVk         = 0;
         input.ki.wScan       = (WORD)key_code_to_windows_scan_code(event.key);

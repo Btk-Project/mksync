@@ -19,17 +19,18 @@
 
 namespace mks::base
 {
-
     class MKS_BASE_API WinMKCapture final : public MKCapture {
     public:
-        WinMKCapture();
+        WinMKCapture(::ilias::IoContext *ctx);
         ~WinMKCapture();
-        auto start() -> ::ilias::Task<int> override;
-        auto stop() -> ::ilias::Task<int> override;
+        auto name() -> const char * override;
         ///> 获取一个事件，如果没有就等待
-        auto get_event() -> ILIAS_NAMESPACE::Task<NekoProto::IProto> override;
-        ///> 唤起正在等待事件的协程
-        auto notify() -> void override;
+        auto get_event() -> ::ilias::IoTask<NekoProto::IProto> override;
+        ///> 唤起正在等待事件的协程并弹出一个事件，如果事件队列为空则会弹出一个空事件。
+        auto notify() -> void;
+
+        auto start_capture() -> ::ilias::Task<int> override;
+        auto stop_capture() -> ::ilias::Task<int> override;
 
     private:
         LRESULT _mouse_proc(int ncode, WPARAM wp, LPARAM lp);
@@ -41,7 +42,7 @@ namespace mks::base
         uint64_t _screenHeight;
 
         RingBuffer<NekoProto::IProto> _events;
-        ILIAS_NAMESPACE::Event        _syncEvent;
+        ::ilias::Event                _syncEvent;
     };
 } // namespace mks::base
 #endif

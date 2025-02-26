@@ -13,6 +13,6 @@ int main(int argc, const char *const *argv)
     spdlog::set_level(spdlog::level::debug);
     mks::base::IoContext context;
     mks::base::App       app(&context);
-    app.exec(argc, argv).wait(context);
+    ilias::spawn(context, app.exec(argc, argv));
     return 0;
 }

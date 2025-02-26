@@ -23,15 +23,21 @@ namespace mks::base
      */
     class MKS_BASE_API WinMKSender final : public MKSender {
     public:
-        WinMKSender();
+        WinMKSender(::ilias::IoContext *ctx);
         ~WinMKSender();
 
-        auto start() -> ::ilias::Task<int> override;
-        auto stop() -> ::ilias::Task<int> override;
-        void send_motion_event(const mks::MouseMotionEvent &event) const override;
-        void send_button_event(const mks::MouseButtonEvent &event) const override;
-        void send_wheel_event(const mks::MouseWheelEvent &event) const override;
-        void send_keyboard_event(const mks::KeyEvent &event) const override;
+        auto start_sender() -> ::ilias::Task<int> override;
+        auto stop_sender() -> ::ilias::Task<int> override;
+        auto name() -> const char * override;
+
+        auto get_subscribers() -> std::vector<int> override;
+        auto handle_event(NekoProto::IProto &event) -> ::ilias::Task<void> override;
+
+    private:
+        void _send_motion_event(const mks::MouseMotionEvent &event) const;
+        void _send_button_event(const mks::MouseButtonEvent &event) const;
+        void _send_wheel_event(const mks::MouseWheelEvent &event) const;
+        void _send_keyboard_event(const mks::KeyEvent &event) const;
 
     private:
         bool _isStart = false;

@@ -7,10 +7,17 @@
 namespace mks::base
 {
 
-    template <typename T>
-    using Task = ::ilias::Task<T>;
+    using ::ilias::Error;
+    using ::ilias::IoTask;
+    using ::ilias::Task;
+    using ::ilias::Unexpected;
 
-    auto WinMKCapture::start() -> Task<int>
+    auto WinMKCapture::name() -> const char *
+    {
+        return "capture";
+    }
+
+    auto WinMKCapture::start_capture() -> ::ilias::Task<int>
     {
         static WinMKCapture *self = nullptr;
         self                      = this;
@@ -36,7 +43,7 @@ namespace mks::base
         co_return 0;
     }
 
-    auto WinMKCapture::stop() -> Task<int>
+    auto WinMKCapture::stop_capture() -> ::ilias::Task<int>
     {
         notify();
         UnhookWindowsHookEx(_mosueHook);
@@ -44,11 +51,14 @@ namespace mks::base
         co_return 0;
     }
 
-    auto WinMKCapture::get_event() -> Task<NekoProto::IProto>
+    auto WinMKCapture::get_event() -> IoTask<NekoProto::IProto>
     {
         if (_events.size() == 0) {
             _syncEvent.clear();
-            co_await _syncEvent;
+            auto ret = co_await _syncEvent;
+            if (!ret) {
+                co_return Unexpected<Error>(ret.error());
+            }
         }
         NekoProto::IProto proto;
         _events.pop(proto);
@@ -60,7 +70,7 @@ namespace mks::base
         _syncEvent.set();
     }
 
-    WinMKCapture::WinMKCapture() : _events(10) {}
+    WinMKCapture::WinMKCapture(::ilias::IoContext *ctx) : MKCapture(ctx), _events(10) {}
 
     WinMKCapture::~WinMKCapture()
     {
