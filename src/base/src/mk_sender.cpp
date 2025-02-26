@@ -32,7 +32,7 @@ namespace mks::base
         -> std::string
     {
         if (!_isEnable) {
-            spdlog::warn("{} is not enable", name());
+            SPDLOG_WARN("{} is not enable", name());
             return "";
         }
         start_sender().wait();

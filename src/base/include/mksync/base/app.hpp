@@ -48,9 +48,10 @@ namespace mks::base
         // main loop
         auto exec(int argc = 0, const char *const *argv = nullptr) -> ilias::Task<void>;
         auto distribution(NekoProto::IProto &&proto) -> void;
+        auto get_event(Producer *producer) -> ::ilias::Task<void>;
         auto install_node(std::unique_ptr<NodeBase, void (*)(NodeBase *)> &&node) -> void;
-        auto start_node(std::string_view name) -> ilias::Task<int>;
-        auto stop_node(std::string_view name) -> ilias::Task<int>;
+        auto start_node(NodeData &node) -> ilias::Task<int>;
+        auto stop_node(NodeData &node) -> ilias::Task<int>;
         auto stop() -> void;
         auto stop(const CommandParser::ArgsType &args, const CommandParser::OptionsType &options)
             -> std::string;
@@ -67,12 +68,8 @@ namespace mks::base
             -> std::function<bool(CommandParser::CommandsData &&)>;
 
         // status
-        auto show_status(const CommandParser::ArgsType    &args,
-                         const CommandParser::OptionsType &options) -> std::string;
-
-    private:
-        // for server
-        auto _accept_client(ilias::TcpClient client) -> ilias::Task<void>;
+        auto log_handle(const CommandParser::ArgsType    &args,
+                        const CommandParser::OptionsType &options) -> std::string;
 
     private:
         bool                _isRuning           = false;

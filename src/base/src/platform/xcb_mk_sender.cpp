@@ -9,7 +9,7 @@
 namespace mks::base
 {
 
-    XcbMKSender::XcbMKSender(App &app) : _app(&app) {}
+    XcbMKSender::XcbMKSender(App &app) : MKSender(app.get_io_context()), _app(&app) {}
 
     XcbMKSender::~XcbMKSender()
     {
@@ -17,13 +17,52 @@ namespace mks::base
         _xcbConnect.reset();
     }
 
-    auto XcbMKSender::start() -> ::ilias::Task<int>
+    auto XcbMKSender::name() -> const char *
+    {
+        return "XcbMKSender";
+    }
+
+    auto XcbMKSender::get_subscribers() -> std::vector<int>
+    {
+        return {
+            NekoProto::ProtoFactory::protoType<mks::KeyEvent>(),
+            NekoProto::ProtoFactory::protoType<mks::MouseWheelEvent>(),
+            NekoProto::ProtoFactory::protoType<mks::MouseMotionEvent>(),
+            NekoProto::ProtoFactory::protoType<mks::MouseButtonEvent>(),
+        };
+    }
+
+    auto XcbMKSender::handle_event(NekoProto::IProto &event) -> ::ilias::Task<void>
+    {
+        if (event == nullptr) {
+            co_return;
+        }
+        if (event.type() == NekoProto::ProtoFactory::protoType<MouseMotionEvent>()) {
+            ILIAS_ASSERT(event.cast<MouseMotionEvent>() != nullptr);
+            _send_motion_event(*event.cast<MouseMotionEvent>());
+        }
+        else if (event.type() == NekoProto::ProtoFactory::protoType<MouseButtonEvent>()) {
+            ILIAS_ASSERT(event.cast<MouseButtonEvent>() != nullptr);
+            _send_button_event(*event.cast<MouseButtonEvent>());
+        }
+        else if (event.type() == NekoProto::ProtoFactory::protoType<MouseWheelEvent>()) {
+            ILIAS_ASSERT(event.cast<MouseWheelEvent>() != nullptr);
+            _send_wheel_event(*event.cast<MouseWheelEvent>());
+        }
+        else if (event.type() == NekoProto::ProtoFactory::protoType<KeyEvent>()) {
+            ILIAS_ASSERT(event.cast<KeyEvent>() != nullptr);
+            _send_keyboard_event(*event.cast<KeyEvent>());
+        }
+        co_return;
+    }
+
+    auto XcbMKSender::start_sender() -> ::ilias::Task<int>
     {
         if (!_xcbConnect) {
             _xcbConnect = std::make_unique<XcbConnect>(_app->get_io_context());
             auto ret    = co_await _xcbConnect->connect(nullptr);
             if (!ret) {
-                spdlog::error("Failed to connect to X server!");
+                SPDLOG_ERROR("Failed to connect to X server!");
                 co_return -1;
             }
         }
@@ -31,16 +70,16 @@ namespace mks::base
         _xcbConnect->get_default_root_window().get_geometry(posx, posy, _screenWidth,
                                                             _screenHeight);
         if (_screenWidth == 0 || _screenHeight == 0) {
-            spdlog::error("Failed to get screen size!");
+            SPDLOG_ERROR("Failed to get screen size!");
             co_return -1;
         }
-        spdlog::info("Screen size: {}x{}", _screenWidth, _screenHeight);
+        SPDLOG_INFO("Screen size: {}x{}", _screenWidth, _screenHeight);
         _isStart = true;
-        ilias_go _xcbConnect->event_loop();
+        _xcbLoopHandle = ::ilias::spawn(*_app->get_io_context(), _xcbConnect->event_loop());
         co_return 0;
     }
 
-    auto XcbMKSender::stop() -> ::ilias::Task<int>
+    auto XcbMKSender::stop_sender() -> ::ilias::Task<int>
     {
         _isStart = false;
         if (_eventLoopHandle) {
@@ -49,22 +88,22 @@ namespace mks::base
         co_return 0;
     }
 
-    void XcbMKSender::send_motion_event(const mks::MouseMotionEvent &event) const
+    void XcbMKSender::_send_motion_event(const mks::MouseMotionEvent &event) const
     {
         if (!_isStart || !_xcbConnect) {
             return;
         }
-        spdlog::info("Mouse motion event: x={}, y={}", event.x * _screenWidth,
+        SPDLOG_INFO("Mouse motion event: x={}, y={}", event.x * _screenWidth,
                      event.y * _screenHeight);
         _xcbConnect->send_mouse_move(event.x * _screenWidth, event.y * _screenHeight);
     }
 
-    void XcbMKSender::send_button_event(const mks::MouseButtonEvent &event) const
+    void XcbMKSender::_send_button_event(const mks::MouseButtonEvent &event) const
     {
         if (!_isStart || !_xcbConnect) {
             return;
         }
-        spdlog::info("Button event: {} {}", (int)event.button, (int)event.state);
+        SPDLOG_INFO("Button event: {} {}", (int)event.button, (int)event.state);
         int button = 0;
         switch (event.button) {
         case mks::MouseButton::eButtonLeft:
@@ -77,7 +116,7 @@ namespace mks::base
             button = 2;
             break;
         default:
-            spdlog::error("Unknown button: {} in xcb", (int)event.button);
+            SPDLOG_ERROR("Unknown button: {} in xcb", (int)event.button);
             return;
         }
         if (event.state == mks::MouseButtonState::eButtonDown) {
@@ -94,7 +133,7 @@ namespace mks::base
         }
     }
 
-    void XcbMKSender::send_wheel_event(const mks::MouseWheelEvent &event) const
+    void XcbMKSender::_send_wheel_event(const mks::MouseWheelEvent &event) const
     {
         if (!_isStart || !_xcbConnect) {
             return;
@@ -122,12 +161,12 @@ namespace mks::base
         }
     }
 
-    void XcbMKSender::send_keyboard_event(const mks::KeyEvent &event) const
+    void XcbMKSender::_send_keyboard_event(const mks::KeyEvent &event) const
     {
         if (!_isStart || !_xcbConnect) {
             return;
         }
-        spdlog::info("send keyboard event: {}", (int)event.key);
+        SPDLOG_INFO("send keyboard event: {}", (int)event.key);
         auto *keysyms = _xcbConnect->key_symbols();
         int   keysym  = key_code_to_linux_keysym(event.key);
         if (keysym != 0) {

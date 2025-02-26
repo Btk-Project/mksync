@@ -32,7 +32,7 @@ namespace mks::base
         -> std::string
     {
         if (!_isEnable) {
-            spdlog::warn("capture is not enable");
+            SPDLOG_WARN("capture is not enable");
             return "";
         }
         start_capture().wait();
@@ -74,7 +74,6 @@ namespace mks::base
                           "stop keyboard/mouse capture",
                           std::bind(static_cast<CallbackType>(&MKCapture::stop_capture),
                                     capture.get(), std::placeholders::_1, std::placeholders::_2)});
-        spdlog::info("capture <{}>", (void *)capture.get());
         return capture;
     }
 
