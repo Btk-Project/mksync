@@ -34,7 +34,7 @@ namespace mks::base
 
     auto MKCommunication::name() -> const char *
     {
-        return "Communication";
+        return "MKCommunication";
     }
 
     auto MKCommunication::get_subscribers() -> std::vector<int>
@@ -75,31 +75,31 @@ namespace mks::base
     auto MKCommunication::start_server(ilias::IPEndpoint endpoint) -> ilias::Task<void>
     {
         if (_status == eDisable || _status == eClient) {
-            spdlog::error("{} is disabled", name());
+            SPDLOG_ERROR("{} is disabled", name());
             co_return;
         }
         if (_protoStreamClient) { // 确保没有正在作为服务端运行
-            spdlog::error("server/client is already running");
+            SPDLOG_ERROR("server/client is already running");
             co_return;
         }
         TcpListener server;
         if (auto ret = co_await TcpListener::make(endpoint.family()); !ret) {
-            spdlog::error("TcpListener::make failed {}", ret.error().message());
+            SPDLOG_ERROR("TcpListener::make failed {}", ret.error().message());
             co_return;
         }
         else {
             server = std::move(ret.value());
         }
-        spdlog::info("start server with {}", endpoint.toString());
+        SPDLOG_INFO("start server with {}", endpoint.toString());
         if (auto res = server.bind(endpoint); !res) {
-            spdlog::error("TcpListener::bind failed {}", res.error().message());
+            SPDLOG_ERROR("TcpListener::bind failed {}", res.error().message());
             server.close();
             co_return;
         }
         _status = eServer;
         while (true) {
             if (auto ret1 = co_await server.accept(); !ret1) {
-                spdlog::error("TcpListener::accept failed {}", ret1.error().message());
+                SPDLOG_ERROR("TcpListener::accept failed {}", ret1.error().message());
                 server.close();
                 stop_server();
                 co_return;
@@ -135,7 +135,7 @@ namespace mks::base
                 ipendpoint = ret.value();
             }
             else {
-                spdlog::error("ip endpoint error {}", ret.error().message());
+                SPDLOG_ERROR("ip endpoint error {}", ret.error().message());
             }
         }
         else if (args.size() == 1) {
@@ -143,7 +143,7 @@ namespace mks::base
                 ipendpoint = ret.value();
             }
             else {
-                spdlog::error("ip endpoint error {}", ret.error().message());
+                SPDLOG_ERROR("ip endpoint error {}", ret.error().message());
             }
         }
         else {
@@ -156,7 +156,7 @@ namespace mks::base
                 ipendpoint = ret.value();
             }
             else {
-                spdlog::error("ip endpoint error {}", ret.error().message());
+                SPDLOG_ERROR("ip endpoint error {}", ret.error().message());
             }
         }
         _cancelHandle = ::ilias::spawn(*_ctx, start_server(ipendpoint));
@@ -181,23 +181,23 @@ namespace mks::base
     auto MKCommunication::connect_to(ilias::IPEndpoint endpoint) -> ilias::Task<void>
     {
         if (_status == eDisable || _status == eServer) {
-            spdlog::error("Communication is disabled");
+            SPDLOG_ERROR("Communication is disabled");
             co_return;
         }
         if (_protoStreamClient) { // 确保没有正在作为服务端运行
-            spdlog::error("server/client is already running");
+            SPDLOG_ERROR("server/client is already running");
             co_return;
         }
         TcpClient tcpClient;
         if (auto ret = co_await TcpClient::make(endpoint.family()); !ret) {
-            spdlog::error("TcpClient::make failed {}", ret.error().message());
+            SPDLOG_ERROR("TcpClient::make failed {}", ret.error().message());
             co_return;
         }
         else {
             tcpClient = std::move(ret.value());
         }
         if (auto res = co_await tcpClient.connect(endpoint); !res) {
-            spdlog::error("TcpClient::connect failed {}", res.error().message());
+            SPDLOG_ERROR("TcpClient::connect failed {}", res.error().message());
             co_return;
         }
         _protoStreamClient = // 构造用于传输协议的壳

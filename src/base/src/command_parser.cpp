@@ -29,7 +29,7 @@ namespace mks::base
     {
         for (const auto &cmd : command.command) {
             if (_trie.search(cmd)) {
-                spdlog::error("command \"{}\" already exists", cmd);
+                SPDLOG_ERROR("command \"{}\" already exists", cmd);
                 return false;
             }
         }
@@ -45,7 +45,7 @@ namespace mks::base
     {
         for (const auto &cmd : command.command) {
             if (_trie.search(cmd)) {
-                spdlog::error("command \"{}\" already exists", cmd);
+                SPDLOG_ERROR("command \"{}\" already exists", cmd);
                 return false;
             }
         }
@@ -92,7 +92,7 @@ namespace mks::base
                 return _commands[index].callback(args, options);
             }
         }
-        spdlog::error("command \"{}\" not found", cmd);
+        SPDLOG_ERROR("command \"{}\" not found", cmd);
         return "";
     }
     auto CommandParser::show_version([[maybe_unused]] const ArgsType    &args,

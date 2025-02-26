@@ -3,6 +3,7 @@
 #include <spdlog/sinks/callback_sink.h>
 #include <spdlog/spdlog.h>
 #include <csignal>
+#include <charconv>
 
 #include "mksync/base/communication.hpp"
 
@@ -34,15 +35,14 @@ namespace mks::base
         },
             "Core");
         auto statusInstaller = command_installer("Status");
-        statusInstaller({
-            {"status", "st"},
-            "show the status of the program",
-            std::bind(static_cast<CallbackType>(&App::show_status), this, std::placeholders::_1,
-                      std::placeholders::_2)
-        });
-        install_node(MKCommunication::make(*this));
-        install_node(MKCapture::make(*this));
-        install_node(MKSender::make(*this));
+        statusInstaller(
+            {{"log"},
+             " : show the logs of the program, \n"
+             "       -max_log=$max_log_number :  set the max log number, default is 100. \n"
+             "       -real_time_log=<trace/debug/info/warn/err> : set real time log level. \n"
+             "       clear : clear the log.",
+             std::bind(static_cast<CallbackType>(&App::log_handle), this, std::placeholders::_1,
+                       std::placeholders::_2)});
 
 #if defined(SIGPIPE)
         ::signal(SIGPIPE, SIG_IGN); // 忽略SIGPIPE信号 防止多跑一秒就会爆炸
@@ -65,21 +65,14 @@ namespace mks::base
             return;
         }
         const auto *name = node->name();
-        spdlog::info("install node: {}<{}>", name, (void *)node.get());
+        SPDLOG_INFO("install node: {}<{}>", name, (void *)node.get());
         _nodeMap.emplace(
             std::make_pair(name, NodeData{std::move(node), NodeStatus::eNodeStatusStopped}));
-        start_node(name).wait();
     }
 
-    auto App::start_node(std::string_view name) -> ilias::Task<int>
+    auto App::start_node(NodeData &node) -> ilias::Task<int>
     {
-        auto item = _nodeMap.find(name);
-        if (item == _nodeMap.end()) {
-            spdlog::error("node {} not found", name);
-            co_return -1;
-        }
-        auto &node = item->second;
-        spdlog::info("start node: {}<{}>", name, (void *)node.node.get());
+        SPDLOG_INFO("start node: {}<{}>", node.node->name(), (void *)node.node.get());
         if (node.status == NodeStatus::eNodeStatusStopped) {
             auto ret = co_await node.node->start();
             if (ret != 0) {
@@ -94,49 +87,47 @@ namespace mks::base
             }
             auto *producer = dynamic_cast<Producer *>(node.node.get());
             if (producer != nullptr) {
-                _cancelHandleMap[name] = ::ilias::spawn(*_ctx, [this, producer]() -> Task<void> {
-                    while (true) {
-                        if (auto ret = co_await producer->get_event(); ret) {
-                            distribution(std::move(ret.value()));
-                        }
-                        else {
-                            break;
-                        }
-                    }
-                }());
+                _cancelHandleMap[node.node->name()] = ::ilias::spawn(*_ctx, get_event(producer));
             }
             co_return 0;
         }
         co_return -2;
     }
 
-    auto App::stop_node(std::string_view name) -> ilias::Task<int>
+    auto App::get_event(Producer *producer) -> ::ilias::Task<void>
     {
-        auto item = _nodeMap.find(name);
-        if (item != _nodeMap.end()) {
-            auto &node = item->second;
-            if (node.status == NodeStatus::eNodeStatusRunning) {
-                node.status    = NodeStatus::eNodeStatusStopped;
-                auto *consumer = dynamic_cast<Consumer *>(node.node.get());
-                if (consumer != nullptr) {
-                    for (int type : consumer->get_subscribers()) {
-                        _consumerMap[type].erase(consumer);
-                    }
-                }
-                auto *producer = dynamic_cast<Producer *>(node.node.get());
-                if (producer != nullptr) {
-                    auto handle = _cancelHandleMap.find(name);
-                    if (handle != _cancelHandleMap.end() && handle->second) {
-                        handle->second.cancel();
-                    }
-                    _cancelHandleMap.erase(handle);
-                }
-                co_return co_await node.node->stop();
+        while (true) {
+            if (auto ret = co_await producer->get_event(); ret) {
+                distribution(std::move(ret.value()));
             }
-            co_return -2;
+            else {
+                break;
+            }
         }
-        spdlog::error("node {} not found", name);
-        co_return -1;
+        co_return;
+    }
+
+    auto App::stop_node(NodeData &node) -> ilias::Task<int>
+    {
+        if (node.status == NodeStatus::eNodeStatusRunning) {
+            node.status    = NodeStatus::eNodeStatusStopped;
+            auto *consumer = dynamic_cast<Consumer *>(node.node.get());
+            if (consumer != nullptr) {
+                for (int type : consumer->get_subscribers()) {
+                    _consumerMap[type].erase(consumer);
+                }
+            }
+            auto *producer = dynamic_cast<Producer *>(node.node.get());
+            if (producer != nullptr) {
+                auto handle = _cancelHandleMap.find(node.node->name());
+                if (handle != _cancelHandleMap.end() && handle->second) {
+                    handle->second.cancel();
+                }
+                _cancelHandleMap.erase(handle);
+            }
+            co_return co_await node.node->stop();
+        }
+        co_return 0;
     }
 
     auto App::distribution(NekoProto::IProto &&proto) -> void
@@ -174,10 +165,46 @@ namespace mks::base
             &_commandParser, std::placeholders::_1, module);
     }
 
-    auto App::show_status([[maybe_unused]] const CommandParser::ArgsType    &args,
-                          [[maybe_unused]] const CommandParser::OptionsType &options) -> std::string
+    auto App::log_handle([[maybe_unused]] const CommandParser::ArgsType    &args,
+                         [[maybe_unused]] const CommandParser::OptionsType &options) -> std::string
     {
-        ::fprintf(stdout, "status: %d items\n", int(_statusList.size()));
+        if (options.contains("max_log")) {
+            const auto &str = options.at("max_log");
+            int         maxLog;
+            auto        ret = std::from_chars(str.begin().base(), str.end().base(), maxLog);
+            if (ret.ec == std::errc()) {
+                _statusList.resize(maxLog);
+            }
+            return "";
+        }
+        if (std::any_of(args.begin(), args.end(),
+                        [](const std::string &arg) { return arg == "clear"; })) {
+            _statusList.clear();
+            return "";
+        }
+        if (options.contains("real_time_log")) {
+            const auto &str = options.at("real_time_log");
+            if (str == "trace") {
+                spdlog::set_level(spdlog::level::trace);
+            }
+            else if (str == "debug") {
+                spdlog::set_level(spdlog::level::debug);
+            }
+            else if (str == "info") {
+                spdlog::set_level(spdlog::level::info);
+            }
+            else if (str == "warn") {
+                spdlog::set_level(spdlog::level::warn);
+            }
+            else if (str == "err") {
+                spdlog::set_level(spdlog::level::err);
+            }
+            else if (str == "critical") {
+                spdlog::set_level(spdlog::level::critical);
+            }
+            return "";
+        }
+        ::fprintf(stdout, "logs: %d items\n", int(_statusList.size()));
         for (const auto &msg : _statusList) {
             ::fprintf(stdout, "%s\n", msg.c_str());
         }
@@ -188,12 +215,12 @@ namespace mks::base
     auto App::start_console() -> Task<void>
     {                              // 监听终端输入
         if (_isConsoleListening) { // 确保没有正在监听中。
-            spdlog::error("console is already listening");
+            SPDLOG_ERROR("console is already listening");
             co_return;
         }
         auto console = co_await ilias::Console::fromStdin();
         if (!console) {
-            spdlog::error("Console::fromStdin failed {}", console.error().message());
+            SPDLOG_ERROR("Console::fromStdin failed {}", console.error().message());
             co_return;
         }
         _isConsoleListening                    = true;
@@ -204,7 +231,7 @@ namespace mks::base
             fflush(stdout);
             auto ret1 = co_await console->read({strBuffer.get(), 1024});
             if (!ret1) {
-                spdlog::error("Console::read failed {}", ret1.error().message());
+                SPDLOG_ERROR("Console::read failed {}", ret1.error().message());
                 stop_console();
                 co_return;
             }
@@ -214,7 +241,7 @@ namespace mks::base
                 lineView.remove_suffix(1);
             }
             if (auto res = _commandParser.parser(lineView); !res.empty()) {
-                spdlog::warn("exec {} warn: {}", lineView, res.c_str());
+                SPDLOG_WARN("exec {} warn: {}", lineView, res.c_str());
             }
         }
     }
@@ -235,6 +262,17 @@ namespace mks::base
      */
     auto App::exec(int argc, const char *const *argv) -> Task<void>
     {
+        install_node(MKCommunication::make(*this));
+        install_node(MKCapture::make(*this));
+        install_node(MKSender::make(*this));
+
+        // start all node
+        for (auto &node : _nodeMap) {
+            auto ret = co_await start_node(node.second);
+            if (ret != 0) {
+                SPDLOG_ERROR("start node {} failed", node.first);
+            }
+        }
         _isRuning = true;
         if (argc > 1) {
             _commandParser.parser(std::vector<std::string_view>(argv + 1, argv + argc));

@@ -153,7 +153,7 @@ namespace mks::base
         while (true) {
             auto result = co_await _poll_event();
             if (!result) {
-                spdlog::error("poll_event failed, {}", result.error().message());
+                SPDLOG_ERROR("poll_event failed, {}", result.error().message());
                 break;
             }
             while (true) {
@@ -163,7 +163,7 @@ namespace mks::base
                 }
                 if (event->response_type == 0) {
                     xcb_generic_error_t *err = (xcb_generic_error_t *)event.get();
-                    spdlog::error("Error: {}", err->error_code);
+                    SPDLOG_ERROR("Error: {}", err->error_code);
                     auto item = _sequeueMap.find(event->sequence);
                     if (item != _sequeueMap.end()) {
                         item->second(std::move(event));
@@ -185,7 +185,7 @@ namespace mks::base
                     }
                     break;
                 default:
-                    spdlog::error("Unknown event type: {}", event->response_type & ~0x80);
+                    SPDLOG_ERROR("Unknown event type: {}", event->response_type & ~0x80);
                     break;
                 }
             }
@@ -216,11 +216,11 @@ namespace mks::base
         std::unique_ptr<xcb_grab_pointer_reply_t> reply(
             xcb_grab_pointer_reply(connection(), cookie, nullptr));
         if (reply == nullptr) {
-            spdlog::error("Error: failed to grab pointer\n");
+            SPDLOG_ERROR("Error: failed to grab pointer\n");
             return -1;
         }
         if (reply->status != XCB_GRAB_STATUS_SUCCESS) {
-            spdlog::error("Error: failed to grab pointer, error: {}\n", reply->status);
+            SPDLOG_ERROR("Error: failed to grab pointer, error: {}\n", reply->status);
             return reply->status;
         }
         _pointerCallback = callback;
@@ -232,7 +232,7 @@ namespace mks::base
         auto cookie = xcb_ungrab_pointer_checked(connection(), XCB_CURRENT_TIME);
         std::unique_ptr<xcb_generic_error_t> err(xcb_request_check(connection(), cookie));
         if (err) {
-            spdlog::error("Failed to ungrab pointer, error {}\n", err->error_code);
+            SPDLOG_ERROR("Failed to ungrab pointer, error {}\n", err->error_code);
             return err->error_code;
         }
         return 0;
@@ -254,11 +254,11 @@ namespace mks::base
         std::unique_ptr<xcb_grab_keyboard_reply_t> ret(
             xcb_grab_keyboard_reply(connection(), cookie, nullptr));
         if (ret == nullptr) {
-            spdlog::error("Failed to grab keyboard.\n");
+            SPDLOG_ERROR("Failed to grab keyboard.\n");
             return -1;
         }
         if (ret->status != XCB_GRAB_STATUS_SUCCESS) {
-            spdlog::error("Failed to grab keyboard, status {}\n", ret->status);
+            SPDLOG_ERROR("Failed to grab keyboard, status {}\n", ret->status);
             return ret->status;
         }
         _keyboardCallback = callback;
@@ -270,7 +270,7 @@ namespace mks::base
         auto cookie = xcb_ungrab_keyboard_checked(connection(), XCB_CURRENT_TIME);
         std::unique_ptr<xcb_generic_error_t> err(xcb_request_check(connection(), cookie));
         if (err) {
-            spdlog::error("Failed to ungrab keyboard, error {}\n", err->error_code);
+            SPDLOG_ERROR("Failed to ungrab keyboard, error {}\n", err->error_code);
             return err->error_code;
         }
         return 0;
@@ -282,7 +282,7 @@ namespace mks::base
         std::unique_ptr<xcb_intern_atom_reply_t> reply(
             xcb_intern_atom_reply(_connection, cookie, NULL));
         if (!reply) {
-            spdlog::error("Failed to get atom: {}\n", name);
+            SPDLOG_ERROR("Failed to get atom: {}\n", name);
             return XCB_ATOM_NONE;
         }
         return reply->atom;
@@ -328,7 +328,7 @@ namespace mks::base
             _window = 0;
         }
         else if (_window == XCB_WINDOW_NONE) {
-            spdlog::info("Window already destroyed\n");
+            SPDLOG_INFO("Window already destroyed\n");
         }
     }
 
@@ -339,7 +339,7 @@ namespace mks::base
             _conn->flush();
         }
         else {
-            spdlog::error("Window not created\n");
+            SPDLOG_ERROR("Window not created\n");
         }
     }
 
@@ -349,7 +349,7 @@ namespace mks::base
             xcb_unmap_window(_conn->connection(), _window);
         }
         else {
-            spdlog::error("Window not created\n");
+            SPDLOG_ERROR("Window not created\n");
         }
     }
 
@@ -363,7 +363,7 @@ namespace mks::base
                                  data);
         }
         else {
-            spdlog::error("Window not created\n");
+            SPDLOG_ERROR("Window not created\n");
         }
     }
 
@@ -379,7 +379,7 @@ namespace mks::base
             free(reply);
         }
         else {
-            spdlog::error("Window not created\n");
+            SPDLOG_ERROR("Window not created\n");
         }
     }
 
@@ -394,7 +394,7 @@ namespace mks::base
                                         XCB_ATOM_STRING, 8, value.size(), value.c_str());
         std::unique_ptr<xcb_generic_error_t> reply(xcb_request_check(_conn->connection(), cookie));
         if (reply) {
-            spdlog::error("Failed to set property {}, error: {}\n", name.c_str(),
+            SPDLOG_ERROR("Failed to set property {}, error: {}\n", name.c_str(),
                           reply->error_code);
             return -1;
         }
@@ -407,7 +407,7 @@ namespace mks::base
             xcb_change_window_attributes_checked(_conn->connection(), _window, eventMask, values);
         std::unique_ptr<xcb_generic_error_t> reply(xcb_request_check(_conn->connection(), cookie));
         if (reply) {
-            spdlog::error("Failed to set attribute, error: {}\n", reply->error_code);
+            SPDLOG_ERROR("Failed to set attribute, error: {}\n", reply->error_code);
             return -1;
         }
         return 0;

@@ -14,7 +14,7 @@ namespace mks::base
 
     auto WinMKCapture::name() -> const char *
     {
-        return "capture";
+        return "WinMKCapture";
     }
 
     auto WinMKCapture::start_capture() -> ::ilias::Task<int>
@@ -26,7 +26,7 @@ namespace mks::base
             [](int ncode, WPARAM wp, LPARAM lp) { return self->_mouse_proc(ncode, wp, lp); },
             nullptr, 0);
         if (_mosueHook == nullptr) {
-            spdlog::error("SetWindowsHookExW failed: {}", GetLastError());
+            SPDLOG_ERROR("SetWindowsHookExW failed: {}", GetLastError());
             co_return GetLastError();
         }
 
@@ -35,7 +35,7 @@ namespace mks::base
             [](int ncode, WPARAM wp, LPARAM lp) { return self->_keyboard_proc(ncode, wp, lp); },
             nullptr, 0);
         if (_keyboardHook == nullptr) {
-            spdlog::error("SetWindowsHookExW failed: {}", GetLastError());
+            SPDLOG_ERROR("SetWindowsHookExW failed: {}", GetLastError());
             co_return GetLastError();
         }
         _screenWidth  = GetSystemMetrics(SM_CXSCREEN);
@@ -86,73 +86,73 @@ namespace mks::base
             proto = mks::MouseButtonEvent::emplaceProto(
                 mks::MouseButtonState::eButtonDown, mks::MouseButton::eButtonLeft, (uint8_t)1,
                 (uint64_t)std::chrono::system_clock::now().time_since_epoch().count());
-            spdlog::info("Left Mouse Button Down");
+            SPDLOG_INFO("Left Mouse Button Down");
             break;
         case WM_LBUTTONUP:
             proto = mks::MouseButtonEvent::emplaceProto(
                 mks::MouseButtonState::eButtonUp, mks::MouseButton::eButtonLeft, (uint8_t)1,
                 (uint64_t)std::chrono::system_clock::now().time_since_epoch().count());
-            spdlog::info("Left Mouse Button Up");
+            SPDLOG_INFO("Left Mouse Button Up");
             break;
         case WM_LBUTTONDBLCLK:
             proto = mks::MouseButtonEvent::emplaceProto(
                 mks::MouseButtonState::eClick, mks::MouseButton::eButtonLeft, (uint8_t)2,
                 (uint64_t)std::chrono::system_clock::now().time_since_epoch().count());
-            spdlog::info("Left Mouse Button Double Click");
+            SPDLOG_INFO("Left Mouse Button Double Click");
             break;
         case WM_RBUTTONDOWN:
             proto = mks::MouseButtonEvent::emplaceProto(
                 mks::MouseButtonState::eButtonDown, mks::MouseButton::eButtonRight, (uint8_t)1,
                 (uint64_t)std::chrono::system_clock::now().time_since_epoch().count());
-            spdlog::info("Right Mouse Button Down");
+            SPDLOG_INFO("Right Mouse Button Down");
             break;
         case WM_RBUTTONUP:
             proto = mks::MouseButtonEvent::emplaceProto(
                 mks::MouseButtonState::eButtonUp, mks::MouseButton::eButtonRight, (uint8_t)1,
                 (uint64_t)std::chrono::system_clock::now().time_since_epoch().count());
-            spdlog::info("Right Mouse Button Up");
+            SPDLOG_INFO("Right Mouse Button Up");
             break;
         case WM_RBUTTONDBLCLK:
             proto = mks::MouseButtonEvent::emplaceProto(
                 mks::MouseButtonState::eClick, mks::MouseButton::eButtonRight, (uint8_t)2,
                 (uint64_t)std::chrono::system_clock::now().time_since_epoch().count());
-            spdlog::info("Right Mouse Button Double Click");
+            SPDLOG_INFO("Right Mouse Button Double Click");
             break;
         case WM_MBUTTONDOWN:
             proto = mks::MouseButtonEvent::emplaceProto(
                 mks::MouseButtonState::eButtonDown, mks::MouseButton::eButtonMiddle, (uint8_t)1,
                 (uint64_t)std::chrono::system_clock::now().time_since_epoch().count());
-            spdlog::info("Middle Mouse Button Down");
+            SPDLOG_INFO("Middle Mouse Button Down");
             break;
         case WM_MBUTTONUP:
             proto = mks::MouseButtonEvent::emplaceProto(
                 mks::MouseButtonState::eButtonUp, mks::MouseButton::eButtonMiddle, (uint8_t)1,
                 (uint64_t)std::chrono::system_clock::now().time_since_epoch().count());
-            spdlog::info("Middle Mouse Button Up");
+            SPDLOG_INFO("Middle Mouse Button Up");
             break;
         case WM_MBUTTONDBLCLK:
             proto = mks::MouseButtonEvent::emplaceProto(
                 mks::MouseButtonState::eClick, mks::MouseButton::eButtonMiddle, (uint8_t)2,
                 (uint64_t)std::chrono::system_clock::now().time_since_epoch().count());
-            spdlog::info("Middle Mouse Button Double Click");
+            SPDLOG_INFO("Middle Mouse Button Double Click");
             break;
         case WM_MOUSEMOVE:
             proto = mks::MouseMotionEvent::emplaceProto(
                 (float)hookStruct->pt.x / _screenWidth, (float)hookStruct->pt.y / _screenHeight,
                 (uint64_t)std::chrono::system_clock::now().time_since_epoch().count());
-            spdlog::info("Mouse Move X: {} Y: {}", hookStruct->pt.x, hookStruct->pt.y);
+            SPDLOG_INFO("Mouse Move X: {} Y: {}", hookStruct->pt.x, hookStruct->pt.y);
             break;
         case WM_MOUSEWHEEL:
             proto = mks::MouseWheelEvent::emplaceProto(
                 (float)(GET_WHEEL_DELTA_WPARAM(hookStruct->mouseData) / WHEEL_DELTA), 0.F,
                 (uint64_t)std::chrono::system_clock::now().time_since_epoch().count());
-            spdlog::info("Mouse Wheel {}", GET_WHEEL_DELTA_WPARAM(hookStruct->mouseData));
+            SPDLOG_INFO("Mouse Wheel {}", GET_WHEEL_DELTA_WPARAM(hookStruct->mouseData));
             break;
         case WM_MOUSEHWHEEL:
             proto = mks::MouseWheelEvent::emplaceProto(
                 0.F, (float)(GET_WHEEL_DELTA_WPARAM(hookStruct->mouseData) / WHEEL_DELTA),
                 (uint64_t)std::chrono::system_clock::now().time_since_epoch().count());
-            spdlog::info("Mouse HWheel {}", GET_WHEEL_DELTA_WPARAM(hookStruct->mouseData));
+            SPDLOG_INFO("Mouse HWheel {}", GET_WHEEL_DELTA_WPARAM(hookStruct->mouseData));
         default:
             return CallNextHookEx(nullptr, ncode, wp, lp);
         }
@@ -168,10 +168,10 @@ namespace mks::base
         GetKeyNameTextA(hookStruct->scanCode << 16, name, 256);
         switch (wp) {
         case WM_KEYDOWN:
-            spdlog::info("Key {} Down ", name);
+            SPDLOG_INFO("Key {} Down ", name);
             break;
         case WM_KEYUP:
-            spdlog::info("Key {} Up ", name);
+            SPDLOG_INFO("Key {} Up ", name);
         }
         uint16_t rawcode;
         bool     virtualKey;

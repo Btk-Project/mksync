@@ -30,18 +30,25 @@ namespace mks::base
         XcbMKSender(App &app);
         ~XcbMKSender();
 
-        auto start() -> ::ilias::Task<int> override;
-        auto stop() -> ::ilias::Task<int> override;
-        void send_motion_event(const mks::MouseMotionEvent &event) const override;
-        void send_button_event(const mks::MouseButtonEvent &event) const override;
-        void send_wheel_event(const mks::MouseWheelEvent &event) const override;
-        void send_keyboard_event(const mks::KeyEvent &event) const override;
+        auto start_sender() -> ::ilias::Task<int> override;
+        auto stop_sender() -> ::ilias::Task<int> override;
+        auto name() -> const char * override;
+
+        auto get_subscribers() -> std::vector<int> override;
+        auto handle_event(NekoProto::IProto &event) -> ::ilias::Task<void> override;
+
+    private:
+        void _send_motion_event(const mks::MouseMotionEvent &event) const;
+        void _send_button_event(const mks::MouseButtonEvent &event) const;
+        void _send_wheel_event(const mks::MouseWheelEvent &event) const;
+        void _send_keyboard_event(const mks::KeyEvent &event) const;
 
     private:
         bool                                       _isStart = false;
         App                                       *_app     = nullptr;
         std::unique_ptr<XcbConnect>                _xcbConnect;
         ::ilias::WaitHandle<::ilias::Result<void>> _eventLoopHandle;
+        ::ilias::WaitHandle<::ilias::Result<void>> _xcbLoopHandle;
         int                                        _screenWidth  = 0;
         int                                        _screenHeight = 0;
     };

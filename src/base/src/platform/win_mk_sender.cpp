@@ -1,7 +1,7 @@
 #include "mksync/base/platform/win_mk_sender.hpp"
-#include <windows.h>
 
 #ifdef _WIN32
+    #include <windows.h>
 namespace mks::base
 {
     WinMKSender::WinMKSender(::ilias::IoContext *ctx) : MKSender(ctx) {}
@@ -22,7 +22,7 @@ namespace mks::base
 
     auto WinMKSender::name() -> const char *
     {
-        return "sender";
+        return "WinMKSender";
     }
 
     auto WinMKSender::get_subscribers() -> std::vector<int>
