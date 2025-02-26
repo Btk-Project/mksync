@@ -22,8 +22,7 @@ namespace mks::base
     {
         if (!_xcbConnect) {
             _xcbConnect = std::make_unique<XcbConnect>(_app->get_io_context());
-            auto ret    = co_await _xcbConnect->connect(nullptr);
-            if (!ret) {
+            if (auto ret = co_await _xcbConnect->connect(nullptr); !ret) {
                 SPDLOG_ERROR("Failed to connect to X server!");
                 co_return -1;
             }
@@ -35,6 +34,7 @@ namespace mks::base
             SPDLOG_ERROR("Failed to get screen size!");
             co_return -1;
         }
+        SPDLOG_INFO("Screen size: {}x{}", _screenWidth, _screenHeight);
         auto ret = _xcbConnect->grab_keyboard(
             &xcbWindow, [this](xcb_generic_event_t *event) { keyboard_proc(event); }, true);
         if (ret != 0) {
