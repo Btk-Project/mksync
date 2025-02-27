@@ -3,7 +3,6 @@
 #include <spdlog/sinks/callback_sink.h>
 #include <spdlog/spdlog.h>
 #include <csignal>
-#include <charconv>
 
 #include "mksync/base/communication.hpp"
 
@@ -29,16 +28,22 @@ namespace mks::base
             std::bind(
                 static_cast<std::string (App::*)(const CommandParser::ArgsType &,
                                                  const CommandParser::OptionsType &)>(&App::stop),
-                this, std::placeholders::_1, std::placeholders::_2)
+                this, std::placeholders::_1, std::placeholders::_2),
+            {}
         });
-        coreInstaller(
-            {{"log"},
-             " : show the logs of the program, \n"
-             "       -max_log=$max_log_number :  set the max log number, default is 100. \n"
-             "       -real_time_log=<trace/debug/info/warn/err> : set real time log level. \n"
-             "       clear : clear the log.",
-             std::bind(static_cast<CallbackType>(&App::log_handle), this, std::placeholders::_1,
-                       std::placeholders::_2)});
+        coreInstaller({
+            {"log"                                         },
+            " : show the logs of the program, \n"
+            "         clear : clear the log.",
+            std::bind(static_cast<CallbackType>(&App::log_handle), this, std::placeholders::_1,
+                      std::placeholders::_2),
+            {
+             {"max_log", CommandParser::OptionsData::eInt,
+                 "set the max log number, default is 100."},
+             {"level", CommandParser::OptionsData::eString,
+                 "set print log level. vlaue: trace/debug/info/warn/err"},
+             }
+        });
 
 #if defined(SIGPIPE)
         ::signal(SIGPIPE, SIG_IGN); // 忽略SIGPIPE信号 防止多跑一秒就会爆炸
@@ -62,8 +67,7 @@ namespace mks::base
         }
         const auto *name = node->name();
         SPDLOG_INFO("install node: {}<{}>", name, (void *)node.get());
-        _nodeMap.emplace(
-            std::make_pair(name, NodeData{std::move(node), NodeStatus::eNodeStatusStopped}));
+        _nodeList.emplace_back(NodeData{std::move(node), NodeStatus::eNodeStatusStopped});
     }
 
     auto App::start_node(NodeData &node) -> ilias::Task<int>
@@ -78,23 +82,24 @@ namespace mks::base
             auto *consumer = dynamic_cast<Consumer *>(node.node.get());
             if (consumer != nullptr) {
                 for (int type : consumer->get_subscribers()) {
-                    _consumerMap[type].insert(consumer);
+                    _consumerMap[type].push_back(consumer);
                 }
             }
             auto *producer = dynamic_cast<Producer *>(node.node.get());
             if (producer != nullptr) {
-                _cancelHandleMap[node.node->name()] = ::ilias::spawn(*_ctx, get_event(producer));
+                _cancelHandleMap[node.node->name()] =
+                    ::ilias::spawn(*_ctx, producer_loop(producer));
             }
             co_return 0;
         }
         co_return -2;
     }
 
-    auto App::get_event(Producer *producer) -> ::ilias::Task<void>
+    auto App::producer_loop(Producer *producer) -> ::ilias::Task<void>
     {
         while (true) {
             if (auto ret = co_await producer->get_event(); ret) {
-                co_await dispatch(std::move(ret.value()));
+                co_await dispatch(std::move(ret.value()), dynamic_cast<NodeBase *>(producer));
             }
             else {
                 break;
@@ -110,7 +115,7 @@ namespace mks::base
             auto *consumer = dynamic_cast<Consumer *>(node.node.get());
             if (consumer != nullptr) {
                 for (int type : consumer->get_subscribers()) {
-                    _consumerMap[type].erase(consumer);
+                    _consumerMap[type].remove(consumer);
                 }
             }
             auto *producer = dynamic_cast<Producer *>(node.node.get());
@@ -126,13 +131,18 @@ namespace mks::base
         co_return 0;
     }
 
-    auto App::dispatch(NekoProto::IProto &&proto) -> Task<void>
+    auto App::dispatch(NekoProto::IProto &&proto, NodeBase *nodebase) -> Task<void>
     {
         int type = proto.type();
         for (auto *consumer : _consumerMap[type]) {
             if (proto == nullptr) {
                 break;
             }
+            if (dynamic_cast<NodeBase *>(consumer) == nodebase) {
+                continue;
+            }
+            SPDLOG_INFO("dispatch {} to {}", proto.protoName(),
+                        dynamic_cast<NodeBase *>(consumer)->name());
             co_await consumer->handle_event(proto);
         }
         co_return;
@@ -166,21 +176,20 @@ namespace mks::base
                          [[maybe_unused]] const CommandParser::OptionsType &options) -> std::string
     {
         if (options.contains("max_log")) {
-            const auto &str = options.at("max_log");
-            int         maxLog;
-            auto        ret = std::from_chars(str.data(), str.data() + str.length(), maxLog);
-            if (ret.ec == std::errc()) {
-                _statusList.resize(maxLog);
+            int value = std::get<int>(options.at("max_log"));
+            if (value > 0) {
+                _statusListMaxSize = value;
+                while ((int)_statusList.size() > value) {
+                    _statusList.pop_front();
+                }
             }
-            return "";
         }
         if (std::any_of(args.begin(), args.end(),
-                        [](const std::string &arg) { return arg == "clear"; })) {
+                        [](const std::string_view &arg) { return arg == "clear"; })) {
             _statusList.clear();
-            return "";
         }
-        if (options.contains("real_time_log")) {
-            const auto &str = options.at("real_time_log");
+        if (options.contains("level")) {
+            const auto &str = std::get<std::string>(options.at("level"));
             if (str == "trace") {
                 spdlog::set_level(spdlog::level::trace);
             }
@@ -264,10 +273,10 @@ namespace mks::base
         install_node(MKSender::make(*this));
 
         // start all node
-        for (auto &node : _nodeMap) {
-            auto ret = co_await start_node(node.second);
+        for (auto &node : _nodeList) {
+            auto ret = co_await start_node(node);
             if (ret != 0) {
-                SPDLOG_ERROR("start node {} failed", node.first);
+                SPDLOG_ERROR("start node {} failed", node.node->name());
             }
         }
         _isRuning = true;

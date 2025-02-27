@@ -68,12 +68,14 @@ namespace mks::base
             {"capture", "c"},
             "start keyboard/mouse capture",
             std::bind(static_cast<CallbackType>(&MKCapture::start_capture), capture.get(),
-                      std::placeholders::_1, std::placeholders::_2)
+                      std::placeholders::_1, std::placeholders::_2),
+            {}
         });
         commandInstaller({{"stopcapture"},
                           "stop keyboard/mouse capture",
                           std::bind(static_cast<CallbackType>(&MKCapture::stop_capture),
-                                    capture.get(), std::placeholders::_1, std::placeholders::_2)});
+                                    capture.get(), std::placeholders::_1, std::placeholders::_2),
+                          {}});
         return capture;
     }
 

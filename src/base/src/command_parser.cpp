@@ -1,6 +1,8 @@
 #include "mksync/base/command_parser.hpp"
 
 #include <spdlog/spdlog.h>
+#include <charconv>
+#include <fmt/format.h>
 
 #include "mksync/base/app.hpp"
 namespace mks::base
@@ -12,7 +14,8 @@ namespace mks::base
                 {"help", "h", "?"},
                 "show help, can specify module name, e.g. help [$module1] ...",
                 std::bind(&CommandParser::show_help, this, std::placeholders::_1,
-                          std::placeholders::_2)
+                          std::placeholders::_2),
+                {}
         },
             "Core");
         install_cmd(
@@ -20,7 +23,8 @@ namespace mks::base
                 {"version", "v"},
                 "show version",
                 std::bind(&CommandParser::show_version, this, std::placeholders::_1,
-                          std::placeholders::_2)
+                          std::placeholders::_2),
+                {}
         },
             "Core");
     }
@@ -61,33 +65,75 @@ namespace mks::base
     {
         return parser(_split(cmd));
     }
+    auto CommandParser::_parser(std::set<std::string_view> &opts, OptionsType &options,
+                                const std::vector<OptionsData> &optdatas) -> bool
+    {
+        for (const auto &opt : optdatas) {
+            if (opts.erase(opt.name) != 0U) {
+                switch (opt.type) {
+                case OptionsData::eBool: {
+                    auto str          = std::get<std::string>(options[opt.name]);
+                    options[opt.name] = (str == "true") || (str == "y");
+                } break;
+                case OptionsData::eInt: {
+                    int  value = 0;
+                    auto str   = std::get<std::string>(options[opt.name]);
+                    auto ret   = std::from_chars(str.data(), str.data() + str.length(), value);
+                    if (ret.ec != std::errc()) {
+                        SPDLOG_ERROR("invalid option \"{}\"", opt.name);
+                    }
+                    options[opt.name] = value;
+                } break;
+                case OptionsData::eDouble: {
+                    double value = 0;
+                    auto   str   = std::get<std::string>(options[opt.name]);
+                    auto   ret   = std::from_chars(str.data(), str.data() + str.length(), value);
+                    if (ret.ec != std::errc()) {
+                        SPDLOG_ERROR("invalid option \"{}\"", opt.name);
+                    }
+                    options[opt.name] = value;
+                } break;
+                default:
+                    break;
+                }
+            }
+        }
+        if (opts.size() > 0) {
+            SPDLOG_ERROR("unknown options: {}", fmt::join(opts, ","));
+            return false;
+        }
+        return true;
+    }
 
     auto CommandParser::parser(std::vector<std::string_view> cmdline) -> std::string
     {
         if (cmdline.empty()) {
             return "";
         }
-        std::vector<std::string>           args;
-        std::map<std::string, std::string> options;
-        auto                               cmd = cmdline.front();
+        ArgsType                   args;
+        OptionsType                options;
+        auto                       cmd = cmdline.front();
+        std::set<std::string_view> opts;
         for (int i = 1; i < (int)cmdline.size(); ++i) { // 将命令的选项与参数提取出来
             auto str = cmdline[i];
             if (str[0] == '-') {
                 auto pos = str.find('=');
                 if (pos != std::string::npos) {
-                    options[std::string(str.substr(1, pos - 1))] = std::string(str.substr(pos + 1));
+                    options[str.substr(1, pos - 1)] = std::string(str.substr(pos + 1));
                 }
                 else {
-                    options[std::string(str.substr(1))] = "";
+                    options[str.substr(1)] = std::string("true");
                 }
+                opts.insert(str.substr(1, pos - 1));
             }
             else {
-                args.emplace_back(std::string(str));
+                args.push_back(str);
             }
         }
         auto item = _trie.search(cmd);
         if (item) {
             int index = item.value();
+            _parser(opts, options, _commands[index].options);
             if (index >= 0 && index < (int)_commands.size()) {
                 return _commands[index].callback(args, options);
             }
@@ -95,17 +141,18 @@ namespace mks::base
         SPDLOG_ERROR("command \"{}\" not found", cmd);
         return "";
     }
+
     auto CommandParser::show_version([[maybe_unused]] const ArgsType    &args,
                                      [[maybe_unused]] const OptionsType &options) -> std::string
     {
-        printf("%s %s\n", App::app_name(), App::app_version());
+        fprintf(stdout, "%s %s\n", App::app_name(), App::app_version());
         return "";
     }
 
     auto CommandParser::show_help([[maybe_unused]] const ArgsType    &args,
                                   [[maybe_unused]] const OptionsType &options) -> std::string
     {
-        printf("Usage: $%s [command] [args] [options]\n", App::app_name());
+        fprintf(stdout, "Usage: $%s [command] [args] [options]\n", App::app_name());
         std::string module;
         for (auto item = _modules.begin(); item != _modules.end(); ++item) {
             if (!args.empty() &&
@@ -120,22 +167,44 @@ namespace mks::base
             }
             if (module != item->first) {
                 module = item->first;
-                printf("\n%s:\n", module.c_str());
+                fprintf(stdout, "\n%s:\n", module.c_str());
             }
             const auto &command = _commands[item->second];
-            printf("    %s", command.command[0].c_str());
+            fprintf(stdout, "    %s", std::string(command.command[0]).c_str());
             if (command.command.size() > 1) {
-                printf("(");
+                fprintf(stdout, "(");
                 for (size_t i = 1; i < command.command.size(); ++i) {
-                    printf("%s", command.command[i].c_str());
+                    fprintf(stdout, "%s", std::string(command.command[i]).c_str());
                     if (i != command.command.size() - 1) {
-                        printf(", ");
+                        fprintf(stdout, ", ");
                     }
                 }
-                printf(")");
+                fprintf(stdout, ")");
             }
-            printf(":\n        %s\n", command.description.c_str());
+            fprintf(stdout, ":\n        %s\n", command.description.c_str());
+            const char *type;
+            for (const auto &opt : command.options) {
+                switch (opt.type) {
+                case OptionsData::eBool:
+                    type = "Bool";
+                    break;
+                case OptionsData::eInt:
+                    type = "Int";
+                    break;
+                case OptionsData::eDouble:
+                    type = "Float";
+                    break;
+                case OptionsData::eString:
+                    type = "String";
+                    break;
+                default:
+                    type = "Unknown";
+                }
+                fprintf(stdout, "        -%s=$(%s) %s\n", opt.name.c_str(), type,
+                        opt.description.c_str());
+            }
         }
+        ::fflush(stdout);
         return "";
     }
 

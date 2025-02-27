@@ -10,7 +10,7 @@
 int main(int argc, const char *const *argv)
 {
     ILIAS_LOG_SET_LEVEL(ILIAS_INFO_LEVEL);
-    spdlog::set_level(spdlog::level::debug);
+    spdlog::set_level(spdlog::level::warn);
     mks::base::IoContext context;
     mks::base::App       app(&context);
     ilias::spawn(context, app.exec(argc, argv));

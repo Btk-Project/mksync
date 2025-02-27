@@ -40,7 +40,9 @@ namespace mks::base
         void _send_keyboard_event(const mks::KeyEvent &event) const;
 
     private:
-        bool _isStart = false;
+        bool     _isStart      = false;
+        uint64_t _screenWidth  = 0;
+        uint64_t _screenHeight = 0;
     };
 } // namespace mks::base
 #endif

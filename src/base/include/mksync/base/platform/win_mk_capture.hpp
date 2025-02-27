@@ -23,6 +23,8 @@ namespace mks::base
     public:
         WinMKCapture(::ilias::IoContext *ctx);
         ~WinMKCapture();
+        auto start() -> ::ilias::Task<int> override;
+        auto stop() -> ::ilias::Task<int> override;
         auto name() -> const char * override;
         ///> 获取一个事件，如果没有就等待
         auto get_event() -> ::ilias::IoTask<NekoProto::IProto> override;
@@ -36,13 +38,15 @@ namespace mks::base
         LRESULT _mouse_proc(int ncode, WPARAM wp, LPARAM lp);
         LRESULT _keyboard_proc(int ncode, WPARAM wp, LPARAM lp);
 
-        HHOOK    _mosueHook;
-        HHOOK    _keyboardHook;
-        uint64_t _screenWidth;
-        uint64_t _screenHeight;
+        HHOOK _mosueHook      = nullptr;
+        HHOOK _keyboardHook   = nullptr;
+        int   _screenWidth    = 0;
+        int   _screenHeight   = 0;
+        bool  _isStartCapture = false;
 
         RingBuffer<NekoProto::IProto> _events;
         ::ilias::Event                _syncEvent;
+        static WinMKCapture          *g_self;
     };
 } // namespace mks::base
 #endif

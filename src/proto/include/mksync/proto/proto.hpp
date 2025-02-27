@@ -348,18 +348,19 @@ namespace mks
         MouseButtonState state;     /**< Mouse button state */
         MouseButton      button;    /**< Which button */
         uint8_t          clicks;    /**< Clicked a few times */
-        uint64_t         timestamp; /**< std::system::system_clock */
+        uint64_t         timestamp; /**< system event time */
 
         NEKO_SERIALIZER(state, button, clicks, timestamp)
         NEKO_DECLARE_PROTOCOL(MouseButtonEvent, NEKO_NAMESPACE::JsonSerializer)
     };
 
     struct MouseMotionEvent {
-        float    x;         /**< X coordinate, relative to screen */
-        float    y;         /**< Y coordinate, relative to screen */
-        uint64_t timestamp; /**< std::system::system_clock */
+        float    x;          /**< X coordinate, relative to screen */
+        float    y;          /**< Y coordinate, relative to screen */
+        bool     isAbsolute; /**< is the point is absolute */
+        uint64_t timestamp;  /**< system event time */
 
-        NEKO_SERIALIZER(x, y, timestamp)
+        NEKO_SERIALIZER(x, y, isAbsolute, timestamp)
         NEKO_DECLARE_PROTOCOL(MouseMotionEvent, NEKO_NAMESPACE::JsonSerializer)
     };
 
@@ -368,7 +369,7 @@ namespace mks
                     left, by default, only this value */
         float y; /**< The amount scrolled vertically, positive away from the user and negative
                     toward the user */
-        uint64_t timestamp; /**< std::system::system_clock */
+        uint64_t timestamp; /**< system event time */
 
         NEKO_SERIALIZER(x, y, timestamp)
         NEKO_DECLARE_PROTOCOL(MouseWheelEvent, NEKO_NAMESPACE::JsonSerializer)
@@ -378,7 +379,7 @@ namespace mks
         KeyboardState state;     /**< Keyboard state (up or down) */
         KeyCode       key;       /**< Mks KeyCode enum */
         KeyMod        mod;       /**< Current key modifiers */
-        uint64_t      timestamp; /**< std::system::system_clock */
+        uint64_t      timestamp; /**< system event time */
 
         NEKO_SERIALIZER(state, key, mod, timestamp)
         NEKO_DECLARE_PROTOCOL(KeyEvent, NEKO_NAMESPACE::JsonSerializer)
@@ -389,10 +390,41 @@ namespace mks
         uint32_t    screenId;  /**< Screen id by this device */
         uint32_t    width;     /**< This screen width */
         uint32_t    height;    /**< This screen height */
-        uint64_t    timestamp; /**< std::system::system_clock */
+        uint64_t    timestamp; /**< system event time */
 
         NEKO_SERIALIZER(name, screenId, width, height, height)
         NEKO_DECLARE_PROTOCOL(VirtualScreenInfo, NEKO_NAMESPACE::JsonSerializer)
+    };
+
+    /**
+     * @brief Hello Event
+     * 首次通信由客户端发起。客户端上报版本号与屏幕数目，服务端匹配版本好并分配屏幕Id。
+     * 分配Id完成后，客户端通过VirtualScreenInfo上报屏幕信息。
+     * id:
+     *  server -> client:
+     *      服务器将分配一个屏幕Id给到客户端
+     */
+    struct HelloEvent {
+        std::string name;    /**< client name */
+        int         version; /**< server/client version */
+
+        NEKO_SERIALIZER(name, version)
+        NEKO_DECLARE_PROTOCOL(HelloEvent, NEKO_NAMESPACE::JsonSerializer)
+    };
+
+    struct BorderEvent {
+        enum Border
+        {
+            eLeft   = 1 << 0,
+            eRight  = 1 << 1,
+            eTop    = 1 << 2,
+            eBottom = 1 << 3
+        };
+        uint32_t screenId;
+        uint32_t border;
+
+        NEKO_SERIALIZER(screenId, border)
+        NEKO_DECLARE_PROTOCOL(BorderEvent, NEKO_NAMESPACE::JsonSerializer)
     };
 
 } // namespace mks
