@@ -66,11 +66,13 @@ namespace mks::base
         commandInstaller({{"start_sender"},
                           "start mouse/keyboard sender",
                           std::bind(static_cast<CallbackType>(&MKSender::start_sender),
-                                    sender.get(), std::placeholders::_1, std::placeholders::_2)});
+                                    sender.get(), std::placeholders::_1, std::placeholders::_2),
+                          {}});
         commandInstaller({{"stop_sender"},
                           "stop mouse/keyboard sender",
                           std::bind(static_cast<CallbackType>(&MKSender::stop_sender), sender.get(),
-                                    std::placeholders::_1, std::placeholders::_2)});
+                                    std::placeholders::_1, std::placeholders::_2),
+                          {}});
         return sender;
     }
 } // namespace mks::base

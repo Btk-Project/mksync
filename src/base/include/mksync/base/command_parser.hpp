@@ -14,6 +14,7 @@
 #include <vector>
 #include <functional>
 #include <map>
+#include <set>
 
 #include "mksync/base/trie.hpp"
 #include "mksync/base/base_library.h"
@@ -24,16 +25,29 @@ namespace mks::base
 
     class MKS_BASE_API CommandParser {
     public:
-        using CommandsType = std::vector<std::string>;
-        using ArgsType     = std::vector<std::string>;
-        using OptionsType  = std::map<std::string, std::string>;
+        using CommandsType = std::vector<std::string_view>;
+        using ArgsType     = std::vector<std::string_view>;
+        using OptionsType =
+            std::map<std::string_view, std::variant<bool, int, double, std::string>>;
         using CommandCallbackType =
             std::function<std::string(const ArgsType &args, const OptionsType &options)>;
-
+        struct OptionsData {
+            enum OptionType
+            {
+                eBool   = 0,
+                eInt    = 1,
+                eDouble = 2,
+                eString = 3,
+            };
+            std::string name;
+            OptionType  type;
+            std::string description;
+        };
         struct CommandsData {
-            CommandsType        command;
-            std::string         description;
-            CommandCallbackType callback;
+            CommandsType             command;
+            std::string              description;
+            CommandCallbackType      callback;
+            std::vector<OptionsData> options;
         };
 
     public:
@@ -46,6 +60,8 @@ namespace mks::base
         auto show_version(const ArgsType &args, const OptionsType &options) -> std::string;
 
     private:
+        static auto _parser(std::set<std::string_view> &opts, OptionsType &options,
+                            const std::vector<OptionsData> &optdatas) -> bool;
         static auto _split(std::string_view str, char ch = ' ') -> std::vector<std::string_view>;
 
     private:

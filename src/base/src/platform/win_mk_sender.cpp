@@ -10,7 +10,9 @@ namespace mks::base
 
     auto WinMKSender::start_sender() -> ::ilias::Task<int>
     {
-        _isStart = true;
+        _screenWidth  = GetSystemMetrics(SM_CXSCREEN);
+        _screenHeight = GetSystemMetrics(SM_CYSCREEN);
+        _isStart      = true;
         co_return 0;
     }
 
@@ -64,11 +66,12 @@ namespace mks::base
         }
         INPUT input = {};
         memset(&input, 0, sizeof(INPUT));
-        input.type           = INPUT_MOUSE;
-        input.mi.dx          = (LONG)(event.x * 65535);
-        input.mi.dy          = (LONG)(event.y * 65535);
-        input.mi.mouseData   = 0;
-        input.mi.dwFlags     = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE;
+        input.type         = INPUT_MOUSE;
+        input.mi.dx        = event.isAbsolute ? (LONG)(event.x * 65535) : event.x * _screenWidth;
+        input.mi.dy        = event.isAbsolute ? (LONG)(event.y * 65535) : event.y * _screenHeight;
+        input.mi.mouseData = 0;
+        input.mi.dwFlags =
+            (event.isAbsolute ? (MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_MOVE) : MOUSEEVENTF_MOVE);
         input.mi.time        = 0;
         input.mi.dwExtraInfo = 0;
         SendInput(1, &input, sizeof(INPUT));

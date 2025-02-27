@@ -13,7 +13,7 @@
 
 #include <string>
 #include <any>
-#include <set>
+#include <list>
 #include <ilias/ilias.hpp>
 #include <ilias/net/tcp.hpp>
 #include <ilias/fs/console.hpp>
@@ -47,8 +47,8 @@ namespace mks::base
 
         // main loop
         auto exec(int argc = 0, const char *const *argv = nullptr) -> ilias::Task<void>;
-        auto dispatch(NekoProto::IProto &&proto) -> ::ilias::Task<void>;
-        auto get_event(Producer *producer) -> ::ilias::Task<void>;
+        auto dispatch(NekoProto::IProto &&proto, NodeBase *nodebase) -> ::ilias::Task<void>;
+        auto producer_loop(Producer *producer) -> ::ilias::Task<void>;
         auto install_node(std::unique_ptr<NodeBase, void (*)(NodeBase *)> &&node) -> void;
         auto start_node(NodeData &node) -> ilias::Task<int>;
         auto stop_node(NodeData &node) -> ilias::Task<int>;
@@ -78,8 +78,8 @@ namespace mks::base
 
         CommandParser                                                 _commandParser;
         std::unordered_map<std::string, std::any>                     _optionsMap;
-        std::unordered_map<std::string_view, NodeData>                _nodeMap;
-        std::unordered_map<int, std::set<Consumer *>>                 _consumerMap;
+        std::list<NodeData>                                           _nodeList;
+        std::unordered_map<int, std::list<Consumer *>>                _consumerMap;
         std::unordered_map<std::string_view, ilias::WaitHandle<void>> _cancelHandleMap;
         std::deque<std::string> _statusList; // For internal log storage
         size_t                  _statusListMaxSize = 100;

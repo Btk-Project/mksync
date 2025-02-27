@@ -17,6 +17,7 @@
 #include "mksync/base/command_parser.hpp"
 
 #include <ilias/sync/event.hpp>
+#include <unordered_map>
 
 namespace mks::base
 {
@@ -32,7 +33,7 @@ namespace mks::base
         };
 
     public:
-        MKCommunication(::ilias::IoContext *ctx) : _ctx(ctx) {}
+        MKCommunication(::ilias::IoContext *ctx);
         virtual ~MKCommunication() = default;
         auto start() -> ::ilias::Task<int> override;
         auto stop() -> ::ilias::Task<int> override;
@@ -43,6 +44,7 @@ namespace mks::base
 
         auto status() -> Status;
         auto set_flags(NekoProto::StreamFlag flags) -> void;
+        auto add_subscribers(int type) -> void; // add event form send to current peer.
 
         // server
         /**
@@ -73,18 +75,25 @@ namespace mks::base
                         const CommandParser::OptionsType &options) -> std::string;
 
         // communication
+        auto set_current_peer(std::string_view currentPeer) -> void;
+        auto current_peer() const -> std::string;
+        auto peers() const -> std::vector<std::string>;
+        auto send(NekoProto::IProto &event, std::string_view peer) -> ilias::IoTask<void>;
+        auto recv(std::string_view peer) -> ilias::IoTask<NekoProto::IProto>;
         auto set_communication_options(const CommandParser::ArgsType    &args,
                                        const CommandParser::OptionsType &options) -> std::string;
 
         static auto make(App &app) -> std::unique_ptr<MKCommunication, void (*)(NodeBase *)>;
 
     private:
-        std::unique_ptr<NekoProto::ProtoStreamClient<>> _protoStreamClient;
-        NekoProto::ProtoFactory                         _protofactory;
-        ilias::CancelHandle                             _cancelHandle;
-        ::ilias::Event                                  _syncEvent;
-        Status                                          _status = eDisable;
-        NekoProto::StreamFlag                           _flags  = NekoProto::StreamFlag::None;
-        ::ilias::IoContext                             *_ctx    = nullptr;
+        NekoProto::ProtoFactory _protofactory;
+        ::ilias::Event          _syncEvent;
+        ::ilias::CancelHandle   _cancelHandle = {};
+        Status                  _status       = eDisable;
+        ::ilias::IoContext     *_ctx          = nullptr;
+        NekoProto::StreamFlag   _flags        = NekoProto::StreamFlag::None;
+        std::set<int>           _subscribers;
+        std::unordered_map<std::string, NekoProto::ProtoStreamClient<>> _protoStreamClients;
+        std::unordered_map<std::string, NekoProto::ProtoStreamClient<>>::iterator _currentPeer;
     };
 } // namespace mks::base
