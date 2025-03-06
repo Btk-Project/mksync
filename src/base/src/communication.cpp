@@ -86,8 +86,8 @@ namespace mks::base
         return peers;
     }
 
-    auto MKCommunication::send(NekoProto::IProto &event, std::string_view peer)
-        -> ilias::IoTask<void>
+    auto MKCommunication::send(NekoProto::IProto &event,
+                               std::string_view   peer) -> ilias::IoTask<void>
     {
         if (_status == eDisable) {
             co_return Unexpected<Error>(Error::Unknown);
@@ -140,6 +140,7 @@ namespace mks::base
     {
         while (_status != eDisable) {
             if (_currentPeer == _protoStreamClients.end()) {
+                _syncEvent.clear();
                 if (auto ret = co_await _syncEvent; !ret) {
                     // 取消或其他异常状态。直接退出。
                     co_return Unexpected<Error>(ret.error());

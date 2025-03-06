@@ -1,7 +1,11 @@
 #include "mksync/base/platform/xcb_window.hpp"
 #ifdef __linux__
     #include <spdlog/spdlog.h>
+    #include <xcb/xcb.h>
     #include <xcb/xtest.h>
+    #include <xcb/composite.h>
+    #include <xcb/render.h>
+    #include <memory>
 
 namespace mks::base
 {
@@ -170,6 +174,12 @@ namespace mks::base
                         continue;
                     }
                 }
+                if ((event->response_type & ~0x80) == XCB_MOTION_NOTIFY) {
+                    auto *motionEvent = (xcb_motion_notify_event_t *)event.get();
+                    SPDLOG_ERROR("response event type x:{} y:{}, root x:{} root y:{}",
+                                 motionEvent->event_x, motionEvent->event_y, motionEvent->root_x,
+                                 motionEvent->root_y);
+                }
                 switch (event->response_type & ~0x80) {
                 case XCB_KEY_PRESS:
                 case XCB_KEY_RELEASE:
@@ -194,8 +204,8 @@ namespace mks::base
     }
 
     auto XcbConnect::grab_pointer(XcbWindow                                 *window,
-                                  std::function<void(xcb_generic_event_t *)> callback, bool owner)
-        -> int
+                                  std::function<void(xcb_generic_event_t *)> callback,
+                                  bool                                       owner) -> int
     {
         xcb_window_t root = XCB_WINDOW_NONE;
         if (window == nullptr) {
@@ -239,8 +249,8 @@ namespace mks::base
     }
 
     auto XcbConnect::grab_keyboard(XcbWindow                                 *window,
-                                   std::function<void(xcb_generic_event_t *)> callback, bool owner)
-        -> int
+                                   std::function<void(xcb_generic_event_t *)> callback,
+                                   bool                                       owner) -> int
     {
         xcb_window_t root = XCB_WINDOW_NONE;
         if (window != nullptr) {
@@ -295,6 +305,13 @@ namespace mks::base
         _create_window();
     }
 
+    XcbWindow::XcbWindow(XcbConnect *conn, uint32_t eventMask, FramelessT /*unused*/)
+    {
+        _window = conn->generate_id();
+        _conn   = conn;
+        _create_window(eventMask);
+    }
+
     auto XcbWindow::_create_window() -> void
     {
         auto    *screen   = _conn->get_default_screen();
@@ -309,11 +326,39 @@ namespace mks::base
                           XCB_CW_EVENT_MASK, values);
     }
 
+    auto XcbWindow::_create_window(uint32_t eventMask) -> void
+    {
+        auto    *screen   = _conn->get_default_screen();
+        uint32_t values[] = {eventMask};
+        xcb_create_window(_conn->connection(), XCB_COPY_FROM_PARENT, _window, screen->root, 0, 0, 1,
+                          1, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual,
+                          XCB_CW_EVENT_MASK, values);
+        const uint32_t values1[] = {
+            True,
+        };
+        xcb_change_window_attributes(_conn->connection(), _window, XCB_CW_OVERRIDE_REDIRECT,
+                                     values1);
+    }
+
     XcbWindow::XcbWindow(XcbConnect *conn, xcb_window_t window, bool destroyAble)
     {
         _window      = window;
         _conn        = conn;
         _destroyAble = destroyAble;
+    }
+
+    XcbWindow::XcbWindow(XcbWindow &&other)
+    {
+        _window                = other._window;
+        _conn                  = other._conn;
+        _destroyAble           = other._destroyAble;
+        _grabbedKeyboard       = other._grabbedKeyboard;
+        _grabbedPointer        = other._grabbedPointer;
+        other._window          = XCB_WINDOW_NONE;
+        other._conn            = nullptr;
+        other._destroyAble     = false;
+        other._grabbedKeyboard = false;
+        other._grabbedPointer  = false;
     }
 
     XcbWindow::~XcbWindow()
@@ -394,20 +439,31 @@ namespace mks::base
                                         XCB_ATOM_STRING, 8, value.size(), value.c_str());
         std::unique_ptr<xcb_generic_error_t> reply(xcb_request_check(_conn->connection(), cookie));
         if (reply) {
-            SPDLOG_ERROR("Failed to set property {}, error: {}\n", name.c_str(),
-                          reply->error_code);
+            SPDLOG_ERROR("Failed to set property {}, error: {}\n", name.c_str(), reply->error_code);
             return -1;
         }
         return 0;
     }
 
-    auto XcbWindow::set_attribute(uint32_t eventMask, uint32_t values[]) -> int
+    auto XcbWindow::set_attribute(uint32_t attributeMask, const void *values) -> int
     {
-        auto cookie =
-            xcb_change_window_attributes_checked(_conn->connection(), _window, eventMask, values);
+        auto cookie = xcb_change_window_attributes_checked(_conn->connection(), _window,
+                                                           attributeMask, values);
         std::unique_ptr<xcb_generic_error_t> reply(xcb_request_check(_conn->connection(), cookie));
         if (reply) {
             SPDLOG_ERROR("Failed to set attribute, error: {}\n", reply->error_code);
+            return -1;
+        }
+        return 0;
+    }
+
+    auto XcbWindow::config_window(xcb_config_window_t configMask, const void *valueList) -> int
+    {
+        auto cookie =
+            xcb_configure_window_checked(_conn->connection(), _window, configMask, valueList);
+        std::unique_ptr<xcb_generic_error_t> reply(xcb_request_check(_conn->connection(), cookie));
+        if (reply) {
+            SPDLOG_ERROR("Failed to config windows, error: {}\n", reply->error_code);
             return -1;
         }
         return 0;
@@ -422,6 +478,12 @@ namespace mks::base
     auto XcbWindow::native_handle() const -> xcb_window_t
     {
         return _window;
+    }
+
+    auto XcbWindow::set_input_focus() -> void
+    {
+        ::xcb_set_input_focus(_conn->connection(), XCB_INPUT_FOCUS_POINTER_ROOT, _window,
+                              XCB_CURRENT_TIME);
     }
 
 } // namespace mks::base

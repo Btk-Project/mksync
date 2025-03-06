@@ -18,7 +18,7 @@ namespace mks::base
         _xcbConnect.reset();
     }
 
-    auto XcbMKCapture::start_capture() -> ::ilias::Task<int>
+    auto XcbMKCapture::start() -> ::ilias::Task<int>
     {
         if (!_xcbConnect) {
             _xcbConnect = std::make_unique<XcbConnect>(_app->get_io_context());
@@ -35,7 +35,45 @@ namespace mks::base
             co_return -1;
         }
         SPDLOG_INFO("Screen size: {}x{}", _screenWidth, _screenHeight);
-        auto ret = _xcbConnect->grab_keyboard(
+        std::vector<std::array<int, 4>> geometrys{
+            std::array<int, 4>{0, 0, _screenWidth, _screenHeight},
+            // std::array<int, 4>{0,                0,                 1,            _screenHeight},
+            // std::array<int, 4>{0,                0,                 _screenWidth, 1            },
+            // std::array<int, 4>{_screenWidth - 1, 0,                 1,            _screenHeight},
+            // std::array<int, 4>{0,                _screenHeight - 1, _screenWidth, 1            },
+        };
+        uint32_t values[] = {XCB_STACK_MODE_ABOVE};
+        for (const auto &geometry : geometrys) {
+            // TODO(): 在非捕获的状态下获取全局鼠标事件。
+            _boardTriggerWindow.emplace_back(XcbWindow(
+                _xcbConnect.get(),
+                (uint32_t)(XCB_EVENT_MASK_POINTER_MOTION | XCB_EVENT_MASK_POINTER_MOTION_HINT),
+                XcbWindow::Frameless));
+            _boardTriggerWindow.back().set_geometry(geometry[0], geometry[1], geometry[2],
+                                                    geometry[3]);
+            _boardTriggerWindow.back().config_window(XCB_CONFIG_WINDOW_STACK_MODE, values);
+            xcb_change_window_attributes_value_list_t attributes;
+            attributes.do_not_propogate_mask = 0;
+            _boardTriggerWindow.back().set_attribute(XCB_CW_DONT_PROPAGATE, &attributes);
+            // _boardTriggerWindow.back().show();
+        }
+
+        _grabEventHandle = ilias_go _xcbConnect->event_loop();
+        co_return co_await MKCapture::start();
+    }
+
+    auto XcbMKCapture::stop() -> ::ilias::Task<int>
+    {
+        _syncEvent.set();
+        _boardTriggerWindow.clear();
+        _xcbConnect.reset();
+        co_return co_await MKCapture::stop();
+    }
+
+    auto XcbMKCapture::start_capture() -> ::ilias::Task<int>
+    {
+        auto xcbWindow = _xcbConnect->get_default_root_window();
+        auto ret       = _xcbConnect->grab_keyboard(
             &xcbWindow, [this](xcb_generic_event_t *event) { keyboard_proc(event); }, true);
         if (ret != 0) {
             SPDLOG_ERROR("xcb grab keyboard failed!");
@@ -47,7 +85,6 @@ namespace mks::base
             SPDLOG_ERROR("xcb grab pointer failed!");
             co_return ret1;
         }
-        _grabEventHandle = ilias_go _xcbConnect->event_loop();
         co_return 0;
     }
 
@@ -189,12 +226,6 @@ namespace mks::base
         NekoProto::IProto proto;
         _events.pop(proto);
         co_return std::move(proto);
-    }
-
-    ///> 唤起正在等待事件的协程
-    auto XcbMKCapture::notify() -> void
-    {
-        _syncEvent.set();
     }
 
 } // namespace mks::base

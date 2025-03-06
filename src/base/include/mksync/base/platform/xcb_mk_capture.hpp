@@ -28,14 +28,14 @@ namespace mks::base
         XcbMKCapture(App &app);
         ~XcbMKCapture();
 
+        auto start() -> ::ilias::Task<int> override;
+        auto stop() -> ::ilias::Task<int> override;
         auto start_capture() -> ::ilias::Task<int> override;
         auto stop_capture() -> ::ilias::Task<int> override;
 
         auto name() -> const char * override;
         ///> 获取一个事件，如果没有就等待
         auto get_event() -> ::ilias::IoTask<NekoProto::IProto> override;
-        ///> 唤起正在等待事件的协程
-        auto notify() -> void;
 
         auto pointer_proc(void *event) -> void;
         auto keyboard_proc(void *event) -> void;
@@ -44,6 +44,7 @@ namespace mks::base
         App                                       *_app = nullptr;
         RingBuffer<NekoProto::IProto>              _events;
         std::unique_ptr<XcbConnect>                _xcbConnect;
+        std::vector<XcbWindow>                     _boardTriggerWindow;
         ::ilias::Event                             _syncEvent;
         ::ilias::WaitHandle<::ilias::Result<void>> _grabEventHandle;
         int                                        _screenWidth  = 0;

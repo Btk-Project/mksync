@@ -99,7 +99,11 @@ namespace mks::base
             }
         }
         if (opts.size() > 0) {
-            SPDLOG_ERROR("unknown options: {}", fmt::join(opts, ","));
+            std::string optsStr;
+            for (const auto &opt : opts) {
+                optsStr += opt;
+            }
+            SPDLOG_ERROR("unknown options: {}", optsStr);
             return false;
         }
         return true;
