@@ -43,9 +43,14 @@ namespace mks::base
 
     class XcbWindow {
     public:
-        XcbWindow(XcbConnect *conn);
-        XcbWindow(XcbConnect *conn, xcb_window_t window, bool destroyAble = false);
+        struct FramelessT {
+        } static constexpr const Frameless = {};
 
+    public:
+        explicit XcbWindow(XcbConnect *conn);
+        explicit XcbWindow(XcbConnect *conn, uint32_t eventMask, FramelessT frameless = Frameless);
+        explicit XcbWindow(XcbConnect *conn, xcb_window_t window, bool destroyAble = false);
+        XcbWindow(XcbWindow &&);
         ~XcbWindow();
 
         void show();
@@ -55,13 +60,16 @@ namespace mks::base
         auto set_geometry(int posx, int posy, int width, int height) -> void;
         auto get_geometry(int &posx, int &posy, int &width, int &height) -> void;
         auto set_property(const std::string &name, const std::string &value) -> int;
-        auto set_attribute(uint32_t eventMask /* xcb_event_mask_t*/,
-                           uint32_t values[] /* value list */) -> int;
+        auto set_attribute(uint32_t    attributeMask /* xcb_event_mask_t*/,
+                           const void *values /* value list */) -> int;
+        auto config_window(xcb_config_window_t configMask, const void *valueList) -> int;
         auto set_transparent(uint32_t alpha) -> void;
         auto native_handle() const -> xcb_window_t;
+        auto set_input_focus() -> void;
 
     private:
         auto _create_window() -> void;
+        auto _create_window(uint32_t eventMask) -> void;
 
     private:
         xcb_window_t _window          = XCB_WINDOW_NONE;
@@ -118,6 +126,7 @@ namespace mks::base
         xcb_connection_t   *_connection = nullptr;
         IoDescriptor       *_fd         = nullptr;
         ::ilias::IoContext *_context    = nullptr;
+
         std::unique_ptr<xcb_key_symbols_t, std::function<void(xcb_key_symbols_t *)>> _keySymbols;
         std::unordered_map<int, std::function<void(std::unique_ptr<xcb_generic_event_t>)>>
                                                    _sequeueMap;

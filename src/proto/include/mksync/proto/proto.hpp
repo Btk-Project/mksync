@@ -420,10 +420,12 @@ namespace mks
             eTop    = 1 << 2,
             eBottom = 1 << 3
         };
-        uint32_t screenId;
-        uint32_t border;
+        uint32_t screenId; /**< screen id */
+        uint32_t border;   /**< border */
+        float    x;        /**< X coordinate, relative to screen */
+        float    y;        /**< Y coordinate, relative to screen */
 
-        NEKO_SERIALIZER(screenId, border)
+        NEKO_SERIALIZER(screenId, border, x, y)
         NEKO_DECLARE_PROTOCOL(BorderEvent, NEKO_NAMESPACE::JsonSerializer)
     };
 
