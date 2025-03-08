@@ -19,7 +19,7 @@ auto XcbConnect::get_default_root_window() -> XcbWindow
     return XcbWindow(this, get_default_screen()->root, false);
 }
 
-auto XcbConnect::send_key_press(xcb_keycode_t keycode) -> IoTask<void>
+auto XcbConnect::fake_key_press(xcb_keycode_t keycode) -> IoTask<void>
 {
     //--------------------------
     // XTestFakeKeyEvent(_display, keycode, 1, CurrentTime);
@@ -31,7 +31,7 @@ auto XcbConnect::send_key_press(xcb_keycode_t keycode) -> IoTask<void>
     co_return {};
 }
 
-auto XcbConnect::send_key_release(xcb_keycode_t keycode) -> IoTask<void>
+auto XcbConnect::fake_key_release(xcb_keycode_t keycode) -> IoTask<void>
 {
     //--------------------------
     // XTestFakeKeyEvent(_display, keycode, 0, CurrentTime);
@@ -43,21 +43,21 @@ auto XcbConnect::send_key_release(xcb_keycode_t keycode) -> IoTask<void>
     co_return {};
 }
 
-auto XcbConnect::send_mouse_move(int16_t rootX, int16_t rootY) -> IoTask<void>
+auto XcbConnect::fake_mouse_move(int16_t rootX, int16_t rootY) -> IoTask<void>
 {
     xcb_test_fake_input(_connection, XCB_MOTION_NOTIFY, 0, XCB_CURRENT_TIME, XCB_NONE, 0, rootX, rootY);
     flush();
     co_return {};
 }
 
-auto XcbConnect::send_mouse_button_press(xcb_button_t button) -> IoTask<void>
+auto XcbConnect::fake_mouse_button_press(xcb_button_t button) -> IoTask<void>
 {
     xcb_test_fake_input(_connection, XCB_BUTTON_PRESS, button, XCB_CURRENT_TIME, XCB_NONE, 0, 0, 0);
     flush();
     co_return {};
 }
 
-auto XcbConnect::send_mouse_button_release(xcb_button_t button) -> IoTask<void>
+auto XcbConnect::fake_mouse_button_release(xcb_button_t button) -> IoTask<void>
 {
     xcb_test_fake_input(_connection, XCB_BUTTON_RELEASE, button, XCB_CURRENT_TIME, XCB_NONE, 0, 0, 0);
     flush();
@@ -484,9 +484,9 @@ auto XcbWindow::event_loop(std::unique_ptr<xcb_generic_event_t> event) -> IoTask
             printf("send keyboard\n");
             for (int i = 0; i < (int)sizeof(wf); i++) {
                 auto keycode = xcb_key_symbols_get_keycode(keysyms, wf[i])[0];
-                co_await _conn->send_key_press(keycode);
+                co_await _conn->fake_key_press(keycode);
                 usleep(100000);
-                co_await _conn->send_key_release(keycode);
+                co_await _conn->fake_key_release(keycode);
             }
         }
         break;

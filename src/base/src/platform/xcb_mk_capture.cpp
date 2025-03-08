@@ -3,6 +3,9 @@
 #ifdef __linux__
     #include <spdlog/spdlog.h>
 
+    #include <xcb/xcb.h>
+    #include <xcb/xinput.h>
+
     #include "mksync/base/app.hpp"
     #include "mksync/base/platform/xcb_window.hpp"
 
@@ -27,36 +30,51 @@ namespace mks::base
                 co_return -1;
             }
         }
-        auto xcbWindow = _xcbConnect->get_default_root_window();
-        int  posx, posy;
-        xcbWindow.get_geometry(posx, posy, _screenWidth, _screenHeight);
+        _captureWindow = std::make_unique<XcbWindow>(_xcbConnect->get_default_root_window());
+        _xcbConnect->event_handler([this](xcb_generic_event_t *event) { window_proc(event); });
+        int posx, posy;
+        _captureWindow->get_geometry(posx, posy, _screenWidth, _screenHeight);
         if (_screenHeight == 0 || _screenWidth == 0) {
             SPDLOG_ERROR("Failed to get screen size!");
             co_return -1;
         }
         SPDLOG_INFO("Screen size: {}x{}", _screenWidth, _screenHeight);
-        std::vector<std::array<int, 4>> geometrys{
-            std::array<int, 4>{0, 0, _screenWidth, _screenHeight},
-            // std::array<int, 4>{0,                0,                 1,            _screenHeight},
-            // std::array<int, 4>{0,                0,                 _screenWidth, 1            },
-            // std::array<int, 4>{_screenWidth - 1, 0,                 1,            _screenHeight},
-            // std::array<int, 4>{0,                _screenHeight - 1, _screenWidth, 1            },
-        };
-        uint32_t values[] = {XCB_STACK_MODE_ABOVE};
-        for (const auto &geometry : geometrys) {
-            // TODO(): 在非捕获的状态下获取全局鼠标事件。
-            _boardTriggerWindow.emplace_back(XcbWindow(
-                _xcbConnect.get(),
-                (uint32_t)(XCB_EVENT_MASK_POINTER_MOTION | XCB_EVENT_MASK_POINTER_MOTION_HINT),
-                XcbWindow::Frameless));
-            _boardTriggerWindow.back().set_geometry(geometry[0], geometry[1], geometry[2],
-                                                    geometry[3]);
-            _boardTriggerWindow.back().config_window(XCB_CONFIG_WINDOW_STACK_MODE, values);
-            xcb_change_window_attributes_value_list_t attributes;
-            attributes.do_not_propogate_mask = 0;
-            _boardTriggerWindow.back().set_attribute(XCB_CW_DONT_PROPAGATE, &attributes);
-            // _boardTriggerWindow.back().show();
+        // 监听鼠标事件
+        // 检查 X Input Extension 是否可用
+        if (!_xcbConnect->query_extension(&xcb_input_id)) {
+            SPDLOG_ERROR("X Input Extension not found!");
+            co_return -1;
         }
+
+        // 查询 XInput2 的版本
+        xcb_input_xi_query_version_cookie_t versionCookie =
+            xcb_input_xi_query_version(_xcbConnect->connection(), 2, 3); // 请求 XInput2.3 的版本
+        xcb_input_xi_query_version_reply_t *versionReply =
+            xcb_input_xi_query_version_reply(_xcbConnect->connection(), versionCookie, nullptr);
+        if ((versionReply == nullptr) || versionReply->major_version < 2) {
+            SPDLOG_ERROR("XInput2 的版本不足，要求 2.0 或更高\n");
+            free(versionReply);
+            co_return -1;
+        }
+        free(versionReply);
+
+        // 设置监听的事件掩码
+        struct {
+            xcb_input_event_mask_t
+                head; // describes the subsequent xcb_input_xi_event_mask_t (or an array thereof)
+            xcb_input_xi_event_mask_t mask;
+        } mask;
+
+        mask.head.deviceid = XCB_INPUT_DEVICE_ALL;
+        mask.head.mask_len = sizeof(mask.mask) / sizeof(uint32_t);
+
+        // 设置感兴趣的事件 (XI_RawKeyRelease 和 XI_RawMotion)
+        mask.mask = (xcb_input_xi_event_mask_t)(XCB_INPUT_XI_EVENT_MASK_RAW_MOTION);
+
+        // 发送 XISelectEvents 请求
+        xcb_input_xi_select_events(_xcbConnect->connection(), _captureWindow->native_handle(), 1,
+                                   &mask.head);
+        _xcbConnect->select_event(_captureWindow.get());
 
         _grabEventHandle = ilias_go _xcbConnect->event_loop();
         co_return co_await MKCapture::start();
@@ -73,23 +91,26 @@ namespace mks::base
     auto XcbMKCapture::start_capture() -> ::ilias::Task<int>
     {
         auto xcbWindow = _xcbConnect->get_default_root_window();
-        auto ret       = _xcbConnect->grab_keyboard(
-            &xcbWindow, [this](xcb_generic_event_t *event) { keyboard_proc(event); }, true);
-        if (ret != 0) {
+        if (auto ret = _xcbConnect->grab_pointer(
+                _captureWindow.get(), [this](xcb_generic_event_t *event) { pointer_proc(event); },
+                true);
+            ret != 0) {
+            SPDLOG_ERROR("xcb grab pointer failed! error: {}", ret);
+            co_return ret;
+        }
+        if (auto ret = _xcbConnect->grab_keyboard(
+                &xcbWindow, [this](xcb_generic_event_t *event) { keyboard_proc(event); }, true);
+            ret != 0) {
             SPDLOG_ERROR("xcb grab keyboard failed!");
             co_return ret;
         }
-        auto ret1 = _xcbConnect->grab_pointer(
-            &xcbWindow, [this](xcb_generic_event_t *event) { pointer_proc(event); }, true);
-        if (ret1 != 0) {
-            SPDLOG_ERROR("xcb grab pointer failed!");
-            co_return ret1;
-        }
+        _isCapture = true;
         co_return 0;
     }
 
     auto XcbMKCapture::stop_capture() -> ::ilias::Task<int>
     {
+        _isCapture = false;
         if (_grabEventHandle) {
             _grabEventHandle.cancel();
         }
@@ -205,6 +226,49 @@ namespace mks::base
         default:
             SPDLOG_ERROR("unknown event type {}", event->response_type & ~0x80);
             break;
+        }
+        if (proto != nullptr) {
+            _events.push(std::move(proto));
+            _syncEvent.set();
+        }
+    }
+
+    auto XcbMKCapture::window_proc(void *ev) -> void
+    {
+        auto *event = (xcb_generic_event_t *)ev;
+        if ((event->response_type & ~0x80) == XCB_GE_GENERIC) {
+            auto *genericEvent = (xcb_ge_generic_event_t *)event;
+            if (genericEvent->event_type == XCB_INPUT_RAW_MOTION) {
+                auto pos = _xcbConnect->query_pointer(_captureWindow.get());
+                if (_isCapture) {
+                    SPDLOG_INFO("response event type x:{} y:{}", pos.first, pos.second);
+                    return;
+                }
+                uint32_t border = 0;
+                if (pos.first <= 0) {
+                    border |= (uint32_t)BorderEvent::eLeft;
+                }
+                if (pos.first >= _screenWidth - 1) {
+                    border |= (uint32_t)BorderEvent::eRight;
+                }
+                if (pos.second <= 0) {
+                    border |= (uint32_t)BorderEvent::eTop;
+                }
+                if (pos.second >= _screenHeight - 1) {
+                    border |= (uint32_t)BorderEvent::eBottom;
+                }
+                if (border != 0) {
+                    SPDLOG_INFO("on border event type x:{} y:{}", pos.first, pos.second);
+                    auto proto =
+                        BorderEvent::emplaceProto(0U, border, (float)pos.first / _screenWidth,
+                                                  (float)pos.second / _screenHeight);
+                    _events.push(std::move(proto));
+                    _syncEvent.set();
+                }
+            }
+            else {
+                SPDLOG_ERROR("generic event type: {}", genericEvent->event_type);
+            }
         }
     }
 
