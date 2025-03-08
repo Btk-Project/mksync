@@ -16,34 +16,34 @@ namespace mks::base
     using TcpClient   = ::ilias::TcpClient;
     using TcpListener = ::ilias::TcpListener;
 
-    App::App(::ilias::IoContext *ctx) : _ctx(ctx), _commandParser(this)
+    App::App(::ilias::IoContext *ctx) : _ctx(ctx), _CommandInvoker(this)
     {
-        using CallbackType = std::string (App::*)(const CommandParser::ArgsType &,
-                                                  const CommandParser::OptionsType &);
+        using CallbackType = std::string (App::*)(const CommandInvoker::ArgsType &,
+                                                  const CommandInvoker::OptionsType &);
         auto coreInstaller = command_installer("Core");
         // 注册退出程序命令
-        coreInstaller({
+        coreInstaller(std::make_unique<CommonCommand>(CommandInvoker::CommandsData{
             {"exit", "quit", "q"},
             "exit the program",
             std::bind(
-                static_cast<std::string (App::*)(const CommandParser::ArgsType &,
-                                                 const CommandParser::OptionsType &)>(&App::stop),
+                static_cast<std::string (App::*)(const CommandInvoker::ArgsType &,
+                                                 const CommandInvoker::OptionsType &)>(&App::stop),
                 this, std::placeholders::_1, std::placeholders::_2),
             {}
-        });
-        coreInstaller({
+        }));
+        coreInstaller(std::make_unique<CommonCommand>(CommandInvoker::CommandsData{
             {"log"                                         },
             " : show the logs of the program, \n"
             "         clear : clear the log.",
             std::bind(static_cast<CallbackType>(&App::log_handle), this, std::placeholders::_1,
                       std::placeholders::_2),
             {
-             {"max_log", CommandParser::OptionsData::eInt,
+             {"max_log", CommandInvoker::OptionsData::eInt,
                  "set the max log number, default is 100."},
-             {"level", CommandParser::OptionsData::eString,
+             {"level", CommandInvoker::OptionsData::eString,
                  "set print log level. vlaue: trace/debug/info/warn/err"},
              }
-        });
+        }));
 
 #if defined(SIGPIPE)
         ::signal(SIGPIPE, SIG_IGN); // 忽略SIGPIPE信号 防止多跑一秒就会爆炸
@@ -164,16 +164,14 @@ namespace mks::base
     }
 
     auto App::command_installer(std::string_view module)
-        -> std::function<bool(CommandParser::CommandsData &&)>
+        -> std::function<bool(std::unique_ptr<Command>)>
     {
-        return std::bind(
-            static_cast<bool (CommandParser::*)(CommandParser::CommandsData &&, std::string_view)>(
-                &CommandParser::install_cmd),
-            &_commandParser, std::placeholders::_1, module);
+        return std::bind(&CommandInvoker::install_cmd, &_CommandInvoker, std::placeholders::_1,
+                         module);
     }
 
-    auto App::log_handle([[maybe_unused]] const CommandParser::ArgsType    &args,
-                         [[maybe_unused]] const CommandParser::OptionsType &options) -> std::string
+    auto App::log_handle([[maybe_unused]] const CommandInvoker::ArgsType    &args,
+                         [[maybe_unused]] const CommandInvoker::OptionsType &options) -> std::string
     {
         if (options.contains("max_log")) {
             int value = std::get<int>(options.at("max_log"));
@@ -246,9 +244,7 @@ namespace mks::base
             while (lineView.size() > 0 && (lineView.back() == '\r' || lineView.back() == '\n')) {
                 lineView.remove_suffix(1);
             }
-            if (auto res = _commandParser.parser(lineView); !res.empty()) {
-                SPDLOG_WARN("exec {} warn: {}", lineView, res.c_str());
-            }
+            _CommandInvoker.execute(lineView);
         }
     }
 
@@ -281,7 +277,7 @@ namespace mks::base
         }
         _isRuning = true;
         if (argc > 1) {
-            _commandParser.parser(std::vector<std::string_view>(argv + 1, argv + argc));
+            _CommandInvoker.execute(std::vector<std::string_view>(argv + 1, argv + argc));
         }
         while (_isRuning) {
             co_await start_console();
@@ -289,8 +285,8 @@ namespace mks::base
         co_return;
     }
 
-    auto App::stop([[maybe_unused]] const CommandParser::ArgsType    &args,
-                   [[maybe_unused]] const CommandParser::OptionsType &options) -> std::string
+    auto App::stop([[maybe_unused]] const CommandInvoker::ArgsType    &args,
+                   [[maybe_unused]] const CommandInvoker::OptionsType &options) -> std::string
     {
         stop();
         return "";

@@ -86,8 +86,8 @@ namespace mks::base
         return peers;
     }
 
-    auto MKCommunication::send(NekoProto::IProto &event,
-                               std::string_view   peer) -> ilias::IoTask<void>
+    auto MKCommunication::send(NekoProto::IProto &event, std::string_view peer)
+        -> ilias::IoTask<void>
     {
         if (_status == eDisable) {
             co_return Unexpected<Error>(Error::Unknown);
@@ -244,8 +244,8 @@ namespace mks::base
         }
         _status = eEnable;
     }
-    auto MKCommunication::start_server(const CommandParser::ArgsType    &args,
-                                       const CommandParser::OptionsType &options) -> std::string
+    auto MKCommunication::start_server(const CommandInvoker::ArgsType    &args,
+                                       const CommandInvoker::OptionsType &options) -> std::string
     {
         IPEndpoint ipendpoint("127.0.0.1:12345");
         if (args.size() == 2) {
@@ -277,6 +277,7 @@ namespace mks::base
             }
             else {
                 SPDLOG_ERROR("ip endpoint error {}:{}", address, port);
+                return "invalid ip endpoint";
             }
         }
         if (_status == eServer) { // 确保没有正在作为服务端运行
@@ -291,8 +292,8 @@ namespace mks::base
         return "";
     }
 
-    auto MKCommunication::stop_server([[maybe_unused]] const CommandParser::ArgsType    &args,
-                                      [[maybe_unused]] const CommandParser::OptionsType &options)
+    auto MKCommunication::stop_server([[maybe_unused]] const CommandInvoker::ArgsType    &args,
+                                      [[maybe_unused]] const CommandInvoker::OptionsType &options)
         -> std::string
     {
         stop_server();
@@ -309,7 +310,7 @@ namespace mks::base
     auto MKCommunication::connect_to(ilias::IPEndpoint endpoint) -> ilias::Task<void>
     {
         if (_status == eDisable || _status == eServer) {
-            SPDLOG_ERROR("Communication is disabled");
+            SPDLOG_ERROR("Communication is server mode or disabled");
             co_return;
         }
         if (_protoStreamClients.size() > 0) { // 确保没有正在作为服务端运行
@@ -351,8 +352,8 @@ namespace mks::base
         _status = eEnable;
     }
 
-    auto MKCommunication::connect_to(const CommandParser::ArgsType    &args,
-                                     const CommandParser::OptionsType &options) -> std::string
+    auto MKCommunication::connect_to(const CommandInvoker::ArgsType    &args,
+                                     const CommandInvoker::OptionsType &options) -> std::string
     {
         if (args.size() == 2) {
             connect_to(IPEndpoint(std::string(args[0]) + ":" + std::string(args[1]))).wait();
@@ -370,8 +371,8 @@ namespace mks::base
         return "";
     }
 
-    auto MKCommunication::disconnect([[maybe_unused]] const CommandParser::ArgsType    &args,
-                                     [[maybe_unused]] const CommandParser::OptionsType &options)
+    auto MKCommunication::disconnect([[maybe_unused]] const CommandInvoker::ArgsType    &args,
+                                     [[maybe_unused]] const CommandInvoker::OptionsType &options)
         -> std::string
     {
         disconnect();
@@ -379,8 +380,8 @@ namespace mks::base
     }
 
     auto MKCommunication::set_communication_options(
-        [[maybe_unused]] const CommandParser::ArgsType    &args,
-        [[maybe_unused]] const CommandParser::OptionsType &options) -> std::string
+        [[maybe_unused]] const CommandInvoker::ArgsType    &args,
+        [[maybe_unused]] const CommandInvoker::OptionsType &options) -> std::string
     {
         auto it = options.find("thread");
         if (it != options.end() && std::get<bool>(it->second)) {
@@ -395,52 +396,52 @@ namespace mks::base
 
     auto MKCommunication::make(App &app) -> std::unique_ptr<MKCommunication, void (*)(NodeBase *)>
     {
-        using CallbackType = std::string (MKCommunication::*)(const CommandParser::ArgsType &,
-                                                              const CommandParser::OptionsType &);
+        using CallbackType = std::string (MKCommunication::*)(const CommandInvoker::ArgsType &,
+                                                              const CommandInvoker::OptionsType &);
         std::unique_ptr<MKCommunication, void (*)(NodeBase *)> communication(
             new MKCommunication(app.get_io_context()),
             [](NodeBase *ptr) { delete static_cast<MKCommunication *>(ptr); });
         auto commandInstaller = app.command_installer(communication->name());
         // 注册服务器监听相关命令
-        commandInstaller({
+        commandInstaller(std::make_unique<CommonCommand>(CommandInvoker::CommandsData{
             {"listen",                                                           "l"},
             "listen server, e.g. listen 127.0.0.1 12345",
             std::bind(static_cast<CallbackType>(&MKCommunication::start_server),
                       communication.get(), std::placeholders::_1, std::placeholders::_2),
-            {{"address", CommandParser::OptionsData::eString, "lister address"},
-             {"port", CommandParser::OptionsData::eInt, "lister port"}              }
-        });
-        commandInstaller(
-            {{"stop_listen"},
-             "stop the server",
-             std::bind(static_cast<CallbackType>(&MKCommunication::stop_server),
-                       communication.get(), std::placeholders::_1, std::placeholders::_2),
-             {}});
+            {{"address", CommandInvoker::OptionsData::eString, "lister address"},
+             {"port", CommandInvoker::OptionsData::eInt, "lister port"}              }
+        }));
+        commandInstaller(std::make_unique<CommonCommand>(CommandInvoker::CommandsData{
+            {"stop_listen"},
+            "stop the server",
+            std::bind(static_cast<CallbackType>(&MKCommunication::stop_server), communication.get(),
+                      std::placeholders::_1, std::placeholders::_2),
+            {}}));
         // 注册连接到服务器命令
-        commandInstaller({
+        commandInstaller(std::make_unique<CommonCommand>(CommandInvoker::CommandsData{
             {"connect"},
             "connect to server, e.g. connect 127.0.0.1 12345",
             std::bind(static_cast<CallbackType>(&MKCommunication::connect_to), communication.get(),
                       std::placeholders::_1, std::placeholders::_2),
-            {{"address", CommandParser::OptionsData::eString, "server address"},
-             {"port", CommandParser::OptionsData::eInt, "server port"}}
-        });
-        commandInstaller(
-            {{"disconnect"},
-             "disconnect from server",
-             std::bind(static_cast<CallbackType>(&MKCommunication::disconnect), communication.get(),
-                       std::placeholders::_1, std::placeholders::_2),
-             {}});
-        commandInstaller({
+            {{"address", CommandInvoker::OptionsData::eString, "server address"},
+             {"port", CommandInvoker::OptionsData::eInt, "server port"}}
+        }));
+        commandInstaller(std::make_unique<CommonCommand>(CommandInvoker::CommandsData{
+            {"disconnect"},
+            "disconnect from server",
+            std::bind(static_cast<CallbackType>(&MKCommunication::disconnect), communication.get(),
+                      std::placeholders::_1, std::placeholders::_2),
+            {}}));
+        commandInstaller(std::make_unique<CommonCommand>(CommandInvoker::CommandsData{
             {"communication_attributes", "comm_attr"},
             "set communication attributes",
             std::bind(static_cast<CallbackType>(&MKCommunication::set_communication_options),
                       communication.get(), std::placeholders::_1, std::placeholders::_2),
             {
-             {"thread", CommandParser::OptionsData::eBool,
+             {"thread", CommandInvoker::OptionsData::eBool,
                  "enable independent thread for serialization"},
              }
-        });
+        }));
         return communication;
     }
 

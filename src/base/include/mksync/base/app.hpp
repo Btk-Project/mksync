@@ -18,7 +18,7 @@
 #include <ilias/net/tcp.hpp>
 #include <ilias/fs/console.hpp>
 
-#include "mksync/base/command_parser.hpp"
+#include "mksync/base/command_invoker.hpp"
 #include "mksync/base/mk_capture.hpp"
 #include "mksync/base/mk_sender.hpp"
 #include "mksync/base/base_library.h"
@@ -53,7 +53,7 @@ namespace mks::base
         auto start_node(NodeData &node) -> ilias::Task<int>;
         auto stop_node(NodeData &node) -> ilias::Task<int>;
         auto stop() -> void;
-        auto stop(const CommandParser::ArgsType &args, const CommandParser::OptionsType &options)
+        auto stop(const CommandInvoker::ArgsType &args, const CommandInvoker::OptionsType &options)
             -> std::string;
 
         template <typename T>
@@ -65,18 +65,18 @@ namespace mks::base
         auto start_console() -> ilias::Task<void>;
         auto stop_console() -> void;
         auto command_installer(std::string_view module)
-            -> std::function<bool(CommandParser::CommandsData &&)>;
+            -> std::function<bool(std::unique_ptr<Command>)>;
 
         // status
-        auto log_handle(const CommandParser::ArgsType    &args,
-                        const CommandParser::OptionsType &options) -> std::string;
+        auto log_handle(const CommandInvoker::ArgsType    &args,
+                        const CommandInvoker::OptionsType &options) -> std::string;
 
     private:
         bool                _isRuning           = false;
         bool                _isConsoleListening = false;
         ::ilias::IoContext *_ctx                = nullptr;
 
-        CommandParser                                                 _commandParser;
+        CommandInvoker                                                _CommandInvoker;
         std::unordered_map<std::string, std::any>                     _optionsMap;
         std::list<NodeData>                                           _nodeList;
         std::unordered_map<int, std::list<Consumer *>>                _consumerMap;

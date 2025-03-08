@@ -14,7 +14,7 @@
 
 #include "mksync/base/base_library.h"
 #include "mksync/base/nodebase.hpp"
-#include "mksync/base/command_parser.hpp"
+#include "mksync/base/command_invoker.hpp"
 
 #include <ilias/sync/event.hpp>
 #include <unordered_map>
@@ -55,10 +55,10 @@ namespace mks::base
          */
         auto start_server(ilias::IPEndpoint endpoint) -> ilias::Task<void>;
         auto stop_server() -> void;
-        auto start_server(const CommandParser::ArgsType    &args,
-                          const CommandParser::OptionsType &options) -> std::string;
-        auto stop_server(const CommandParser::ArgsType    &args,
-                         const CommandParser::OptionsType &options) -> std::string;
+        auto start_server(const CommandInvoker::ArgsType    &args,
+                          const CommandInvoker::OptionsType &options) -> std::string;
+        auto stop_server(const CommandInvoker::ArgsType    &args,
+                         const CommandInvoker::OptionsType &options) -> std::string;
 
         // client
         /**
@@ -69,10 +69,10 @@ namespace mks::base
          */
         auto connect_to(ilias::IPEndpoint endpoint) -> ilias::Task<void>;
         auto disconnect() -> void;
-        auto connect_to(const CommandParser::ArgsType    &args,
-                        const CommandParser::OptionsType &options) -> std::string;
-        auto disconnect(const CommandParser::ArgsType    &args,
-                        const CommandParser::OptionsType &options) -> std::string;
+        auto connect_to(const CommandInvoker::ArgsType    &args,
+                        const CommandInvoker::OptionsType &options) -> std::string;
+        auto disconnect(const CommandInvoker::ArgsType    &args,
+                        const CommandInvoker::OptionsType &options) -> std::string;
 
         // communication
         auto set_current_peer(std::string_view currentPeer) -> void;
@@ -80,8 +80,8 @@ namespace mks::base
         auto peers() const -> std::vector<std::string>;
         auto send(NekoProto::IProto &event, std::string_view peer) -> ilias::IoTask<void>;
         auto recv(std::string_view peer) -> ilias::IoTask<NekoProto::IProto>;
-        auto set_communication_options(const CommandParser::ArgsType    &args,
-                                       const CommandParser::OptionsType &options) -> std::string;
+        auto set_communication_options(const CommandInvoker::ArgsType    &args,
+                                       const CommandInvoker::OptionsType &options) -> std::string;
 
         static auto make(App &app) -> std::unique_ptr<MKCommunication, void (*)(NodeBase *)>;
 
