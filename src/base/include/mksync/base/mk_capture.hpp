@@ -19,6 +19,16 @@
 namespace mks::base
 {
     class App;
+    /**
+     * @brief Capture node
+     * 属于生产者节点。
+     * 会产生MouseButtonEvent， MouseMotionEvent， MouseWheelEvent， KeyEvent， BorderEvent
+     * 插件时注册的命令：
+     *    capture:     启动键鼠捕获，该命令会截断系统的键鼠输入事件，并转换成MouseButtonEvent， MouseMotionEvent， MouseWheelEvent， KeyEvent。
+     *    stopcapture: 停止键鼠捕获，该命令会恢复系统的键鼠输入事件。并停止生产以上事件。
+     * start节点后，该节点就会开始生产BorderEvent，该事件在鼠标靠近屏幕边界时产生。
+     * 
+     */
     class MKS_BASE_API MKCapture : public NodeBase, public Producer {
     public:
         MKCapture(::ilias::IoContext *ctx) : _ctx(ctx) {};

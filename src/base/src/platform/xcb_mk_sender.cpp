@@ -95,7 +95,7 @@ namespace mks::base
         }
         SPDLOG_INFO("Mouse motion event: x={}, y={}", event.x * _screenWidth,
                      event.y * _screenHeight);
-        _xcbConnect->send_mouse_move(event.x * _screenWidth, event.y * _screenHeight);
+        _xcbConnect->fake_mouse_move(event.x * _screenWidth, event.y * _screenHeight);
     }
 
     void XcbMKSender::_send_button_event(const mks::MouseButtonEvent &event) const
@@ -120,15 +120,15 @@ namespace mks::base
             return;
         }
         if (event.state == mks::MouseButtonState::eButtonDown) {
-            _xcbConnect->send_mouse_button_press(button);
+            _xcbConnect->fake_mouse_button_press(button);
         }
         else if (event.state == mks::MouseButtonState::eButtonUp) {
-            _xcbConnect->send_mouse_button_release(button);
+            _xcbConnect->fake_mouse_button_release(button);
         }
         else if (event.state == mks::MouseButtonState::eClick) {
             for (int i = 0; i < event.clicks; ++i) {
-                _xcbConnect->send_mouse_button_press(button);
-                _xcbConnect->send_mouse_button_release(button);
+                _xcbConnect->fake_mouse_button_press(button);
+                _xcbConnect->fake_mouse_button_release(button);
             }
         }
     }
@@ -146,8 +146,8 @@ namespace mks::base
             else if (event.x < 0) {
                 button = 5; // scroll down
             }
-            _xcbConnect->send_mouse_button_press(button);
-            _xcbConnect->send_mouse_button_release(button);
+            _xcbConnect->fake_mouse_button_press(button);
+            _xcbConnect->fake_mouse_button_release(button);
         }
         if (std::fabs(event.y) > 1e-6) {
             if (event.y > 0) {
@@ -156,8 +156,8 @@ namespace mks::base
             else if (event.y < 0) {
                 button = 7; // scroll right
             }
-            _xcbConnect->send_mouse_button_press(button);
-            _xcbConnect->send_mouse_button_release(button);
+            _xcbConnect->fake_mouse_button_press(button);
+            _xcbConnect->fake_mouse_button_release(button);
         }
     }
 
@@ -173,10 +173,10 @@ namespace mks::base
             xcb_keycode_t *keycode = xcb_key_symbols_get_keycode(keysyms, keysym);
             if (keycode != nullptr) {
                 if (event.state == mks::KeyboardState::eKeyDown) {
-                    _xcbConnect->send_key_press(*keycode);
+                    _xcbConnect->fake_key_press(*keycode);
                 }
                 else if (event.state == mks::KeyboardState::eKeyUp) {
-                    _xcbConnect->send_key_release(*keycode);
+                    _xcbConnect->fake_key_release(*keycode);
                 }
                 free(keycode);
             }

@@ -39,16 +39,20 @@ namespace mks::base
 
         auto pointer_proc(void *event) -> void;
         auto keyboard_proc(void *event) -> void;
+        auto window_proc(void *event) -> void;
 
     private:
         App                                       *_app = nullptr;
         RingBuffer<NekoProto::IProto>              _events;
         std::unique_ptr<XcbConnect>                _xcbConnect;
+        std::unique_ptr<XcbWindow>                 _captureWindow;
         std::vector<XcbWindow>                     _boardTriggerWindow;
         ::ilias::Event                             _syncEvent;
         ::ilias::WaitHandle<::ilias::Result<void>> _grabEventHandle;
         int                                        _screenWidth  = 0;
         int                                        _screenHeight = 0;
+        bool                                       _isCapture    = false;
+        int                                        _xiOpcode;
     };
 } // namespace mks::base
 #endif
