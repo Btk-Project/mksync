@@ -28,8 +28,11 @@ namespace mks::base
             co_return GetLastError();
         }
 
-        _screenWidth  = GetSystemMetrics(SM_CXSCREEN);
-        _screenHeight = GetSystemMetrics(SM_CYSCREEN);
+        HWND hd       = GetDesktopWindow();
+        int  zoom     = GetDpiForWindow(hd); // 96 is the default DPI
+        _screenWidth  = GetSystemMetrics(SM_CXSCREEN) * zoom / 96;
+        _screenHeight = GetSystemMetrics(SM_CYSCREEN) * zoom / 96;
+        SPDLOG_INFO("Screen size: {}x{}", _screenWidth, _screenHeight);
         co_return co_await MKCapture::start();
     }
 
@@ -116,8 +119,11 @@ namespace mks::base
                     border |= (uint32_t)BorderEvent::eBottom;
                 }
                 if (border != 0) {
-                    SPDLOG_INFO("Mouse Border: {}", border);
-                    proto = mks::BorderEvent::emplaceProto(0U, border);
+                    SPDLOG_INFO("Mouse Border: {}, x {}, y {}", border, hookStruct->pt.x,
+                                hookStruct->pt.y);
+                    proto = mks::BorderEvent::emplaceProto(0U, border,
+                                                           (float)hookStruct->pt.x / _screenWidth,
+                                                           (float)hookStruct->pt.y / _screenHeight);
                 }
             }
         }
