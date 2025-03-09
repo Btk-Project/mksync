@@ -55,10 +55,6 @@ namespace mks::base
          */
         auto start_server(ilias::IPEndpoint endpoint) -> ilias::Task<void>;
         auto stop_server() -> void;
-        auto start_server(const CommandInvoker::ArgsType    &args,
-                          const CommandInvoker::OptionsType &options) -> std::string;
-        auto stop_server(const CommandInvoker::ArgsType    &args,
-                         const CommandInvoker::OptionsType &options) -> std::string;
 
         // client
         /**
@@ -69,10 +65,6 @@ namespace mks::base
          */
         auto connect_to(ilias::IPEndpoint endpoint) -> ilias::Task<void>;
         auto disconnect() -> void;
-        auto connect_to(const CommandInvoker::ArgsType    &args,
-                        const CommandInvoker::OptionsType &options) -> std::string;
-        auto disconnect(const CommandInvoker::ArgsType    &args,
-                        const CommandInvoker::OptionsType &options) -> std::string;
 
         // communication
         auto set_current_peer(std::string_view currentPeer) -> void;
@@ -84,6 +76,9 @@ namespace mks::base
                                        const CommandInvoker::OptionsType &options) -> std::string;
 
         static auto make(App &app) -> std::unique_ptr<MKCommunication, void (*)(NodeBase *)>;
+
+    private:
+        auto _server_loop(::ilias::TcpListener tcplistener) -> ::ilias::Task<void>;
 
     private:
         NekoProto::ProtoFactory _protofactory;

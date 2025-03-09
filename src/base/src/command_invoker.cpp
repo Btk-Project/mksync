@@ -7,43 +7,19 @@
 #include "mksync/base/app.hpp"
 namespace mks::base
 {
-    void CommonCommand::execute()
+    using ::ilias::Task;
+
+    auto CommonCommand::execute() -> Task<void>
     {
         if (auto ret = _data.callback(_args, _options); !ret.empty()) {
             SPDLOG_ERROR("{} failed : {}", name(), ret);
         }
+        co_return;
     }
 
-    void CommonCommand::undo()
+    auto CommonCommand::help(std::string_view indentation) const -> std::string
     {
-        SPDLOG_ERROR("Undo not implemented");
-    }
-
-    auto CommonCommand::description(std::string_view option) const -> std::string
-    {
-        if (option.empty()) {
-            return _data.description;
-        }
-        for (const auto &opt : _data.options) {
-            if (opt.name == option) {
-                return opt.description;
-            }
-        }
-        return "unknow option " + std::string(option);
-    }
-
-    auto CommonCommand::options() const -> std::vector<std::string>
-    {
-        std::vector<std::string> opts;
-        for (const auto &opt : _data.options) {
-            opts.push_back(opt.name);
-        }
-        return opts;
-    }
-
-    auto CommonCommand::help() const -> std::string
-    {
-        auto ret = fmt::format("{}", _data.command[0]);
+        auto ret = fmt::format("{}{}", indentation, _data.command[0]);
         if (_data.command.size() > 1) {
             ret += "(";
             for (size_t i = 1; i < _data.command.size(); ++i) {
@@ -54,7 +30,7 @@ namespace mks::base
             }
             ret += ")";
         }
-        ret += fmt::format(":\n        {}\n", _data.description);
+        ret += fmt::format(":\n{0}{0}{1}\n", indentation, _data.description);
         const char *type;
         for (const auto &opt : _data.options) {
             switch (opt.type) {
@@ -73,7 +49,8 @@ namespace mks::base
             default:
                 type = "Unknown";
             }
-            ret += fmt::format("        -{}=$({}) {}\n", opt.name, type, opt.description);
+            ret += fmt::format("{0}{0}-{1}=$({2}) {3}\n", indentation, opt.name, type,
+                               opt.description);
         }
         ret.pop_back();
         return ret;
@@ -142,20 +119,7 @@ namespace mks::base
     {
         auto item = _options.find(option);
         if (item != _options.end()) {
-            switch (item->second.index()) {
-            case CommandInvoker::OptionsData::eBool: {
-                return std::get<bool>(item->second) ? "true" : "false";
-            }
-            case CommandInvoker::OptionsData::eInt: {
-                return std::to_string(std::get<int>(item->second));
-            }
-            case CommandInvoker::OptionsData::eDouble: {
-                return std::to_string(std::get<double>(item->second));
-            }
-            case CommandInvoker::OptionsData::eString: {
-                return std::get<std::string>(item->second);
-            }
-            }
+            return detail::to_string(item->second);
         }
         return std::string();
     }
@@ -206,20 +170,20 @@ namespace mks::base
         }
         auto proto = _commands.back()->get_options();
         if (proto != nullptr) {
-            _protoCommandsTable[proto.type()] = _commands.size() - 1;
+            _protoCommandsTable[proto.type()] = (int)_commands.size() - 1;
         }
         return true;
     }
 
-    auto CommandInvoker::execute(std::string_view cmd) -> void
+    auto CommandInvoker::execute(std::string_view cmd) -> Task<void>
     {
-        return execute(_split(cmd));
+        co_return co_await execute(_split(cmd));
     }
 
-    auto CommandInvoker::execute(std::vector<std::string_view> cmdline) -> void
+    auto CommandInvoker::execute(std::vector<std::string_view> cmdline) -> Task<void>
     {
         if (cmdline.empty()) {
-            return;
+            co_return;
         }
         ArgsType args;
         auto     cmd   = cmdline.front();
@@ -229,12 +193,12 @@ namespace mks::base
             index = item.value();
             if (index < 0 && index >= (int)_commands.size()) {
                 SPDLOG_ERROR("command \"{}\" not found", cmd);
-                return;
+                co_return;
             }
         }
         else {
             SPDLOG_ERROR("command \"{}\" not found", cmd);
-            return;
+            co_return;
         }
 
         for (int i = 1; i < (int)cmdline.size(); ++i) { // 将命令的选项与参数提取出来
@@ -253,10 +217,10 @@ namespace mks::base
                 _commands[index]->set_option("", str);
             }
         }
-        return _commands[index]->execute();
+        co_return co_await _commands[index]->execute();
     }
 
-    auto CommandInvoker::execute(const NekoProto::IProto &proto) -> void
+    auto CommandInvoker::execute(const NekoProto::IProto &proto) -> Task<void>
     {
         // if (proto == nullptr) {
         //     return;
@@ -267,7 +231,7 @@ namespace mks::base
             int index = item->second;
             if (index >= 0 && index < (int)_commands.size()) {
                 _commands[index]->set_options(proto);
-                _commands[index]->execute();
+                co_return co_await _commands[index]->execute();
             }
         }
     }
@@ -300,7 +264,7 @@ namespace mks::base
                 fprintf(stdout, "\n%s:\n", module.c_str());
             }
             const auto &command = _commands[item->second];
-            fprintf(stdout, "    %s\n", command->help().c_str());
+            fprintf(stdout, "%s\n", command->help("    ").c_str());
         }
         ::fflush(stdout);
         return "";

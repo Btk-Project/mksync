@@ -26,11 +26,8 @@ namespace mks::base
 
     public:
         CaptureCommand(MKCapture *capture) : _capture(capture) {}
-        void execute() override;
-        void undo() override;
-        auto description(std::string_view option) const -> std::string override;
-        auto options() const -> std::vector<std::string> override;
-        auto help() const -> std::string override;
+        auto execute() -> Task<void> override;
+        auto help(std::string_view indentation) const -> std::string override;
         auto name() const -> std::string_view override;
         auto alias_names() const -> std::vector<std::string_view> override;
         void set_option(std::string_view option, std::string_view value) override;
@@ -43,44 +40,37 @@ namespace mks::base
         Operation  _operation = eNone;
     };
 
-    void CaptureCommand::execute()
+    auto CaptureCommand::execute() -> Task<void>
     {
         switch (_operation) {
         case eStart:
-            _capture->start_capture({}, {});
+            co_await _capture->start_capture();
             break;
         case eStop:
-            _capture->stop_capture({}, {});
+            co_await _capture->stop_capture();
             break;
         default:
             SPDLOG_ERROR("Unknown operation");
             break;
         }
         _operation = eNone;
+        co_return;
     }
 
-    void CaptureCommand::undo()
+    auto CaptureCommand::help(std::string_view indentation) const -> std::string
     {
-        SPDLOG_ERROR("Undo not supported");
-    }
-
-    auto CaptureCommand::description([[maybe_unused]] std::string_view option) const -> std::string
-    {
-        if (!option.empty()) {
-            SPDLOG_WARN("Unknow option {}!", option);
-            return std::string("Unknow option ") + std::string(option);
+        std::string ret;
+        for (auto alias : alias_names()) {
+            ret += alias;
+            ret += ", ";
         }
-        return "change keyboard/mouse capture mode";
-    }
-
-    auto CaptureCommand::options() const -> std::vector<std::string>
-    {
-        return {};
-    }
-
-    auto CaptureCommand::help() const -> std::string
-    {
-        return "capture <start/stop>\n       change keyboard/mouse capture mode";
+        if (!ret.empty()) {
+            ret.pop_back();
+            ret.pop_back();
+        }
+        return fmt::format(
+            "{0}{1}{2}{3}{4}:\n{0}{0}{1} <start/stop>\n{0}{0}change keyboard/mouse capture mode",
+            indentation, name(), ret.empty() ? "" : "(", ret, ret.empty() ? "" : ")");
     }
 
     auto CaptureCommand::name() const -> std::string_view
@@ -129,37 +119,12 @@ namespace mks::base
 
     auto MKCapture::start() -> Task<int>
     {
-        _isEnable = true;
         co_return 0;
     }
 
     auto MKCapture::stop() -> Task<int>
     {
-        _isEnable = false;
         co_return co_await stop_capture();
-    }
-
-    auto MKCapture::start_capture([[maybe_unused]] const CommandInvoker::ArgsType    &args,
-                                  [[maybe_unused]] const CommandInvoker::OptionsType &options)
-        -> std::string
-    {
-        if (!_isEnable) {
-            SPDLOG_WARN("capture is not enable");
-            return "";
-        }
-        start_capture().wait();
-        return "";
-    }
-
-    auto MKCapture::stop_capture([[maybe_unused]] const CommandInvoker::ArgsType    &args,
-                                 [[maybe_unused]] const CommandInvoker::OptionsType &options)
-        -> std::string
-    {
-        if (!_isEnable) {
-            return "";
-        }
-        stop_capture().wait();
-        return "";
     }
 
     auto MKCapture::make([[maybe_unused]] App &app)
