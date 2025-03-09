@@ -33,15 +33,10 @@ namespace mks::base
 
         virtual auto start_sender() -> ::ilias::Task<int> = 0;
         virtual auto stop_sender() -> ::ilias::Task<int>  = 0;
-        auto         start_sender(const CommandInvoker::ArgsType    &args,
-                                  const CommandInvoker::OptionsType &options) -> std::string;
-        auto         stop_sender(const CommandInvoker::ArgsType    &args,
-                                 const CommandInvoker::OptionsType &options) -> std::string;
 
         static auto make(App &app) -> std::unique_ptr<MKSender, void (*)(NodeBase *)>;
 
     private:
-        bool                _isEnable = false;
         ::ilias::IoContext *_ctx      = nullptr;
     };
 } // namespace mks::base

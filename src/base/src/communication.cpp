@@ -16,6 +16,196 @@ namespace mks::base
     using ::ilias::TcpListener;
     using ::ilias::Unexpected;
 
+    class MKS_BASE_API ServerCommand : public Command {
+    public:
+        enum Operation
+        {
+            eNone,
+            eStart,
+            eStop,
+            eRestart
+        };
+
+    public:
+        ServerCommand(MKCommunication *self) : _self(self) {}
+        virtual ~ServerCommand() = default;
+
+        auto execute() -> Task<void> override;
+        auto help(std::string_view indentation) const -> std::string override;
+        auto name() const -> std::string_view override;
+        auto alias_names() const -> std::vector<std::string_view> override;
+        void set_option(std::string_view option, std::string_view value) override;
+        void set_options(const NekoProto::IProto &proto) override;
+        auto get_option(std::string_view option) const -> std::string override;
+        auto get_options() const -> NekoProto::IProto override;
+
+    protected:
+        MKCommunication *_self         = nullptr;
+        IPEndpoint       _ipendpoint   = {"127.0.0.1:12345"};
+        Operation        _operation    = eNone;
+        Operation        _oldOperation = eNone;
+    };
+
+    class MKS_BASE_API ClientCommand : public ServerCommand {
+    public:
+        ClientCommand(MKCommunication *self) : ServerCommand(self) {}
+
+        auto execute() -> Task<void> override;
+        auto name() const -> std::string_view override;
+        auto alias_names() const -> std::vector<std::string_view> override;
+    };
+
+    auto ServerCommand::execute() -> Task<void>
+    {
+        switch (_operation) {
+        case eStart:
+            if (_oldOperation != eStart && _oldOperation != eRestart) {
+                co_await _self->start_server(_ipendpoint);
+            }
+            break;
+        case eStop:
+            _self->stop_server();
+            break;
+        case eRestart:
+            _self->stop_server();
+            co_await _self->start_server(_ipendpoint);
+            break;
+        default:
+            SPDLOG_ERROR("Unknown server operation");
+            break;
+        }
+        _oldOperation = _operation;
+        co_return;
+    }
+
+    auto ServerCommand::help(std::string_view indentation) const -> std::string
+    {
+        std::string ret;
+        for (auto alias : alias_names()) {
+            ret += alias;
+            ret += ", ";
+        }
+        if (!ret.empty()) {
+            ret.pop_back();
+            ret.pop_back();
+        }
+        return std::format(
+            "{0}{1}{2}{3}{4}:\n{0}{0}{1} <start/stop/restart> [options], e.g. server start "
+            "-address=127.0.0.1 "
+            "-port=12345\n{0}{0}-address=$(String) server address\n{0}{0}-port=$(String) server "
+            "port\n",
+            indentation, name(), ret.empty() ? "" : "(", ret, ret.empty() ? "" : ")");
+    }
+
+    auto ServerCommand::name() const -> std::string_view
+    {
+        return "server";
+    }
+
+    auto ServerCommand::alias_names() const -> std::vector<std::string_view>
+    {
+        return {"s"};
+    }
+
+    void ServerCommand::set_option(std::string_view option, std::string_view value)
+    {
+        if (option == "address") {
+            if (value.find(':') != std::string_view::npos) {
+                _ipendpoint = IPEndpoint(std::format("[{}]:{}", value, _ipendpoint.port()));
+            }
+            else {
+                _ipendpoint = IPEndpoint(std::format("{}:{}", value, _ipendpoint.port()));
+            }
+        }
+        else if (option == "port") {
+            int val;
+            if (std::from_chars(value.data(), value.data() + value.size(), val).ec == std::errc() &&
+                val >= 0 && val <= 65535) {
+                if (_ipendpoint.family() == AF_INET) {
+                    _ipendpoint =
+                        IPEndpoint(std::format("{}:{}", _ipendpoint.address().toString(), val));
+                }
+                else {
+                    _ipendpoint =
+                        IPEndpoint(std::format("[{}]:{}", _ipendpoint.address().toString(), val));
+                    SPDLOG_ERROR("{}", _ipendpoint.address().toString());
+                }
+            }
+            else {
+                SPDLOG_ERROR("Invalid port number: {}", value);
+            }
+        }
+        else if (option.empty() && value == "start") {
+            _operation = eStart;
+        }
+        else if (option.empty() && value == "stop") {
+            _operation = eStop;
+        }
+        else if (option.empty() && value == "restart") {
+            _operation = eRestart;
+        }
+        else {
+            SPDLOG_ERROR("Unknown option/command: {}{}{}", option, option.empty() ? "" : "=",
+                         value);
+        }
+    }
+
+    void ServerCommand::set_options([[maybe_unused]] const NekoProto::IProto &proto)
+    {
+        // TODO: make proto for this command if needed
+        SPDLOG_ERROR("Not implemented proto parameter");
+    }
+
+    auto ServerCommand::get_option(std::string_view option) const -> std::string
+    {
+        if (option == "address") {
+            return _ipendpoint.address().toString();
+        }
+        if (option == "port") {
+            return std::to_string(_ipendpoint.port());
+        }
+        return {};
+    }
+
+    auto ServerCommand::get_options() const -> NekoProto::IProto
+    {
+        // TODO: make proto for this command if needed
+        return {};
+    }
+
+    auto ClientCommand::execute() -> Task<void>
+    {
+        switch (_operation) {
+        case eStart:
+            if (_oldOperation != eStart && _oldOperation != eRestart) {
+                co_await _self->connect_to(_ipendpoint);
+            }
+            break;
+        case eStop:
+            _self->disconnect();
+            break;
+        case eRestart:
+            _self->disconnect();
+            co_await _self->connect_to(_ipendpoint);
+            break;
+        default:
+            SPDLOG_ERROR("Unknown server operation");
+            break;
+        }
+        _oldOperation = _operation;
+        co_return;
+    }
+
+    auto ClientCommand::name() const -> std::string_view
+    {
+        return "client";
+    }
+
+    auto ClientCommand::alias_names() const -> std::vector<std::string_view>
+    {
+        return {"c"};
+    }
+
     MKCommunication::MKCommunication(::ilias::IoContext *ctx) : _ctx(ctx)
     {
         _currentPeer = _protoStreamClients.end();
@@ -150,7 +340,8 @@ namespace mks::base
                 if (auto ret = co_await _currentPeer->second.recv(_flags); !ret) {
                     // 对端出现异常，关闭对端，但不关闭自己的事件生成。
                     SPDLOG_ERROR("recv event failed {}", ret.error().message());
-                    disconnect();
+                    _protoStreamClients.erase(_currentPeer);
+                    _currentPeer = _protoStreamClients.end();
                 }
                 else {
                     // 获得消息生成一个事件。
@@ -204,12 +395,17 @@ namespace mks::base
             _status = eServer;
             SPDLOG_INFO("server listen {}", endpoint.toString());
         }
+        _cancelHandle = ilias::spawn(*_ctx, _server_loop(std::move(server)));
+    }
+
+    auto MKCommunication::_server_loop(::ilias::TcpListener tcplistener) -> ::ilias::Task<void>
+    {
         while (true) {
-            if (auto ret1 = co_await server.accept(); !ret1) {
+            if (auto ret1 = co_await tcplistener.accept(); !ret1) {
                 if (ret1.error() != Error::Canceled) {
                     SPDLOG_ERROR("TcpListener::accept failed {}", ret1.error().message());
                 }
-                server.close();
+                tcplistener.close();
                 stop_server();
                 co_return;
             }
@@ -221,7 +417,7 @@ namespace mks::base
                 _protoStreamClients.emplace(std::make_pair(
                     ipstr,
                     NekoProto::ProtoStreamClient<>(_protofactory, std::move(tcpClient.first))));
-#if 1
+#if 1 // 增加处理当前连接的逻辑
                 _currentPeer = _protoStreamClients.find(ipstr);
                 _syncEvent.set();
 #endif
@@ -243,61 +439,6 @@ namespace mks::base
             _currentPeer = _protoStreamClients.end();
         }
         _status = eEnable;
-    }
-    auto MKCommunication::start_server(const CommandInvoker::ArgsType    &args,
-                                       const CommandInvoker::OptionsType &options) -> std::string
-    {
-        IPEndpoint ipendpoint("127.0.0.1:12345");
-        if (args.size() == 2) {
-            if (auto ret =
-                    IPEndpoint::fromString(std::string(args[0]) + ":" + std::string(args[1]));
-                ret) {
-                ipendpoint = ret.value();
-            }
-            else {
-                SPDLOG_ERROR("ip endpoint {}:{} error {}", args[0], args[1], ret.error().message());
-            }
-        }
-        else if (args.size() == 1) {
-            if (auto ret = IPEndpoint::fromString(args[0]); ret) {
-                ipendpoint = ret.value();
-            }
-            else {
-                SPDLOG_ERROR("ip endpoint error {}", ret.error().message());
-            }
-        }
-        else {
-            auto it      = options.find("address");
-            auto address = it == options.end() ? "127.0.0.1" : std::get<std::string>(it->second);
-            it           = options.find("port");
-            auto port    = it == options.end() ? 12345 : std::get<int>(it->second);
-            auto ret     = IPEndpoint(::ilias::IPAddress(address.c_str()), port);
-            if (ret.isValid()) {
-                ipendpoint = ret;
-            }
-            else {
-                SPDLOG_ERROR("ip endpoint error {}:{}", address, port);
-                return "invalid ip endpoint";
-            }
-        }
-        if (_status == eServer) { // 确保没有正在作为服务端运行
-            SPDLOG_ERROR("server/client is already running");
-            return "";
-        }
-        if (_cancelHandle) {
-            _cancelHandle.cancel();
-            _cancelHandle = {};
-        }
-        _cancelHandle = ::ilias::spawn(*_ctx, start_server(ipendpoint));
-        return "";
-    }
-
-    auto MKCommunication::stop_server([[maybe_unused]] const CommandInvoker::ArgsType    &args,
-                                      [[maybe_unused]] const CommandInvoker::OptionsType &options)
-        -> std::string
-    {
-        stop_server();
-        return "";
     }
 
     // client
@@ -352,33 +493,6 @@ namespace mks::base
         _status = eEnable;
     }
 
-    auto MKCommunication::connect_to(const CommandInvoker::ArgsType    &args,
-                                     const CommandInvoker::OptionsType &options) -> std::string
-    {
-        if (args.size() == 2) {
-            connect_to(IPEndpoint(std::string(args[0]) + ":" + std::string(args[1]))).wait();
-        }
-        else if (args.size() == 1) {
-            connect_to(IPEndpoint(args[0])).wait();
-        }
-        else {
-            auto it      = options.find("address");
-            auto address = it == options.end() ? "127.0.0.1" : std::get<std::string>(it->second);
-            it           = options.find("port");
-            auto port    = it == options.end() ? 12345 : std::get<int>(it->second);
-            connect_to(IPEndpoint(ilias::IPAddress(address.c_str()), port)).wait();
-        }
-        return "";
-    }
-
-    auto MKCommunication::disconnect([[maybe_unused]] const CommandInvoker::ArgsType    &args,
-                                     [[maybe_unused]] const CommandInvoker::OptionsType &options)
-        -> std::string
-    {
-        disconnect();
-        return "";
-    }
-
     auto MKCommunication::set_communication_options(
         [[maybe_unused]] const CommandInvoker::ArgsType    &args,
         [[maybe_unused]] const CommandInvoker::OptionsType &options) -> std::string
@@ -403,35 +517,9 @@ namespace mks::base
             [](NodeBase *ptr) { delete static_cast<MKCommunication *>(ptr); });
         auto commandInstaller = app.command_installer(communication->name());
         // 注册服务器监听相关命令
-        commandInstaller(std::make_unique<CommonCommand>(CommandInvoker::CommandsData{
-            {"listen",                                                           "l"},
-            "listen server, e.g. listen 127.0.0.1 12345",
-            std::bind(static_cast<CallbackType>(&MKCommunication::start_server),
-                      communication.get(), std::placeholders::_1, std::placeholders::_2),
-            {{"address", CommandInvoker::OptionsData::eString, "lister address"},
-             {"port", CommandInvoker::OptionsData::eInt, "lister port"}              }
-        }));
-        commandInstaller(std::make_unique<CommonCommand>(CommandInvoker::CommandsData{
-            {"stop_listen"},
-            "stop the server",
-            std::bind(static_cast<CallbackType>(&MKCommunication::stop_server), communication.get(),
-                      std::placeholders::_1, std::placeholders::_2),
-            {}}));
+        commandInstaller(std::make_unique<ServerCommand>(communication.get()));
         // 注册连接到服务器命令
-        commandInstaller(std::make_unique<CommonCommand>(CommandInvoker::CommandsData{
-            {"connect"},
-            "connect to server, e.g. connect 127.0.0.1 12345",
-            std::bind(static_cast<CallbackType>(&MKCommunication::connect_to), communication.get(),
-                      std::placeholders::_1, std::placeholders::_2),
-            {{"address", CommandInvoker::OptionsData::eString, "server address"},
-             {"port", CommandInvoker::OptionsData::eInt, "server port"}}
-        }));
-        commandInstaller(std::make_unique<CommonCommand>(CommandInvoker::CommandsData{
-            {"disconnect"},
-            "disconnect from server",
-            std::bind(static_cast<CallbackType>(&MKCommunication::disconnect), communication.get(),
-                      std::placeholders::_1, std::placeholders::_2),
-            {}}));
+        commandInstaller(std::make_unique<ClientCommand>(communication.get()));
         commandInstaller(std::make_unique<CommonCommand>(CommandInvoker::CommandsData{
             {"communication_attributes", "comm_attr"},
             "set communication attributes",

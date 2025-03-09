@@ -54,9 +54,9 @@ namespace mks::base
     public:
         CommandInvoker(App *app);
         auto install_cmd(std::unique_ptr<Command> command, std::string_view module = "") -> bool;
-        auto execute(std::string_view cmdline) -> void;
-        auto execute(std::vector<std::string_view> cmdline) -> void;
-        auto execute(const NekoProto::IProto &proto) -> void;
+        auto execute(std::string_view cmdline) -> ::ilias::Task<void>;
+        auto execute(std::vector<std::string_view> cmdline) -> ::ilias::Task<void>;
+        auto execute(const NekoProto::IProto &proto) -> ::ilias::Task<void>;
 
         auto show_help(const ArgsType &args, const OptionsType &options) -> std::string;
         auto show_version(const ArgsType &args, const OptionsType &options) -> std::string;
@@ -75,11 +75,8 @@ namespace mks::base
     class CommonCommand : public Command {
     public:
         CommonCommand(CommandInvoker::CommandsData &&data) : _data(data) {}
-        void execute() override;
-        void undo() override;
-        auto description(std::string_view option) const -> std::string override;
-        auto options() const -> std::vector<std::string> override;
-        auto help() const -> std::string override;
+        auto execute() -> ::ilias::Task<void> override;
+        auto help(std::string_view indentation) const -> std::string override;
         auto name() const -> std::string_view override;
         auto alias_names() const -> std::vector<std::string_view> override;
         void set_option(std::string_view option, std::string_view value) override;
@@ -92,4 +89,52 @@ namespace mks::base
         CommandInvoker::ArgsType     _args;
         CommandInvoker::OptionsType  _options;
     };
+
+    namespace detail
+    {
+        template <typename T>
+        std::string to_string(const T &value)
+        {
+            if constexpr (std::is_same<T, std::string>::value) {
+                return value;
+            }
+            else if constexpr (std::is_same<T, std::string_view>::value) {
+                return std::string(value);
+            }
+            else if constexpr (std::is_same<T, bool>::value) {
+                return value ? "true" : "false";
+            }
+            else {
+                return std::to_string(value);
+            }
+        }
+
+        template <typename... Ts>
+        struct unfold_option_variant_to_string_helper { // NOLINT(readability-identifier-naming)
+            template <typename T, std::size_t N>
+            static std::string unfold_value_imp2(const std::variant<Ts...> &value)
+            {
+                if (value.index() != N) {
+                    return "";
+                }
+                return to_string(std::get<N>(value));
+            }
+
+            template <std::size_t... Ns>
+            static std::string unfold_value(const std::variant<Ts...> &value,
+                                            std::index_sequence<Ns...> /*unused*/)
+            {
+                return (unfold_value_imp2<std::variant_alternative_t<Ns, std::variant<Ts...>>, Ns>(
+                            value) +
+                        ...);
+            }
+        };
+
+        template <typename... Ts>
+        std::string to_string(const std::variant<Ts...> &value)
+        {
+            return unfold_option_variant_to_string_helper<Ts...>::unfold_value(
+                value, std::index_sequence_for<Ts...>{});
+        }
+    } // namespace detail
 } // namespace mks::base

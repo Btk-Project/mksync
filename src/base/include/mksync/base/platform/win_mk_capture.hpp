@@ -43,6 +43,8 @@ namespace mks::base
         int   _screenWidth    = 0;
         int   _screenHeight   = 0;
         bool  _isStartCapture = false;
+        int   _posX           = 0;
+        int   _posY           = 0;
 
         RingBuffer<NekoProto::IProto> _events;
         ::ilias::Event                _syncEvent;

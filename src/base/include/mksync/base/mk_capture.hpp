@@ -39,15 +39,10 @@ namespace mks::base
 
         virtual auto start_capture() -> ::ilias::Task<int> = 0;
         virtual auto stop_capture() -> ::ilias::Task<int>  = 0;
-        auto         start_capture(const CommandInvoker::ArgsType    &args,
-                                   const CommandInvoker::OptionsType &options) -> std::string;
-        auto         stop_capture(const CommandInvoker::ArgsType    &args,
-                                  const CommandInvoker::OptionsType &options) -> std::string;
 
         static auto make(App &app) -> std::unique_ptr<MKCapture, void (*)(NodeBase *)>;
 
     private:
-        bool                _isEnable = false;
         ::ilias::IoContext *_ctx      = nullptr;
     };
 } // namespace mks::base

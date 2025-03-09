@@ -125,6 +125,8 @@ namespace mks::base
                                                            (float)hookStruct->pt.x / _screenWidth,
                                                            (float)hookStruct->pt.y / _screenHeight);
                 }
+                _posX = hookStruct->pt.x;
+                _posY = hookStruct->pt.y;
             }
         }
         else {
@@ -184,9 +186,11 @@ namespace mks::base
                 SPDLOG_INFO("Middle Mouse Button Double Click");
                 break;
             case WM_MOUSEMOVE:
-                proto = mks::MouseMotionEvent::emplaceProto(
-                    (float)hookStruct->pt.x / _screenWidth, (float)hookStruct->pt.y / _screenHeight,
-                    !_isStartCapture, (uint64_t)hookStruct->time);
+                _posX += hookStruct->pt.x;
+                _posY += hookStruct->pt.y;
+                proto = mks::MouseMotionEvent::emplaceProto((float)_posX / _screenWidth,
+                                                            (float)_posY / _screenHeight, true,
+                                                            (uint64_t)hookStruct->time);
                 SPDLOG_INFO("Mouse Move X: {} Y: {}", hookStruct->pt.x, hookStruct->pt.y);
                 break;
             case WM_MOUSEWHEEL:

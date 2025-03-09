@@ -17,6 +17,7 @@
 #include <ilias/ilias.hpp>
 #include <ilias/net/tcp.hpp>
 #include <ilias/fs/console.hpp>
+#include <fmt/format.h>
 
 #include "mksync/base/command_invoker.hpp"
 #include "mksync/base/mk_capture.hpp"
@@ -76,13 +77,13 @@ namespace mks::base
         bool                _isConsoleListening = false;
         ::ilias::IoContext *_ctx                = nullptr;
 
-        CommandInvoker                                                _CommandInvoker;
+        CommandInvoker                                                _commandInvoker;
         std::unordered_map<std::string, std::any>                     _optionsMap;
         std::list<NodeData>                                           _nodeList;
         std::unordered_map<int, std::list<Consumer *>>                _consumerMap;
         std::unordered_map<std::string_view, ilias::WaitHandle<void>> _cancelHandleMap;
-        std::deque<std::string> _statusList; // For internal log storage
-        size_t                  _statusListMaxSize = 100;
+        std::deque<std::string> _logList; // For internal log storage
+        size_t                  _logListMaxSize = 100;
     };
 
     template <typename T>

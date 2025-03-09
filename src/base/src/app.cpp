@@ -8,15 +8,13 @@
 
 namespace mks::base
 {
-    template <typename T>
-    using Task = ::ilias::Task<T>;
-    template <typename T>
-    using IoTask      = ::ilias::IoTask<T>;
-    using IPEndpoint  = ::ilias::IPEndpoint;
-    using TcpClient   = ::ilias::TcpClient;
-    using TcpListener = ::ilias::TcpListener;
+    using ::ilias::IoTask;
+    using ::ilias::IPEndpoint;
+    using ::ilias::Task;
+    using ::ilias::TcpClient;
+    using ::ilias::TcpListener;
 
-    App::App(::ilias::IoContext *ctx) : _ctx(ctx), _CommandInvoker(this)
+    App::App(::ilias::IoContext *ctx) : _ctx(ctx), _commandInvoker(this)
     {
         using CallbackType = std::string (App::*)(const CommandInvoker::ArgsType &,
                                                   const CommandInvoker::OptionsType &);
@@ -33,8 +31,8 @@ namespace mks::base
         }));
         coreInstaller(std::make_unique<CommonCommand>(CommandInvoker::CommandsData{
             {"log"                                         },
-            " : show the logs of the program, \n"
-            "         clear : clear the log.",
+            "log [command] [option] show the logs of the program.\n"
+            "        clear : clear the log.",
             std::bind(static_cast<CallbackType>(&App::log_handle), this, std::placeholders::_1,
                       std::placeholders::_2),
             {
@@ -49,11 +47,11 @@ namespace mks::base
         ::signal(SIGPIPE, SIG_IGN); // 忽略SIGPIPE信号 防止多跑一秒就会爆炸
 #endif                              // defined(SIGPIPE)
         auto sink = std::make_shared<spdlog::sinks::callback_sink_st>([this](const auto &msg) {
-            if (_statusList.size() == _statusListMaxSize) {
-                _statusList.pop_front();
+            if (_logList.size() == _logListMaxSize) {
+                _logList.pop_front();
             }
             auto &payload = msg.payload;
-            _statusList.emplace_back(std::string(payload.data(), payload.size()));
+            _logList.emplace_back(std::string(payload.data(), payload.size()));
         });
         spdlog::default_logger()->sinks().push_back(sink);
     }
@@ -166,7 +164,7 @@ namespace mks::base
     auto App::command_installer(std::string_view module)
         -> std::function<bool(std::unique_ptr<Command>)>
     {
-        return std::bind(&CommandInvoker::install_cmd, &_CommandInvoker, std::placeholders::_1,
+        return std::bind(&CommandInvoker::install_cmd, &_commandInvoker, std::placeholders::_1,
                          module);
     }
 
@@ -176,15 +174,15 @@ namespace mks::base
         if (options.contains("max_log")) {
             int value = std::get<int>(options.at("max_log"));
             if (value > 0) {
-                _statusListMaxSize = value;
-                while ((int)_statusList.size() > value) {
-                    _statusList.pop_front();
+                _logListMaxSize = value;
+                while ((int)_logList.size() > value) {
+                    _logList.pop_front();
                 }
             }
         }
         if (std::any_of(args.begin(), args.end(),
                         [](const std::string_view &arg) { return arg == "clear"; })) {
-            _statusList.clear();
+            _logList.clear();
         }
         if (options.contains("level")) {
             const auto &str = std::get<std::string>(options.at("level"));
@@ -208,8 +206,8 @@ namespace mks::base
             }
             return "";
         }
-        ::fprintf(stdout, "logs: %d items\n", int(_statusList.size()));
-        for (const auto &msg : _statusList) {
+        ::fprintf(stdout, "logs: %d items\n", int(_logList.size()));
+        for (const auto &msg : _logList) {
             ::fprintf(stdout, "%s\n", msg.c_str());
         }
         ::fflush(stdout);
@@ -244,7 +242,7 @@ namespace mks::base
             while (lineView.size() > 0 && (lineView.back() == '\r' || lineView.back() == '\n')) {
                 lineView.remove_suffix(1);
             }
-            _CommandInvoker.execute(lineView);
+            co_await _commandInvoker.execute(lineView);
         }
     }
 
@@ -277,7 +275,7 @@ namespace mks::base
         }
         _isRuning = true;
         if (argc > 1) {
-            _CommandInvoker.execute(std::vector<std::string_view>(argv + 1, argv + argc));
+            _commandInvoker.execute(std::vector<std::string_view>(argv + 1, argv + argc));
         }
         while (_isRuning) {
             co_await start_console();

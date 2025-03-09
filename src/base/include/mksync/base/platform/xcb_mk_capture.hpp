@@ -16,6 +16,7 @@
     #include "mksync/base/mk_capture.hpp"
     #include "mksync/base/base_library.h"
     #include "mksync/base/ring_buffer.hpp"
+    #include "mksync/proto/proto.hpp"
 
 namespace mks::base
 {

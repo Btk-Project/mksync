@@ -26,11 +26,8 @@ namespace mks::base
 
     public:
         MKSenderCommand(MKSender *sender) : _sender(sender) {}
-        void execute() override;
-        void undo() override;
-        auto description(std::string_view option) const -> std::string override;
-        auto options() const -> std::vector<std::string> override;
-        auto help() const -> std::string override;
+        auto execute() -> Task<void> override;
+        auto help(std::string_view indentation) const -> std::string override;
         auto name() const -> std::string_view override;
         auto alias_names() const -> std::vector<std::string_view> override;
         void set_option(std::string_view option, std::string_view value) override;
@@ -43,43 +40,36 @@ namespace mks::base
         Operation _operation = eNone;
     };
 
-    void MKSenderCommand::execute()
+    auto MKSenderCommand::execute() -> Task<void>
     {
         switch (_operation) {
         case eStart:
-            _sender->start_sender({}, {});
+            co_await _sender->start_sender();
             break;
         case eStop:
-            _sender->stop_sender({}, {});
+            co_await _sender->stop_sender();
             break;
         default:
             SPDLOG_ERROR("Unknown operation");
             break;
         }
+        co_return;
     }
 
-    void MKSenderCommand::undo()
+    auto MKSenderCommand::help(std::string_view indentation) const -> std::string
     {
-        SPDLOG_ERROR("Undo not supported");
-    }
-
-    auto MKSenderCommand::description([[maybe_unused]] std::string_view option) const -> std::string
-    {
-        if (!option.empty()) {
-            SPDLOG_WARN("Unknow option {}!", option);
-            return std::string("Unknow option ") + std::string(option);
+        std::string ret;
+        for (auto alias : alias_names()) {
+            ret += alias;
+            ret += ", ";
         }
-        return "change keyboard/mouse sender mode";
-    }
-
-    auto MKSenderCommand::options() const -> std::vector<std::string>
-    {
-        return {};
-    }
-
-    auto MKSenderCommand::help() const -> std::string
-    {
-        return "sender <start/stop>\n       change keyboard/mouse sender mode";
+        if (!ret.empty()) {
+            ret.pop_back();
+            ret.pop_back();
+        }
+        return fmt::format(
+            "{0}{1}{2}{3}{4}:\n{0}{0}{1} <start/stop>\n{0}{0}change keyboard/mouse sender mode",
+            indentation, name(), ret.empty() ? "" : "(", ret, ret.empty() ? "" : ")");
     }
 
     auto MKSenderCommand::name() const -> std::string_view
@@ -126,37 +116,12 @@ namespace mks::base
 
     auto MKSender::start() -> Task<int>
     {
-        _isEnable = true;
         co_return 0;
     }
 
     auto MKSender::stop() -> Task<int>
     {
-        _isEnable = false;
         co_return co_await stop_sender();
-    }
-
-    auto MKSender::start_sender([[maybe_unused]] const CommandInvoker::ArgsType    &args,
-                                [[maybe_unused]] const CommandInvoker::OptionsType &options)
-        -> std::string
-    {
-        if (!_isEnable) {
-            SPDLOG_WARN("{} is not enable", name());
-            return "";
-        }
-        start_sender().wait();
-        return "";
-    }
-
-    auto MKSender::stop_sender([[maybe_unused]] const CommandInvoker::ArgsType    &args,
-                               [[maybe_unused]] const CommandInvoker::OptionsType &options)
-        -> std::string
-    {
-        if (!_isEnable) {
-            return "";
-        }
-        stop_sender().wait();
-        return "";
     }
 
     auto MKSender::make([[maybe_unused]] App &app)
