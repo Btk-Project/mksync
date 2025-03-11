@@ -15,16 +15,18 @@ namespace mks::base
         for (auto &opt : _data.options) {
             switch (opt.type) {
             case CommandInvoker::OptionsData::eBool:
-                _option.add_option("", {opt.name, opt.description, cxxopts::value<bool>()});
+                _option.add_option("", {opt.name, opt.description, cxxopts::value<bool>(), ""});
                 break;
             case CommandInvoker::OptionsData::eString:
-                _option.add_option("", {opt.name, opt.description, cxxopts::value<std::string>()});
+                _option.add_option(
+                    "", {opt.name, opt.description, cxxopts::value<std::string>(), "[string]"});
                 break;
             case CommandInvoker::OptionsData::eInt:
-                _option.add_option("", {opt.name, opt.description, cxxopts::value<int>()});
+                _option.add_option("", {opt.name, opt.description, cxxopts::value<int>(), "[int]"});
                 break;
             case CommandInvoker::OptionsData::eDouble:
-                _option.add_option("", {opt.name, opt.description, cxxopts::value<double>()});
+                _option.add_option(
+                    "", {opt.name, opt.description, cxxopts::value<double>(), "[double]"});
                 break;
             }
         }
@@ -108,8 +110,7 @@ namespace mks::base
     {
         auto options = _option.parse(int(args.size()), args.data());
         for (const auto &opt : _data.options) {
-            auto item = options.count(opt.name);
-            if (item == 0) {
+            if (auto size = options.count(opt.name); size == 0) {
                 continue;
             }
             switch (opt.type) {

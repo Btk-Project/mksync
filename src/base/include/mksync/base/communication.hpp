@@ -22,6 +22,18 @@
 namespace mks::base
 {
     class App;
+    /**
+     * @brief communication
+     * - 核心通信类
+     *   - 作为服务器通信节点
+     *      - 管理连接的客户节点
+     *      - 发送/接收来自客户端的数据
+     *   - 作为客户端通信节点
+     *      - 发送/接收来自服务端的数据
+     *   - 作为生产者/消费者
+     *      - 接收来自网络的事件到本地
+     *      - 发送本地事件到网络
+     */
     class MKS_BASE_API MKCommunication : public NodeBase, public Consumer, public Producer {
     public:
         enum Status
@@ -39,7 +51,7 @@ namespace mks::base
         auto stop() -> ::ilias::Task<int> override;
         auto name() -> const char * override;
         auto get_subscribers() -> std::vector<int> override;
-        auto handle_event(NekoProto::IProto &event) -> ::ilias::Task<void> override;
+        auto handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void> override;
         auto get_event() -> ::ilias::IoTask<NekoProto::IProto> override;
 
         auto status() -> Status;

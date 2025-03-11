@@ -37,6 +37,16 @@
 namespace mks::base
 {
     class App;
+    /**
+     * @brief Node
+     * 节点基类，作为插件的最低要求，必须至少实现该类的接口。
+     * - name
+     * 节点的名字。
+     * - start
+     * 启动节点，协程函数。不可以阻塞。加载节点后会按顺序启动节点。
+     * - stop
+     * 停止节点，协程函数。不可以阻塞。卸载节点时会按顺序停止节点。退出软件时会流程。
+     */
     class MKS_BASE_API NodeBase {
     public:
         enum Result {
@@ -54,6 +64,14 @@ namespace mks::base
         virtual auto name() -> const char * = 0;
     };
 
+    /**
+     * @brief Consumer
+     * 消费者接口，用于订阅事件，当事件发生时，会调用handle_event。
+     * - get_subscribers
+     * 返回该消费者需要订阅的事件列表，当有事件发生时，会调用handle_event。类型id可以通过ProtoFactory::protoType<TYPE>()获取。
+     * - handle_event
+     * 当有生产者产生订阅的事件时，会调用该函数处理事件。
+     */
     class MKS_BASE_API Consumer {
     public:
         Consumer()          = default;
@@ -61,9 +79,15 @@ namespace mks::base
         ///> 订阅一个事件，当有事件发生时，会调用handle_event。需要返回
         virtual auto get_subscribers() -> std::vector<int> = 0;
         ///> 处理一个事件，需要订阅。
-        virtual auto handle_event(NekoProto::IProto &event) -> ::ilias::Task<void> = 0;
+        virtual auto handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void> = 0;
     };
 
+    /**
+     * @brief producer
+     * 生产者接口，可以生产任意事件，需要通过协程co_await。
+     * - get_event
+     * 从节点内获取一个事件，如果没有就使用协程等待。
+     */
     class MKS_BASE_API Producer {
     public:
         Producer()          = default;

@@ -31,7 +31,7 @@ namespace mks::base
         }));
         coreInstaller(std::make_unique<CommonCommand>(CommandInvoker::CommandsData{
             {"log"},
-            "log [command] [option] show the logs of the program.",
+            "log [option] show the logs of the program.",
             std::bind(static_cast<CallbackType>(&App::log_handle), this, std::placeholders::_1,
                       std::placeholders::_2),
             {
@@ -129,7 +129,7 @@ namespace mks::base
         co_return 0;
     }
 
-    auto App::dispatch(NekoProto::IProto &&proto, NodeBase *nodebase) -> Task<void>
+    auto App::dispatch(const NekoProto::IProto &proto, NodeBase *nodebase) -> Task<void>
     {
         int type = proto.type();
         for (auto *consumer : _consumerMap[type]) {

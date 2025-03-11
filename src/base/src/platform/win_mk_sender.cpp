@@ -35,7 +35,7 @@ namespace mks::base
                 NekoProto::ProtoFactory::protoType<KeyEvent>()};
     }
 
-    auto WinMKSender::handle_event(NekoProto::IProto &event) -> ::ilias::Task<void>
+    auto WinMKSender::handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void>
     {
         if (event == nullptr) {
             co_return;

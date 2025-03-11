@@ -28,6 +28,18 @@
 
 namespace mks::base
 {
+    /**
+     * @brief Application
+     * - 负责管理软件的主要组件
+     *      - 通信节点
+     *      - 键鼠捕获节点
+     *      - 监听控制台输入
+     *      - 分发事件
+     * - 全局上下文
+     *      - 配置全局共享的选项
+     *      - 注册命令
+     *      - 设置日志
+     */
     class MKS_BASE_API App {
         enum NodeStatus
         {
@@ -49,7 +61,7 @@ namespace mks::base
 
         // main loop
         auto exec(int argc = 0, const char *const *argv = nullptr) -> ilias::Task<void>;
-        auto dispatch(NekoProto::IProto &&proto, NodeBase *nodebase) -> ::ilias::Task<void>;
+        auto dispatch(const NekoProto::IProto &proto, NodeBase *nodebase) -> ::ilias::Task<void>;
         auto producer_loop(Producer *producer) -> ::ilias::Task<void>;
         auto install_node(std::unique_ptr<NodeBase, void (*)(NodeBase *)> &&node) -> void;
         auto start_node(NodeData &node) -> ilias::Task<int>;
