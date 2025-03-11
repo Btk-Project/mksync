@@ -69,7 +69,7 @@ namespace mks
         if (keyCode != KeyCode::eUnknown) {
             for (int i = 0; i < (int)(sizeof(g_keycodeTable) / sizeof(g_keycodeTable[0])); i++) {
                 if (g_keycodeTable[i] == keyCode) {
-                    scanCode = i;
+                    scanCode = uint16_t(i);
                     break;
                 }
             }

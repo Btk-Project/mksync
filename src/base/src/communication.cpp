@@ -168,7 +168,7 @@ namespace mks::base
 
     void ServerCommand::parser_options(const std::vector<const char *> &args)
     {
-        auto results = _options.parse(args.size(), args.data());
+        auto results = _options.parse(int(args.size()), args.data());
 
         if (results.count("address") != 0U) {
             set_option("address", results["address"].as<std::string>());

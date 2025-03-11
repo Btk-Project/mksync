@@ -106,10 +106,10 @@ namespace mks::base
 
     void CommonCommand::parser_options(const std::vector<const char *> &args)
     {
-        auto options = _option.parse(args.size(), args.data());
+        auto options = _option.parse(int(args.size()), args.data());
         for (const auto &opt : _data.options) {
             auto item = options.count(opt.name);
-            if (item < 0) {
+            if (item == 0) {
                 continue;
             }
             switch (opt.type) {
