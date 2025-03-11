@@ -30,12 +30,12 @@ namespace mks::base
             {}
         }));
         coreInstaller(std::make_unique<CommonCommand>(CommandInvoker::CommandsData{
-            {"log"                                         },
-            "log [command] [option] show the logs of the program.\n"
-            "        clear : clear the log.",
+            {"log"},
+            "log [command] [option] show the logs of the program.",
             std::bind(static_cast<CallbackType>(&App::log_handle), this, std::placeholders::_1,
                       std::placeholders::_2),
             {
+             {"clear", CommandInvoker::OptionsData::eBool, "clear the log"},
              {"max_log", CommandInvoker::OptionsData::eInt,
                  "set the max log number, default is 100."},
              {"level", CommandInvoker::OptionsData::eString,
@@ -180,9 +180,11 @@ namespace mks::base
                 }
             }
         }
-        if (std::any_of(args.begin(), args.end(),
-                        [](const std::string_view &arg) { return arg == "clear"; })) {
-            _logList.clear();
+        if (options.contains("clear")) {
+            if (std::get<bool>(options.at("clear"))) {
+                _logList.clear();
+            }
+            return "";
         }
         if (options.contains("level")) {
             const auto &str = std::get<std::string>(options.at("level"));
@@ -237,10 +239,11 @@ namespace mks::base
                 stop_console();
                 co_return;
             }
-            auto            *line = reinterpret_cast<char *>(strBuffer.get());
-            std::string_view lineView(line);
+            auto           *line = reinterpret_cast<char *>(strBuffer.get());
+            std::span<char> lineView(line, line + ret1.value());
             while (lineView.size() > 0 && (lineView.back() == '\r' || lineView.back() == '\n')) {
-                lineView.remove_suffix(1);
+                lineView[lineView.size() - 1] = '\0';
+                lineView                      = lineView.subspan(0, lineView.size() - 1);
             }
             co_await _commandInvoker.execute(lineView);
         }
@@ -275,7 +278,7 @@ namespace mks::base
         }
         _isRuning = true;
         if (argc > 1) {
-            _commandInvoker.execute(std::vector<std::string_view>(argv + 1, argv + argc));
+            _commandInvoker.execute(std::vector<const char *>(argv + 1, argv + argc));
         }
         while (_isRuning) {
             co_await start_console();

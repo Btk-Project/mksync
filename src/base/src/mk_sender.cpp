@@ -25,20 +25,39 @@ namespace mks::base
         };
 
     public:
-        MKSenderCommand(MKSender *sender) : _sender(sender) {}
+        MKSenderCommand(MKSender *sender);
         auto execute() -> Task<void> override;
-        auto help(std::string_view indentation) const -> std::string override;
+        auto help() const -> std::string override;
         auto name() const -> std::string_view override;
         auto alias_names() const -> std::vector<std::string_view> override;
         void set_option(std::string_view option, std::string_view value) override;
         void set_options(const NekoProto::IProto &proto) override;
+        void parser_options(const std::vector<const char *> &args) override;
         auto get_option(std::string_view option) const -> std::string override;
         auto get_options() const -> NekoProto::IProto override;
 
     private:
-        MKSender *_sender;
-        Operation _operation = eNone;
+        MKSender        *_sender;
+        Operation        _operation = eNone;
+        cxxopts::Options _options;
     };
+
+    MKSenderCommand::MKSenderCommand(MKSender *sender) : _sender(sender), _options("sender")
+    {
+        std::string ret;
+        for (auto alias : alias_names()) {
+            ret += alias;
+            ret += ", ";
+        }
+        if (!ret.empty()) {
+            ret.pop_back();
+            ret.pop_back();
+        }
+        _options.custom_help(fmt::format("{}{}{}{} <start/stop> keyboard/mouse sender mode.",
+                                         this->name(), ret.empty() ? "" : "(", ret,
+                                         ret.empty() ? "" : ")"));
+        _options.allow_unrecognised_options();
+    }
 
     auto MKSenderCommand::execute() -> Task<void>
     {
@@ -56,25 +75,33 @@ namespace mks::base
         co_return;
     }
 
-    auto MKSenderCommand::help(std::string_view indentation) const -> std::string
+    void MKSenderCommand::parser_options(const std::vector<const char *> &args)
     {
-        std::string ret;
-        for (auto alias : alias_names()) {
-            ret += alias;
-            ret += ", ";
+        auto results = _options.parse(args.size(), args.data());
+        for (const auto &result : results.unmatched()) {
+            if (result == "start") {
+                _operation = eStart;
+            }
+            else if (result == "stop") {
+                _operation = eStop;
+            }
+            else {
+                SPDLOG_ERROR("Unknown operation {}", result);
+            }
         }
-        if (!ret.empty()) {
-            ret.pop_back();
-            ret.pop_back();
+        for (const auto &result : results) {
+            SPDLOG_ERROR("Unknow option {} = {}", result.key(), result.value());
         }
-        return fmt::format(
-            "{0}{1}{2}{3}{4}:\n{0}{0}{1} <start/stop>\n{0}{0}change keyboard/mouse sender mode",
-            indentation, name(), ret.empty() ? "" : "(", ret, ret.empty() ? "" : ")");
+    }
+
+    auto MKSenderCommand::help() const -> std::string
+    {
+        return _options.help({}, false);
     }
 
     auto MKSenderCommand::name() const -> std::string_view
     {
-        return "sender";
+        return _options.program();
     }
 
     auto MKSenderCommand::alias_names() const -> std::vector<std::string_view>

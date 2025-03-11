@@ -2,6 +2,7 @@
 
 #include <spdlog/spdlog.h>
 #include <ilias/net/tcp.hpp>
+#include <exception>
 
 #include "mksync/proto/proto.hpp"
 #include "mksync/base/app.hpp"
@@ -27,15 +28,16 @@ namespace mks::base
         };
 
     public:
-        ServerCommand(MKCommunication *self) : _self(self) {}
+        ServerCommand(MKCommunication *self, const char *name = "server");
         virtual ~ServerCommand() = default;
 
         auto execute() -> Task<void> override;
-        auto help(std::string_view indentation) const -> std::string override;
+        auto help() const -> std::string override;
         auto name() const -> std::string_view override;
         auto alias_names() const -> std::vector<std::string_view> override;
         void set_option(std::string_view option, std::string_view value) override;
         void set_options(const NekoProto::IProto &proto) override;
+        void parser_options(const std::vector<const char *> &args) override;
         auto get_option(std::string_view option) const -> std::string override;
         auto get_options() const -> NekoProto::IProto override;
 
@@ -44,16 +46,38 @@ namespace mks::base
         IPEndpoint       _ipendpoint   = {"127.0.0.1:12345"};
         Operation        _operation    = eNone;
         Operation        _oldOperation = eNone;
+        cxxopts::Options _options;
     };
 
     class MKS_BASE_API ClientCommand : public ServerCommand {
     public:
-        ClientCommand(MKCommunication *self) : ServerCommand(self) {}
+        ClientCommand(MKCommunication *self) : ServerCommand(self, "client") {}
 
         auto execute() -> Task<void> override;
         auto name() const -> std::string_view override;
         auto alias_names() const -> std::vector<std::string_view> override;
     };
+
+    ServerCommand::ServerCommand(MKCommunication *self, const char *name)
+        : _self(self), _options(name)
+    {
+        std::string ret;
+        for (auto alias : alias_names()) {
+            ret += alias;
+            ret += ", ";
+        }
+        if (!ret.empty()) {
+            ret.pop_back();
+            ret.pop_back();
+        }
+        _options.custom_help(
+            fmt::format("{}{}{}{} <start/stop/restart> [options...], e.g. server start",
+                        this->name(), ret.empty() ? "" : "(", ret, ret.empty() ? "" : ")"));
+        _options.add_options()("a,address", "server address",
+                               cxxopts::value<std::string>()->default_value("127.0.0.1"))(
+            "p,port", "server port", cxxopts::value<uint16_t>()->default_value("12345"));
+        _options.allow_unrecognised_options();
+    }
 
     auto ServerCommand::execute() -> Task<void>
     {
@@ -78,28 +102,14 @@ namespace mks::base
         co_return;
     }
 
-    auto ServerCommand::help(std::string_view indentation) const -> std::string
+    auto ServerCommand::help() const -> std::string
     {
-        std::string ret;
-        for (auto alias : alias_names()) {
-            ret += alias;
-            ret += ", ";
-        }
-        if (!ret.empty()) {
-            ret.pop_back();
-            ret.pop_back();
-        }
-        return std::format(
-            "{0}{1}{2}{3}{4}:\n{0}{0}{1} <start/stop/restart> [options], e.g. server start "
-            "-address=127.0.0.1 "
-            "-port=12345\n{0}{0}-address=$(String) server address\n{0}{0}-port=$(String) server "
-            "port\n",
-            indentation, name(), ret.empty() ? "" : "(", ret, ret.empty() ? "" : ")");
+        return _options.help({}, false);
     }
 
     auto ServerCommand::name() const -> std::string_view
     {
-        return "server";
+        return _options.program();
     }
 
     auto ServerCommand::alias_names() const -> std::vector<std::string_view>
@@ -156,6 +166,32 @@ namespace mks::base
         SPDLOG_ERROR("Not implemented proto parameter");
     }
 
+    void ServerCommand::parser_options(const std::vector<const char *> &args)
+    {
+        auto results = _options.parse(args.size(), args.data());
+
+        if (results.count("address") != 0U) {
+            set_option("address", results["address"].as<std::string>());
+        }
+        if (results.count("port") != 0U) {
+            set_option("port", std::to_string(results["port"].as<uint16_t>()));
+        }
+        for (const auto &result : results.unmatched()) {
+            if (result == "start") {
+                _operation = eStart;
+            }
+            else if (result == "stop") {
+                _operation = eStop;
+            }
+            else if (result == "restart") {
+                _operation = eRestart;
+            }
+            else {
+                SPDLOG_ERROR("unknow argments {}", result);
+            }
+        }
+    }
+
     auto ServerCommand::get_option(std::string_view option) const -> std::string
     {
         if (option == "address") {
@@ -198,7 +234,7 @@ namespace mks::base
 
     auto ClientCommand::name() const -> std::string_view
     {
-        return "client";
+        return _options.program();
     }
 
     auto ClientCommand::alias_names() const -> std::vector<std::string_view>

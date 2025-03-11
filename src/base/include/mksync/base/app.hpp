@@ -18,6 +18,7 @@
 #include <ilias/net/tcp.hpp>
 #include <ilias/fs/console.hpp>
 #include <fmt/format.h>
+#include <cxxopts.hpp>
 
 #include "mksync/base/command_invoker.hpp"
 #include "mksync/base/mk_capture.hpp"
@@ -84,6 +85,7 @@ namespace mks::base
         std::unordered_map<std::string_view, ilias::WaitHandle<void>> _cancelHandleMap;
         std::deque<std::string> _logList; // For internal log storage
         size_t                  _logListMaxSize = 100;
+        cxxopts::OptionMap      _options;
     };
 
     template <typename T>

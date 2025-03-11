@@ -9,7 +9,7 @@ target("capture_win")
     add_defines("ILIAS_ENABLE_LOG")
     add_defines("NEKO_PROTO_LOG_CONTEXT")
     add_rules("target.clean")
-    add_packages("out_ptr", "sobjectizer", "spdlog", "ilias", "neko-proto")
+    add_packages("out_ptr", "sobjectizer", "spdlog", "ilias", "neko-proto", "cxxopts")
     add_links("user32")
 
     -- version
