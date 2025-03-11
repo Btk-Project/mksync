@@ -77,7 +77,7 @@ namespace mks::base
 
     void MKSenderCommand::parser_options(const std::vector<const char *> &args)
     {
-        auto results = _options.parse(args.size(), args.data());
+        auto results = _options.parse(int(args.size()), args.data());
         for (const auto &result : results.unmatched()) {
             if (result == "start") {
                 _operation = eStart;

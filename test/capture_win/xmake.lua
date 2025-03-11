@@ -3,6 +3,7 @@
 if is_plat("windows", "mingw") then
 target("capture_win")
     set_kind("binary")
+    set_default(false)
     set_targetdir("$(testdir)")
 
     add_deps("base")
