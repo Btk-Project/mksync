@@ -16,6 +16,11 @@
 
 namespace mks::base
 {
+    /**
+     * @brief trie
+     * 字典树。
+     * @tparam T 
+     */
     template <typename T>
     class Trie {
     public:

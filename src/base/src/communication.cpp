@@ -51,7 +51,21 @@ namespace mks::base
 
     class MKS_BASE_API ClientCommand : public ServerCommand {
     public:
-        ClientCommand(MKCommunication *self) : ServerCommand(self, "client") {}
+        ClientCommand(MKCommunication *self) : ServerCommand(self, "client")
+        {
+            std::string ret;
+            for (auto alias : alias_names()) {
+                ret += alias;
+                ret += ", ";
+            }
+            if (!ret.empty()) {
+                ret.pop_back();
+                ret.pop_back();
+            }
+            _options.custom_help(
+                fmt::format("{}{}{}{} <start/stop/restart> [options...], e.g. client start",
+                            this->name(), ret.empty() ? "" : "(", ret, ret.empty() ? "" : ")"));
+        }
 
         auto execute() -> Task<void> override;
         auto name() const -> std::string_view override;
@@ -74,8 +88,8 @@ namespace mks::base
             fmt::format("{}{}{}{} <start/stop/restart> [options...], e.g. server start",
                         this->name(), ret.empty() ? "" : "(", ret, ret.empty() ? "" : ")"));
         _options.add_options()("a,address", "server address",
-                               cxxopts::value<std::string>()->default_value("127.0.0.1"))(
-            "p,port", "server port", cxxopts::value<uint16_t>()->default_value("12345"));
+                               cxxopts::value<std::string>()->default_value("127.0.0.1"), "[ip]")(
+            "p,port", "server port", cxxopts::value<uint16_t>()->default_value("12345"), "[int]");
         _options.allow_unrecognised_options();
     }
 
@@ -345,7 +359,7 @@ namespace mks::base
         co_return ret;
     }
 
-    auto MKCommunication::handle_event(NekoProto::IProto &event) -> ::ilias::Task<void>
+    auto MKCommunication::handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void>
     {
         if (_currentPeer == _protoStreamClients.end()) {
             co_return;

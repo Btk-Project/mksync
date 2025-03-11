@@ -31,7 +31,7 @@ namespace mks::base
         auto name() -> const char * override;
 
         auto get_subscribers() -> std::vector<int> override;
-        auto handle_event(NekoProto::IProto &event) -> ::ilias::Task<void> override;
+        auto handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void> override;
 
     private:
         void _send_motion_event(const mks::MouseMotionEvent &event) const;

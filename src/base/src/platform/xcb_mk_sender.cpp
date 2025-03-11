@@ -32,7 +32,7 @@ namespace mks::base
         };
     }
 
-    auto XcbMKSender::handle_event(NekoProto::IProto &event) -> ::ilias::Task<void>
+    auto XcbMKSender::handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void>
     {
         if (event == nullptr) {
             co_return;
@@ -74,7 +74,7 @@ namespace mks::base
             co_return -1;
         }
         SPDLOG_INFO("Screen size: {}x{}", _screenWidth, _screenHeight);
-        _isStart = true;
+        _isStart       = true;
         _xcbLoopHandle = ::ilias::spawn(*_app->get_io_context(), _xcbConnect->event_loop());
         co_return 0;
     }
@@ -94,7 +94,7 @@ namespace mks::base
             return;
         }
         SPDLOG_INFO("Mouse motion event: x={}, y={}", event.x * _screenWidth,
-                     event.y * _screenHeight);
+                    event.y * _screenHeight);
         _xcbConnect->fake_mouse_move(event.x * _screenWidth, event.y * _screenHeight);
     }
 

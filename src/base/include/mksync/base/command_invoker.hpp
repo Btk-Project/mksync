@@ -25,6 +25,13 @@ namespace mks::base
 {
     class App;
 
+    /**
+     * @brief CommandInvoker
+     * - 命令调用器，管理并执行命令
+     *      - 注册命令
+     *      - 解析命令行
+     *      - 通过事件/命令行输入执行命令
+     */
     class MKS_BASE_API CommandInvoker {
     public:
         using CommandsType = std::vector<std::string_view>;
