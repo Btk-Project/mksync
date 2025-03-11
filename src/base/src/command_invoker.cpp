@@ -9,6 +9,29 @@ namespace mks::base
 {
     using ::ilias::Task;
 
+    CommonCommand::CommonCommand(CommandInvoker::CommandsData &&data)
+        : _data(data), _option(std::string(_data.command[0]))
+    {
+        for (auto &opt : _data.options) {
+            switch (opt.type) {
+            case CommandInvoker::OptionsData::eBool:
+                _option.add_option("", {opt.name, opt.description, cxxopts::value<bool>()});
+                break;
+            case CommandInvoker::OptionsData::eString:
+                _option.add_option("", {opt.name, opt.description, cxxopts::value<std::string>()});
+                break;
+            case CommandInvoker::OptionsData::eInt:
+                _option.add_option("", {opt.name, opt.description, cxxopts::value<int>()});
+                break;
+            case CommandInvoker::OptionsData::eDouble:
+                _option.add_option("", {opt.name, opt.description, cxxopts::value<double>()});
+                break;
+            }
+        }
+        _option.custom_help(_data.description);
+        _option.allow_unrecognised_options();
+    }
+
     auto CommonCommand::execute() -> Task<void>
     {
         if (auto ret = _data.callback(_args, _options); !ret.empty()) {
@@ -17,43 +40,9 @@ namespace mks::base
         co_return;
     }
 
-    auto CommonCommand::help(std::string_view indentation) const -> std::string
+    auto CommonCommand::help() const -> std::string
     {
-        auto ret = fmt::format("{}{}", indentation, _data.command[0]);
-        if (_data.command.size() > 1) {
-            ret += "(";
-            for (size_t i = 1; i < _data.command.size(); ++i) {
-                ret += fmt::format("{}", _data.command[i]);
-                if (i != _data.command.size() - 1) {
-                    ret += ", ";
-                }
-            }
-            ret += ")";
-        }
-        ret += fmt::format(":\n{0}{0}{1}\n", indentation, _data.description);
-        const char *type;
-        for (const auto &opt : _data.options) {
-            switch (opt.type) {
-            case CommandInvoker::OptionsData::eBool:
-                type = "Bool";
-                break;
-            case CommandInvoker::OptionsData::eInt:
-                type = "Int";
-                break;
-            case CommandInvoker::OptionsData::eDouble:
-                type = "Float";
-                break;
-            case CommandInvoker::OptionsData::eString:
-                type = "String";
-                break;
-            default:
-                type = "Unknown";
-            }
-            ret += fmt::format("{0}{0}-{1}=$({2}) {3}\n", indentation, opt.name, type,
-                               opt.description);
-        }
-        ret.pop_back();
-        return ret;
+        return _option.help({}, false);
     }
 
     auto CommonCommand::name() const -> std::string_view
@@ -115,6 +104,34 @@ namespace mks::base
         SPDLOG_ERROR("No command proto implemented for {}", name());
     }
 
+    void CommonCommand::parser_options(const std::vector<const char *> &args)
+    {
+        auto options = _option.parse(args.size(), args.data());
+        for (const auto &opt : _data.options) {
+            auto item = options.count(opt.name);
+            if (item < 0) {
+                continue;
+            }
+            switch (opt.type) {
+            case CommandInvoker::OptionsData::eBool:
+                _options[opt.name] = options[opt.name].as<bool>();
+                break;
+            case CommandInvoker::OptionsData::eInt:
+                _options[opt.name] = options[opt.name].as<int>();
+                break;
+            case CommandInvoker::OptionsData::eDouble:
+                _options[opt.name] = options[opt.name].as<double>();
+                break;
+            case CommandInvoker::OptionsData::eString:
+                _options[opt.name] = options[opt.name].as<std::string>();
+                break;
+            }
+        }
+        for (auto arg : options.unmatched()) {
+            _args.push_back(arg);
+        }
+    }
+
     auto CommonCommand::get_option(std::string_view option) const -> std::string
     {
         auto item = _options.find(option);
@@ -133,7 +150,7 @@ namespace mks::base
     {
         install_cmd(std::make_unique<CommonCommand>(CommandsData{
                         {"help", "h", "?"},
-                        "show help, can specify module name, e.g. help [$module1] ...",
+                        "help(h,?) : show help, can specify module name, e.g. help [$module1] ...",
                         std::bind(&CommandInvoker::show_help, this, std::placeholders::_1,
                                   std::placeholders::_2),
                         {}
@@ -141,7 +158,7 @@ namespace mks::base
                     "Core");
         install_cmd(std::make_unique<CommonCommand>(CommandsData{
                         {"version", "v"},
-                        "show version",
+                        "version(v) : show version",
                         std::bind(&CommandInvoker::show_version, this, std::placeholders::_1,
                                   std::placeholders::_2),
                         {}
@@ -175,20 +192,19 @@ namespace mks::base
         return true;
     }
 
-    auto CommandInvoker::execute(std::string_view cmd) -> Task<void>
+    auto CommandInvoker::execute(std::span<char> cmd) -> Task<void>
     {
         co_return co_await execute(_split(cmd));
     }
 
-    auto CommandInvoker::execute(std::vector<std::string_view> cmdline) -> Task<void>
+    auto CommandInvoker::execute(const std::vector<const char *> &cmdline) -> Task<void>
     {
         if (cmdline.empty()) {
             co_return;
         }
-        ArgsType args;
-        auto     cmd   = cmdline.front();
-        auto     item  = _trie.search(cmd);
-        int      index = -1;
+        const auto *cmd   = cmdline.front();
+        auto        item  = _trie.search(cmd);
+        int         index = -1;
         if (item) {
             index = item.value();
             if (index < 0 && index >= (int)_commands.size()) {
@@ -200,23 +216,7 @@ namespace mks::base
             SPDLOG_ERROR("command \"{}\" not found", cmd);
             co_return;
         }
-
-        for (int i = 1; i < (int)cmdline.size(); ++i) { // 将命令的选项与参数提取出来
-            auto str = cmdline[i];
-            if (str[0] == '-') {
-                auto pos = str.find('=');
-                if (pos != std::string::npos) {
-                    _commands[index]->set_option(str.substr(1, pos - 1),
-                                                 std::string(str.substr(pos + 1)));
-                }
-                else {
-                    _commands[index]->set_option(str.substr(1), std::string("true"));
-                }
-            }
-            else {
-                _commands[index]->set_option("", str);
-            }
-        }
+        _commands[index]->parser_options(cmdline);
         co_return co_await _commands[index]->execute();
     }
 
@@ -261,28 +261,32 @@ namespace mks::base
             }
             if (module != item->first) {
                 module = item->first;
-                fprintf(stdout, "\n%s:\n", module.c_str());
+                fprintf(stdout, "%s:\n", module.c_str());
             }
             const auto &command = _commands[item->second];
-            fprintf(stdout, "%s\n", command->help("    ").c_str());
+            auto        help    = command->help();
+            fprintf(stdout, "%s%s", help.c_str(),
+                    ((help.size() > 2 && help[help.size() - 2] != '\n') ? "\n" : ""));
         }
         ::fflush(stdout);
         return "";
     }
 
-    auto CommandInvoker::_split(std::string_view str, char ch) -> std::vector<std::string_view>
+    auto CommandInvoker::_split(std::span<char> str, char ch) -> std::vector<const char *>
     { // 拆分字符串,像"a b c d e"到{"a", "b", "c", "d", "e"}。
-        std::vector<std::string_view> res;
-        std::string_view              sv(str);
-        while (!sv.empty()) {
-            auto pos = sv.find(ch);
+        std::vector<const char *> res;
+        std::string_view          sv(str.data(), str.size());
+        std::size_t               pos = 0;
+        while (pos < sv.size()) {
+            auto spos = pos;
+            pos       = sv.find(ch, spos);
             if (pos != std::string_view::npos) {
-                res.emplace_back(sv.substr(0, pos));
-                sv.remove_prefix(pos + 1);
+                res.emplace_back(sv.substr(spos, pos - spos).data());
+                str[pos] = '\0';
+                pos++;
             }
             else {
-                res.emplace_back(sv);
-                sv.remove_prefix(sv.size());
+                res.emplace_back(sv.substr(spos).data());
             }
         }
         return res;

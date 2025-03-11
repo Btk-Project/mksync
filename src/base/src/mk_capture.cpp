@@ -25,20 +25,39 @@ namespace mks::base
         };
 
     public:
-        CaptureCommand(MKCapture *capture) : _capture(capture) {}
+        CaptureCommand(MKCapture *capture);
         auto execute() -> Task<void> override;
-        auto help(std::string_view indentation) const -> std::string override;
+        auto help() const -> std::string override;
         auto name() const -> std::string_view override;
         auto alias_names() const -> std::vector<std::string_view> override;
         void set_option(std::string_view option, std::string_view value) override;
         void set_options(const NekoProto::IProto &proto) override;
+        void parser_options(const std::vector<const char *> &args) override;
         auto get_option(std::string_view option) const -> std::string override;
         auto get_options() const -> NekoProto::IProto override;
 
     private:
-        MKCapture *_capture;
-        Operation  _operation = eNone;
+        MKCapture       *_capture;
+        Operation        _operation = eNone;
+        cxxopts::Options _options;
     };
+
+    CaptureCommand::CaptureCommand(MKCapture *capture) : _capture(capture), _options("capture")
+    {
+        std::string ret;
+        for (auto alias : alias_names()) {
+            ret += alias;
+            ret += ", ";
+        }
+        if (!ret.empty()) {
+            ret.pop_back();
+            ret.pop_back();
+        }
+        _options.custom_help(fmt::format("{}{}{}{} <start/stop> keyboard/mouse capture mode.",
+                                         this->name(), ret.empty() ? "" : "(", ret,
+                                         ret.empty() ? "" : ")"));
+        _options.allow_unrecognised_options();
+    }
 
     auto CaptureCommand::execute() -> Task<void>
     {
@@ -57,25 +76,33 @@ namespace mks::base
         co_return;
     }
 
-    auto CaptureCommand::help(std::string_view indentation) const -> std::string
+    void CaptureCommand::parser_options(const std::vector<const char *> &args)
     {
-        std::string ret;
-        for (auto alias : alias_names()) {
-            ret += alias;
-            ret += ", ";
+        auto results = _options.parse(args.size(), args.data());
+        for (const auto &result : results.unmatched()) {
+            if (result == "start") {
+                _operation = eStart;
+            }
+            else if (result == "stop") {
+                _operation = eStop;
+            }
+            else {
+                SPDLOG_ERROR("Unknown operation {}", result);
+            }
         }
-        if (!ret.empty()) {
-            ret.pop_back();
-            ret.pop_back();
+        for (const auto &result : results) {
+            SPDLOG_ERROR("Unknow option {} = {}", result.key(), result.value());
         }
-        return fmt::format(
-            "{0}{1}{2}{3}{4}:\n{0}{0}{1} <start/stop>\n{0}{0}change keyboard/mouse capture mode",
-            indentation, name(), ret.empty() ? "" : "(", ret, ret.empty() ? "" : ")");
+    }
+
+    auto CaptureCommand::help() const -> std::string
+    {
+        return _options.help({}, false);
     }
 
     auto CaptureCommand::name() const -> std::string_view
     {
-        return "capture";
+        return _options.program();
     }
 
     auto CaptureCommand::alias_names() const -> std::vector<std::string_view>
@@ -87,7 +114,7 @@ namespace mks::base
                                     [[maybe_unused]] std::string_view value)
     {
         if (!option.empty()) {
-            SPDLOG_ERROR("Unknow option {}={} !", option, value);
+            SPDLOG_ERROR("Unknow option {} = {} !", option, value);
             return;
         }
         if (value == "start") {
