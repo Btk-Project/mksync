@@ -238,7 +238,7 @@ namespace mks::base
             _trie.insert(cmd, (int)_commands.size() - 1);
         }
         auto proto = _commands.back()->get_options();
-        if (proto != nullptr) {
+        if (proto != nullptr) { // 建立协议-->命令的映射表。
             _protoCommandsTable[proto.type()] = (int)_commands.size() - 1;
         }
         return true;

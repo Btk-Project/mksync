@@ -28,8 +28,8 @@ namespace mks::base
     public:
         MKSender(::ilias::IoContext *ctx) : _ctx(ctx) {}
         virtual ~MKSender() = default;
-        auto start() -> ::ilias::Task<int> override;
-        auto stop() -> ::ilias::Task<int> override;
+        auto enable() -> ::ilias::Task<int> override;
+        auto disable() -> ::ilias::Task<int> override;
 
         virtual auto start_sender() -> ::ilias::Task<int> = 0;
         virtual auto stop_sender() -> ::ilias::Task<int>  = 0;
@@ -37,6 +37,6 @@ namespace mks::base
         static auto make(App &app) -> std::unique_ptr<MKSender, void (*)(NodeBase *)>;
 
     private:
-        ::ilias::IoContext *_ctx      = nullptr;
+        ::ilias::IoContext *_ctx = nullptr;
     };
 } // namespace mks::base

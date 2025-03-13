@@ -38,12 +38,13 @@ namespace mks::base
 
     bool Settings::save()
     {
-        return save("");
-    }
-
-    bool Settings::save(std::string_view file)
-    {
-        std::ofstream             ofs((file.empty() ? _file : std::filesystem::path(file)));
+        if (!std::filesystem::exists(_file)) {
+            return false;
+        }
+        std::ofstream ofs(_file);
+        if (!ofs.is_open()) {
+            return false;
+        }
         rapidjson::OStreamWrapper ostream(ofs);
         rapidjson::PrettyWriter   writer(ostream);
         _document.Accept(writer);
@@ -52,19 +53,29 @@ namespace mks::base
         return true;
     }
 
+    bool Settings::save(std::string_view file)
+    {
+        _file = file;
+        return save();
+    }
+
     bool Settings::load()
     {
-        return load("");
+        if (!std::filesystem::exists(_file)) {
+            return false;
+        }
+        std::ifstream ifs(_file);
+        if (!ifs.is_open()) {
+            return false;
+        }
+        rapidjson::IStreamWrapper istream(ifs);
+        _document.ParseStream(istream);
+        return true;
     }
 
     bool Settings::load(std::string_view file)
     {
-        if (!std::filesystem::exists(file) && !std::filesystem::exists(_file)) {
-            return false;
-        }
-        std::ifstream             ifs((file.empty() ? _file : std::filesystem::path(file)));
-        rapidjson::IStreamWrapper istream(ifs);
-        _document.ParseStream(istream);
-        return true;
+        _file = file;
+        return load();
     }
 } // namespace mks::base

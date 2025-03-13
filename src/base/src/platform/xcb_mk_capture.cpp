@@ -17,11 +17,11 @@ namespace mks::base
 
     XcbMKCapture::~XcbMKCapture()
     {
-        stop().wait();
+        disable().wait();
         _xcbConnect.reset();
     }
 
-    auto XcbMKCapture::start() -> ::ilias::Task<int>
+    auto XcbMKCapture::enable() -> ::ilias::Task<int>
     {
         if (!_xcbConnect) {
             _xcbConnect = std::make_unique<XcbConnect>(_app->get_io_context());
@@ -77,15 +77,15 @@ namespace mks::base
         _xcbConnect->select_event(_captureWindow.get());
 
         _grabEventHandle = ilias_go _xcbConnect->event_loop();
-        co_return co_await MKCapture::start();
+        co_return co_await MKCapture::enable();
     }
 
-    auto XcbMKCapture::stop() -> ::ilias::Task<int>
+    auto XcbMKCapture::disable() -> ::ilias::Task<int>
     {
         _syncEvent.set();
         _boardTriggerWindow.clear();
         _xcbConnect.reset();
-        co_return co_await MKCapture::stop();
+        co_return co_await MKCapture::disable();
     }
 
     auto XcbMKCapture::start_capture() -> ::ilias::Task<int>

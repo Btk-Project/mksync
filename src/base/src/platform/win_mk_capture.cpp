@@ -17,7 +17,7 @@ namespace mks::base
         return "WinMKCapture";
     }
 
-    auto WinMKCapture::start() -> ::ilias::Task<int>
+    auto WinMKCapture::enable() -> ::ilias::Task<int>
     {
         _mosueHook = SetWindowsHookExW(
             WH_MOUSE_LL,
@@ -33,14 +33,14 @@ namespace mks::base
         _screenWidth  = GetSystemMetrics(SM_CXSCREEN) * zoom / 96;
         _screenHeight = GetSystemMetrics(SM_CYSCREEN) * zoom / 96;
         SPDLOG_INFO("Screen size: {}x{}", _screenWidth, _screenHeight);
-        co_return co_await MKCapture::start();
+        co_return co_await MKCapture::enable();
     }
 
-    auto WinMKCapture::stop() -> ::ilias::Task<int>
+    auto WinMKCapture::disable() -> ::ilias::Task<int>
     {
         notify();
         UnhookWindowsHookEx(_mosueHook);
-        co_return co_await MKCapture::stop();
+        co_return co_await MKCapture::disable();
     }
 
     auto WinMKCapture::start_capture() -> ::ilias::Task<int>
@@ -96,7 +96,7 @@ namespace mks::base
     WinMKCapture::~WinMKCapture()
     {
         g_self = nullptr;
-        stop().wait();
+        disable().wait();
     }
 
     LRESULT WinMKCapture::_mouse_proc(int ncode, WPARAM wp, LPARAM lp)

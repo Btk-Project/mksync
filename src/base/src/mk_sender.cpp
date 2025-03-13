@@ -8,6 +8,7 @@
 #endif
 
 #include "mksync/base/app.hpp"
+#include "mksync/proto/proto.hpp"
 
 #include <spdlog/spdlog.h>
 
@@ -128,7 +129,19 @@ namespace mks::base
 
     void MKSenderCommand::set_options([[maybe_unused]] const NekoProto::IProto &proto)
     {
-        SPDLOG_ERROR("Not implemented proto parameter");
+        ILIAS_ASSERT(proto.type() == NekoProto::ProtoFactory::protoType<SenderControl>());
+        const auto *senderControl = proto.cast<SenderControl>();
+        switch (senderControl->cmd) {
+        case SenderControl::eStart:
+            _operation = eStart;
+            break;
+        case SenderControl::eStop:
+            _operation = eStop;
+            break;
+        default:
+            SPDLOG_ERROR("Unknown operation");
+            break;
+        }
     }
 
     auto MKSenderCommand::get_option([[maybe_unused]] std::string_view option) const -> std::string
@@ -138,15 +151,15 @@ namespace mks::base
 
     auto MKSenderCommand::get_options() const -> NekoProto::IProto
     {
-        return NekoProto::IProto();
+        return SenderControl::emplaceProto();
     }
 
-    auto MKSender::start() -> Task<int>
+    auto MKSender::enable() -> Task<int>
     {
         co_return 0;
     }
 
-    auto MKSender::stop() -> Task<int>
+    auto MKSender::disable() -> Task<int>
     {
         co_return co_await stop_sender();
     }
