@@ -9,6 +9,57 @@ namespace mks::base
 {
     using ::ilias::Task;
 
+    namespace detail
+    {
+        inline std::string to_string(bool value)
+        {
+            return value ? "true" : "false";
+        }
+
+        template <typename T>
+            requires std::is_convertible_v<T, std::string> ||
+                     std::is_constructible_v<std::string, T>
+        std::string to_string(const T &value)
+        {
+            return std::string(value);
+        }
+
+        template <typename T>
+            requires requires(T va) { std::to_string(va); }
+        std::string to_string(const T &value)
+        {
+            return std::to_string(value);
+        }
+
+        template <typename... Ts>
+        struct unfold_option_variant_to_string_helper { // NOLINT(readability-identifier-naming)
+            template <typename T, std::size_t N>
+            static std::string unfold_value_imp2(const std::variant<Ts...> &value)
+            {
+                if (value.index() != N) {
+                    return "";
+                }
+                return to_string(std::get<N>(value));
+            }
+
+            template <std::size_t... Ns>
+            static std::string unfold_value(const std::variant<Ts...> &value,
+                                            std::index_sequence<Ns...> /*unused*/)
+            {
+                return (unfold_value_imp2<std::variant_alternative_t<Ns, std::variant<Ts...>>, Ns>(
+                            value) +
+                        ...);
+            }
+        };
+
+        template <typename... Ts>
+        std::string to_string(const std::variant<Ts...> &value)
+        {
+            return unfold_option_variant_to_string_helper<Ts...>::unfold_value(
+                value, std::index_sequence_for<Ts...>{});
+        }
+    } // namespace detail
+
     CommonCommand::CommonCommand(CommandInvoker::CommandsData &&data)
         : _data(data), _option(std::string(_data.command[0]))
     {
