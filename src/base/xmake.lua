@@ -18,7 +18,7 @@ target("base")
     -- add_headerfiles("src/**.hpp", "src/**.h", {install = false})
     add_files("src/**.cpp")
 
-    add_packages("ilias", "neko-proto", "spdlog", "cxxopts")
+    add_packages("ilias", "neko-proto", "spdlog", "cxxopts", "rapidjson")
     if is_plat("windows", "mingw") then
         add_syslinks("user32")
     elseif is_plat("linux") then

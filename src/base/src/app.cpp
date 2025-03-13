@@ -304,4 +304,10 @@ namespace mks::base
         }
         _cancelHandleMap.clear();
     }
+
+    auto App::set_option(std::string_view                                    option,
+                         const std::variant<bool, int, double, std::string> &value) -> void
+    {
+        _optionsMap[std::string(option)] = value;
+    }
 } // namespace mks::base

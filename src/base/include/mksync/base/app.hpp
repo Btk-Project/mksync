@@ -70,10 +70,12 @@ namespace mks::base
         auto stop(const CommandInvoker::ArgsType &args, const CommandInvoker::OptionsType &options)
             -> std::string;
 
-        template <typename T>
-        auto set_option(std::string_view option, const T &value);
+        auto set_option(std::string_view                                    option,
+                        const std::variant<bool, int, double, std::string> &value) -> void;
         template <typename T>
         auto get_option(std::string_view option) -> ilias::Result<T>;
+        auto save_options(std::string_view file);
+        auto load_options(std::string_view file);
 
         // commands
         auto start_console() -> ilias::Task<void>;
@@ -90,21 +92,14 @@ namespace mks::base
         bool                _isConsoleListening = false;
         ::ilias::IoContext *_ctx                = nullptr;
 
-        CommandInvoker                                                _commandInvoker;
-        std::unordered_map<std::string, std::any>                     _optionsMap;
-        std::list<NodeData>                                           _nodeList;
-        std::unordered_map<int, std::list<Consumer *>>                _consumerMap;
+        CommandInvoker                                 _commandInvoker;
+        std::list<NodeData>                            _nodeList;
+        std::unordered_map<int, std::list<Consumer *>> _consumerMap;
+        std::unordered_map<std::string, std::variant<bool, int, double, std::string>> _optionsMap;
         std::unordered_map<std::string_view, ilias::WaitHandle<void>> _cancelHandleMap;
         std::deque<std::string> _logList; // For internal log storage
         size_t                  _logListMaxSize = 100;
-        cxxopts::OptionMap      _options;
     };
-
-    template <typename T>
-    auto App::set_option(std::string_view option, const T &value)
-    {
-        _optionsMap[std::string(option)] = value;
-    }
 
     template <typename T>
     auto App::get_option(std::string_view option) -> ilias::Result<T>

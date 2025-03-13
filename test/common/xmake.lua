@@ -23,13 +23,16 @@ for _, file in ipairs(os.files("./**/test_*.cpp")) do
         set_encodings("utf-8")
         add_defines("NEKO_PROTO_STATIC")
         add_defines("ILIAS_ENABLE_LOG", "ILIAS_USE_FMT")
-        add_packages("gtest", "ilias", "fmt")
+        add_includedirs("../../src/base/include/")
+        add_deps("base")
+        add_packages("gtest", "ilias", "fmt", "neko-proto", "spdlog", "cxxopts", "rapidjson")
+        set_targetdir("$(testdir)")
         set_languages("c++20")
         add_files(file)
         -- set test in different cpp versions
         local cpp_versions = {"c++20"}
         for i = 1, #cpp_versions do
-            add_tests(string.gsub(cpp_versions[i], '+', 'p', 2), {group = "proto", kind = "binary", files = {file}, languages = cpp_versions[i], run_timeout = 30000})
+            add_tests(string.gsub(cpp_versions[i], '+', 'p', 2), {group = "proto", kind = "binary", files = {file}, languages = cpp_versions[i], run_timeout = 1000})
         end
         on_run(function (target)
             local argv = {}
