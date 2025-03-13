@@ -108,7 +108,7 @@ namespace mks::base
         }
 
         template <typename... Ts>
-        struct unfold_option_variant_to_string_helper { // NOLINT(readability-identifier-naming)
+        struct unfold_option_variant_to_json_helper { // NOLINT(readability-identifier-naming)
             template <typename T, std::size_t N, typename Allocator>
             static std::string unfold_value_imp2(const std::variant<Ts...> &value,
                                                  Allocator                 *allocator)
@@ -132,7 +132,7 @@ namespace mks::base
         template <typename... Ts, typename Allocator>
         std::string to_json_value(const std::variant<Ts...> &value, Allocator &allocator)
         {
-            return unfold_option_variant_to_string_helper<Ts...>::unfold_value(
+            return unfold_option_variant_to_json_helper<Ts...>::unfold_value(
                 value, allocator, std::index_sequence_for<Ts...>{});
         }
 

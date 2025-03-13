@@ -8,6 +8,7 @@
 #endif
 
 #include "mksync/base/app.hpp"
+#include "mksync/proto/proto.hpp"
 
 #include <spdlog/spdlog.h>
 
@@ -130,7 +131,18 @@ namespace mks::base
 
     void CaptureCommand::set_options([[maybe_unused]] const NekoProto::IProto &proto)
     {
-        SPDLOG_ERROR("Not implemented proto parameter");
+        ILIAS_ASSERT(proto.type() == NekoProto::ProtoFactory::protoType<CaptureControl>());
+        const auto *captureControl = proto.cast<CaptureControl>();
+        switch (captureControl->cmd) {
+        case CaptureControl::eStart:
+            _operation = eStart;
+            break;
+        case CaptureControl::eStop:
+            _operation = eStop;
+            break;
+        default:
+            SPDLOG_ERROR("Unknown operation");
+        }
     }
 
     auto CaptureCommand::get_option([[maybe_unused]] std::string_view option) const -> std::string
@@ -141,15 +153,15 @@ namespace mks::base
     auto CaptureCommand::get_options() const -> NekoProto::IProto
     {
         // SPDLOG_ERROR("Not implemented proto parameter");
-        return NekoProto::IProto();
+        return CaptureControl::emplaceProto();
     }
 
-    auto MKCapture::start() -> Task<int>
+    auto MKCapture::enable() -> Task<int>
     {
         co_return 0;
     }
 
-    auto MKCapture::stop() -> Task<int>
+    auto MKCapture::disable() -> Task<int>
     {
         co_return co_await stop_capture();
     }

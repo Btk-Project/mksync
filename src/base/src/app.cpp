@@ -14,7 +14,8 @@ namespace mks::base
     using ::ilias::TcpClient;
     using ::ilias::TcpListener;
 
-    App::App(::ilias::IoContext *ctx) : _ctx(ctx), _commandInvoker(this)
+    App::App(::ilias::IoContext *ctx)
+        : _ctx(ctx), _commandInvoker(this), _nodeManager(this), _settings("./config.json")
     {
         using CallbackType = std::string (App::*)(const CommandInvoker::ArgsType &,
                                                   const CommandInvoker::OptionsType &);
@@ -42,6 +43,16 @@ namespace mks::base
                  "set print log level. vlaue: trace/debug/info/warn/err"},
              }
         }));
+        coreInstaller(std::make_unique<CommonCommand>(CommandInvoker::CommandsData{
+            {"cofig"},
+            "config [option] show the config of the program.",
+            [this]([[maybe_unused]] auto args, auto options) -> std::string {
+                options.find("dir") != options.end()
+                    ? _settings.load(std::get<std::string>(options["dir"]))
+                    : _settings.load();
+                return "";
+            },
+            {{"dir", CommandInvoker::OptionsData::eString, "set the config.json dir"}}}));
 
 #if defined(SIGPIPE)
         ::signal(SIGPIPE, SIG_IGN); // 忽略SIGPIPE信号 防止多跑一秒就会爆炸
@@ -56,94 +67,9 @@ namespace mks::base
         spdlog::default_logger()->sinks().push_back(sink);
     }
 
-    App::~App() {}
-
-    auto App::install_node(std::unique_ptr<NodeBase, void (*)(NodeBase *)> &&node) -> void
+    App::~App()
     {
-        if (node == nullptr) {
-            return;
-        }
-        const auto *name = node->name();
-        SPDLOG_INFO("install node: {}<{}>", name, (void *)node.get());
-        _nodeList.emplace_back(NodeData{std::move(node), NodeStatus::eNodeStatusStopped});
-    }
-
-    auto App::start_node(NodeData &node) -> ilias::Task<int>
-    {
-        SPDLOG_INFO("start node: {}<{}>", node.node->name(), (void *)node.node.get());
-        if (node.status == NodeStatus::eNodeStatusStopped) {
-            auto ret = co_await node.node->start();
-            if (ret != 0) {
-                co_return ret;
-            }
-            node.status    = NodeStatus::eNodeStatusRunning;
-            auto *consumer = dynamic_cast<Consumer *>(node.node.get());
-            if (consumer != nullptr) {
-                for (int type : consumer->get_subscribers()) {
-                    _consumerMap[type].push_back(consumer);
-                }
-            }
-            auto *producer = dynamic_cast<Producer *>(node.node.get());
-            if (producer != nullptr) {
-                _cancelHandleMap[node.node->name()] =
-                    ::ilias::spawn(*_ctx, producer_loop(producer));
-            }
-            co_return 0;
-        }
-        co_return -2;
-    }
-
-    auto App::producer_loop(Producer *producer) -> ::ilias::Task<void>
-    {
-        while (true) {
-            if (auto ret = co_await producer->get_event(); ret) {
-                co_await dispatch(std::move(ret.value()), dynamic_cast<NodeBase *>(producer));
-            }
-            else {
-                break;
-            }
-        }
-        co_return;
-    }
-
-    auto App::stop_node(NodeData &node) -> ilias::Task<int>
-    {
-        if (node.status == NodeStatus::eNodeStatusRunning) {
-            node.status    = NodeStatus::eNodeStatusStopped;
-            auto *consumer = dynamic_cast<Consumer *>(node.node.get());
-            if (consumer != nullptr) {
-                for (int type : consumer->get_subscribers()) {
-                    _consumerMap[type].remove(consumer);
-                }
-            }
-            auto *producer = dynamic_cast<Producer *>(node.node.get());
-            if (producer != nullptr) {
-                auto handle = _cancelHandleMap.find(node.node->name());
-                if (handle != _cancelHandleMap.end() && handle->second) {
-                    handle->second.cancel();
-                }
-                _cancelHandleMap.erase(handle);
-            }
-            co_return co_await node.node->stop();
-        }
-        co_return 0;
-    }
-
-    auto App::dispatch(const NekoProto::IProto &proto, NodeBase *nodebase) -> Task<void>
-    {
-        int type = proto.type();
-        for (auto *consumer : _consumerMap[type]) {
-            if (proto == nullptr) {
-                break;
-            }
-            if (dynamic_cast<NodeBase *>(consumer) == nodebase) {
-                continue;
-            }
-            SPDLOG_INFO("dispatch {} to {}", proto.protoName(),
-                        dynamic_cast<NodeBase *>(consumer)->name());
-            co_await consumer->handle_event(proto);
-        }
-        co_return;
+        _settings.save();
     }
 
     auto App::app_name() -> const char *
@@ -265,17 +191,12 @@ namespace mks::base
      */
     auto App::exec(int argc, const char *const *argv) -> Task<void>
     {
-        install_node(MKCommunication::make(*this));
-        install_node(MKCapture::make(*this));
-        install_node(MKSender::make(*this));
+        _nodeManager.add_node(MKCommunication::make(*this));
+        _nodeManager.add_node(MKCapture::make(*this));
+        _nodeManager.add_node(MKSender::make(*this));
 
         // start all node
-        for (auto &node : _nodeList) {
-            auto ret = co_await start_node(node);
-            if (ret != 0) {
-                SPDLOG_ERROR("start node {} failed", node.node->name());
-            }
-        }
+        co_await _nodeManager.start_node();
         _isRuning = true;
         if (argc > 1) {
             _commandInvoker.execute(std::vector<const char *>(argv + 1, argv + argc));
@@ -297,17 +218,17 @@ namespace mks::base
     {
         _isRuning = false;
         stop_console();
-        for (auto &handle : _cancelHandleMap) {
-            if (handle.second) {
-                handle.second.cancel();
-            }
-        }
-        _cancelHandleMap.clear();
+        _nodeManager.stop_node();
     }
 
-    auto App::set_option(std::string_view                                    option,
-                         const std::variant<bool, int, double, std::string> &value) -> void
+    auto App::settings() -> Settings &
     {
-        _optionsMap[std::string(option)] = value;
+        return _settings;
     }
+
+    auto App::node_manager() -> NodeManager &
+    {
+        return _nodeManager;
+    }
+
 } // namespace mks::base

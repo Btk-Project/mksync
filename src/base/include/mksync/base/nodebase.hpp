@@ -57,9 +57,9 @@ namespace mks::base
         NodeBase()          = default;
         virtual ~NodeBase() = default;
         ///> 启用节点。
-        virtual auto start() -> ::ilias::Task<int> = 0;
+        virtual auto enable() -> ::ilias::Task<int> = 0;
         ///> 停用节点。
-        virtual auto stop() -> ::ilias::Task<int> = 0;
+        virtual auto disable() -> ::ilias::Task<int> = 0;
         ///> 获取节点名称。
         virtual auto name() -> const char * = 0;
     };
@@ -76,7 +76,7 @@ namespace mks::base
     public:
         Consumer()          = default;
         virtual ~Consumer() = default;
-        ///> 订阅一个事件，当有事件发生时，会调用handle_event。需要返回
+        ///> 订阅的事件集，当有事件发生时，会调用handle_event。需要返回， 如果需要动态增减，可以使用NodeManager的接口。
         virtual auto get_subscribers() -> std::vector<int> = 0;
         ///> 处理一个事件，需要订阅。
         virtual auto handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void> = 0;

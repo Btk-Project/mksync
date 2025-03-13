@@ -25,6 +25,8 @@
 #include "mksync/base/mk_sender.hpp"
 #include "mksync/base/base_library.h"
 #include "mksync/base/nodebase.hpp"
+#include "mksync/base/node_manager.hpp"
+#include "mksync/base/settings.hpp"
 
 namespace mks::base
 {
@@ -41,16 +43,6 @@ namespace mks::base
      *      - 设置日志
      */
     class MKS_BASE_API App {
-        enum NodeStatus
-        {
-            eNodeStatusRunning = 1,
-            eNodeStatusStopped = 2,
-        };
-        struct NodeData {
-            std::unique_ptr<NodeBase, void (*)(NodeBase *)> node;
-            NodeStatus                                      status;
-        };
-
     public:
         App(::ilias::IoContext *ctx);
         ~App();
@@ -61,21 +53,11 @@ namespace mks::base
 
         // main loop
         auto exec(int argc = 0, const char *const *argv = nullptr) -> ilias::Task<void>;
-        auto dispatch(const NekoProto::IProto &proto, NodeBase *nodebase) -> ::ilias::Task<void>;
-        auto producer_loop(Producer *producer) -> ::ilias::Task<void>;
-        auto install_node(std::unique_ptr<NodeBase, void (*)(NodeBase *)> &&node) -> void;
-        auto start_node(NodeData &node) -> ilias::Task<int>;
-        auto stop_node(NodeData &node) -> ilias::Task<int>;
         auto stop() -> void;
         auto stop(const CommandInvoker::ArgsType &args, const CommandInvoker::OptionsType &options)
             -> std::string;
-
-        auto set_option(std::string_view                                    option,
-                        const std::variant<bool, int, double, std::string> &value) -> void;
-        template <typename T>
-        auto get_option(std::string_view option) -> ilias::Result<T>;
-        auto save_options(std::string_view file);
-        auto load_options(std::string_view file);
+        auto settings() -> Settings &;
+        auto node_manager() -> NodeManager &;
 
         // commands
         auto start_console() -> ilias::Task<void>;
@@ -92,27 +74,10 @@ namespace mks::base
         bool                _isConsoleListening = false;
         ::ilias::IoContext *_ctx                = nullptr;
 
-        CommandInvoker                                 _commandInvoker;
-        std::list<NodeData>                            _nodeList;
-        std::unordered_map<int, std::list<Consumer *>> _consumerMap;
-        std::unordered_map<std::string, std::variant<bool, int, double, std::string>> _optionsMap;
-        std::unordered_map<std::string_view, ilias::WaitHandle<void>> _cancelHandleMap;
+        CommandInvoker          _commandInvoker;
+        NodeManager             _nodeManager;
+        Settings                _settings;
         std::deque<std::string> _logList; // For internal log storage
         size_t                  _logListMaxSize = 100;
     };
-
-    template <typename T>
-    auto App::get_option(std::string_view option) -> ilias::Result<T>
-    {
-        auto it = _optionsMap.find(std::string(option));
-        if (it == _optionsMap.end()) {
-            return ilias::Unexpected<ilias::Error>(ilias::Error::Unknown);
-        }
-        try {
-            return std::any_cast<T>(it->second);
-        }
-        catch (std::bad_any_cast &e) {
-            return ilias::Unexpected<ilias::Error>(ilias::Error::Unknown);
-        }
-    }
 } // namespace mks::base

@@ -36,9 +36,9 @@ namespace mks::base
         auto name() const -> std::string_view override;
         auto alias_names() const -> std::vector<std::string_view> override;
         void set_option(std::string_view option, std::string_view value) override;
-        void set_options(const NekoProto::IProto &proto) override;
         void parser_options(const std::vector<const char *> &args) override;
         auto get_option(std::string_view option) const -> std::string override;
+        void set_options(const NekoProto::IProto &proto) override;
         auto get_options() const -> NekoProto::IProto override;
 
     protected:
@@ -51,26 +51,77 @@ namespace mks::base
 
     class MKS_BASE_API ClientCommand : public ServerCommand {
     public:
-        ClientCommand(MKCommunication *self) : ServerCommand(self, "client")
-        {
-            std::string ret;
-            for (auto alias : alias_names()) {
-                ret += alias;
-                ret += ", ";
-            }
-            if (!ret.empty()) {
-                ret.pop_back();
-                ret.pop_back();
-            }
-            _options.custom_help(
-                fmt::format("{}{}{}{} <start/stop/restart> [options...], e.g. client start",
-                            this->name(), ret.empty() ? "" : "(", ret, ret.empty() ? "" : ")"));
-        }
+        ClientCommand(MKCommunication *self);
 
         auto execute() -> Task<void> override;
         auto name() const -> std::string_view override;
         auto alias_names() const -> std::vector<std::string_view> override;
+        void set_options(const NekoProto::IProto &proto) override;
+        auto get_options() const -> NekoProto::IProto override;
     };
+
+    class MKS_BASE_API ServerCommunication : public IServerCommunication {
+    public:
+        ServerCommunication(MKCommunication *self);
+        auto declare_proto_to_send(int type) -> void override;
+        auto send(NekoProto::IProto &event, std::string_view peer) -> ilias::IoTask<void> override;
+        auto recv(std::string_view peer) -> ilias::IoTask<NekoProto::IProto> override;
+        auto peers() const -> std::vector<std::string> override;
+
+    private:
+        MKCommunication *_self = nullptr;
+    };
+
+    class MKS_BASE_API ClientCommunication : public IClientCommunication {
+    public:
+        ClientCommunication(MKCommunication *self);
+        auto declare_proto_to_send(int type) -> void override;
+        auto send(NekoProto::IProto &event) -> ilias::IoTask<void> override;
+        auto recv() -> ilias::IoTask<NekoProto::IProto> override;
+
+    private:
+        MKCommunication *_self = nullptr;
+    };
+
+    ServerCommunication::ServerCommunication(MKCommunication *self) : _self(self) {}
+
+    auto ServerCommunication::declare_proto_to_send(int type) -> void
+    {
+        return _self->add_subscribers(type);
+    }
+
+    auto ServerCommunication::send(NekoProto::IProto &event, std::string_view peer)
+        -> ilias::IoTask<void>
+    {
+        return _self->send(event, peer);
+    }
+
+    auto ServerCommunication::recv(std::string_view peer) -> ilias::IoTask<NekoProto::IProto>
+    {
+        return _self->recv(peer);
+    }
+
+    auto ServerCommunication::peers() const -> std::vector<std::string>
+    {
+        return _self->peers();
+    }
+
+    ClientCommunication::ClientCommunication(MKCommunication *self) : _self(self) {}
+
+    auto ClientCommunication::declare_proto_to_send(int type) -> void
+    {
+        return _self->add_subscribers(type);
+    }
+
+    auto ClientCommunication::send(NekoProto::IProto &event) -> ilias::IoTask<void>
+    {
+        return _self->send(event, "self");
+    }
+
+    auto ClientCommunication::recv() -> ilias::IoTask<NekoProto::IProto>
+    {
+        return _self->recv("self");
+    }
 
     ServerCommand::ServerCommand(MKCommunication *self, const char *name)
         : _self(self), _options(name)
@@ -176,8 +227,35 @@ namespace mks::base
 
     void ServerCommand::set_options([[maybe_unused]] const NekoProto::IProto &proto)
     {
-        // TODO: make proto for this command if needed
-        SPDLOG_ERROR("Not implemented proto parameter");
+        ILIAS_ASSERT(proto.type() == NekoProto::ProtoFactory::protoType<ServerControl>());
+        const auto *control = proto.cast<ServerControl>();
+        switch (control->cmd) {
+        case ServerControl::eStart:
+            _operation = eStart;
+            break;
+        case ServerControl::eStop:
+            _operation = eStop;
+            break;
+        case ServerControl::eRestart:
+            _operation = eRestart;
+            break;
+        default:
+            SPDLOG_ERROR("Unknown server operation");
+        }
+        std::string address = "127.0.0.1";
+        if (!control->ip.empty()) {
+            address = control->ip;
+        }
+        uint16_t port = 12345;
+        if (control->port != 0) {
+            port = control->port;
+        }
+        if (address.find(':') != std::string::npos) {
+            _ipendpoint = IPEndpoint(std::format("[{}]:{}", address, port));
+        }
+        else {
+            _ipendpoint = IPEndpoint(std::format("{}:{}", address, port));
+        }
     }
 
     void ServerCommand::parser_options(const std::vector<const char *> &args)
@@ -219,8 +297,24 @@ namespace mks::base
 
     auto ServerCommand::get_options() const -> NekoProto::IProto
     {
-        // TODO: make proto for this command if needed
-        return {};
+        return ServerControl::emplaceProto((ServerControl::Command)-1,
+                                           _ipendpoint.address().toString(), _ipendpoint.port());
+    }
+
+    ClientCommand::ClientCommand(MKCommunication *self) : ServerCommand(self, "client")
+    {
+        std::string ret;
+        for (auto alias : alias_names()) {
+            ret += alias;
+            ret += ", ";
+        }
+        if (!ret.empty()) {
+            ret.pop_back();
+            ret.pop_back();
+        }
+        _options.custom_help(
+            fmt::format("{}{}{}{} <start/stop/restart> [options...], e.g. client start",
+                        this->name(), ret.empty() ? "" : "(", ret, ret.empty() ? "" : ")"));
     }
 
     auto ClientCommand::execute() -> Task<void>
@@ -256,17 +350,52 @@ namespace mks::base
         return {"c"};
     }
 
-    MKCommunication::MKCommunication(::ilias::IoContext *ctx) : _ctx(ctx)
+    void ClientCommand::set_options([[maybe_unused]] const NekoProto::IProto &proto)
     {
-        _currentPeer = _protoStreamClients.end();
-        _subscribers.insert({NekoProto::ProtoFactory::protoType<mks::KeyEvent>(),
-                             NekoProto::ProtoFactory::protoType<mks::MouseButtonEvent>(),
-                             NekoProto::ProtoFactory::protoType<mks::MouseWheelEvent>(),
-                             NekoProto::ProtoFactory::protoType<mks::MouseMotionEvent>(),
-                             NekoProto::ProtoFactory::protoType<mks::VirtualScreenInfo>()});
+        ILIAS_ASSERT(proto.type() == NekoProto::ProtoFactory::protoType<ClientControl>());
+        const auto *control = proto.cast<ClientControl>();
+        switch (control->cmd) {
+        case ClientControl::eStart:
+            _operation = eStart;
+            break;
+        case ClientControl::eStop:
+            _operation = eStop;
+            break;
+        case ClientControl::eRestart:
+            _operation = eRestart;
+            break;
+        default:
+            SPDLOG_ERROR("Unknown server operation");
+        }
+        std::string address = "127.0.0.1";
+        if (!control->ip.empty()) {
+            address = control->ip;
+        }
+        uint16_t port = 12345;
+        if (control->port != 0) {
+            port = control->port;
+        }
+        if (address.find(':') != std::string::npos) {
+            _ipendpoint = IPEndpoint(std::format("[{}]:{}", address, port));
+        }
+        else {
+            _ipendpoint = IPEndpoint(std::format("{}:{}", address, port));
+        }
     }
 
-    auto MKCommunication::start() -> ::ilias::Task<int>
+    auto ClientCommand::get_options() const -> NekoProto::IProto
+    {
+        return ClientControl::emplaceProto((ClientControl::Command)-1,
+                                           _ipendpoint.address().toString(), _ipendpoint.port());
+    }
+
+    MKCommunication::MKCommunication(App *app) : _app(app)
+    {
+        _currentPeer         = _protoStreamClients.end();
+        _communicationWapper = std::make_unique<ClientCommunication>(this);
+    }
+
+    auto MKCommunication::enable() -> ::ilias::Task<int>
     {
         if (_status == eDisable) {
             _status = eEnable;
@@ -274,7 +403,7 @@ namespace mks::base
         co_return 0;
     }
 
-    auto MKCommunication::stop() -> ::ilias::Task<int>
+    auto MKCommunication::disable() -> ::ilias::Task<int>
     {
         _status = eDisable;
         stop_server();
@@ -289,11 +418,7 @@ namespace mks::base
 
     auto MKCommunication::get_subscribers() -> std::vector<int>
     {
-        std::vector<int> ret;
-        for (const auto &item : _subscribers) {
-            ret.push_back(item);
-        }
-        return ret;
+        return {NekoProto::ProtoFactory::protoType<FocusScreenChanged>()};
     }
 
     auto MKCommunication::set_current_peer(std::string_view currentPeer) -> void
@@ -361,6 +486,11 @@ namespace mks::base
 
     auto MKCommunication::handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void>
     {
+        if (event.type() == NekoProto::ProtoFactory::protoType<FocusScreenChanged>()) {
+            const auto *focusScreenChanged = event.cast<FocusScreenChanged>();
+            set_current_peer(focusScreenChanged->peer);
+            co_return;
+        }
         if (_currentPeer == _protoStreamClients.end()) {
             co_return;
         }
@@ -415,7 +545,17 @@ namespace mks::base
 
     auto MKCommunication::add_subscribers(int type) -> void
     {
-        _subscribers.insert(type);
+        _app->node_manager().subscriber(type, this);
+    }
+
+    auto MKCommunication::remove_subscribers(int type) -> void
+    {
+        _app->node_manager().unsubscribe(type, this);
+    }
+
+    auto MKCommunication::get_communication() -> ICommunication *
+    {
+        return _communicationWapper.get();
     }
 
     auto MKCommunication::start_server(ilias::IPEndpoint endpoint) -> ilias::Task<void>
@@ -445,7 +585,10 @@ namespace mks::base
             _status = eServer;
             SPDLOG_INFO("server listen {}", endpoint.toString());
         }
-        _cancelHandle = ilias::spawn(*_ctx, _server_loop(std::move(server)));
+        if (dynamic_cast<ServerCommunication *>(_communicationWapper.get()) == nullptr) {
+            _communicationWapper = std::make_unique<ServerCommunication>(this);
+        }
+        _cancelHandle = ilias::spawn(*_app->get_io_context(), _server_loop(std::move(server)));
     }
 
     auto MKCommunication::_server_loop(::ilias::TcpListener tcplistener) -> ::ilias::Task<void>
@@ -525,6 +668,9 @@ namespace mks::base
             std::make_pair("self",
                            NekoProto::ProtoStreamClient<>(
                                _protofactory, std::move(tcpClient)))); // 构造用于传输协议的壳
+        if (dynamic_cast<ClientCommunication *>(_communicationWapper.get()) == nullptr) {
+            _communicationWapper = std::make_unique<ClientCommunication>(this);
+        }
         _syncEvent.set();
         SPDLOG_INFO("connect to {}", endpoint.toString());
         _status = eClient;
@@ -563,7 +709,7 @@ namespace mks::base
         using CallbackType = std::string (MKCommunication::*)(const CommandInvoker::ArgsType &,
                                                               const CommandInvoker::OptionsType &);
         std::unique_ptr<MKCommunication, void (*)(NodeBase *)> communication(
-            new MKCommunication(app.get_io_context()),
+            new MKCommunication(&app),
             [](NodeBase *ptr) { delete static_cast<MKCommunication *>(ptr); });
         auto commandInstaller = app.command_installer(communication->name());
         // 注册服务器监听相关命令

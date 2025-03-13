@@ -23,8 +23,8 @@ namespace mks::base
     public:
         WinMKCapture(::ilias::IoContext *ctx);
         ~WinMKCapture();
-        auto start() -> ::ilias::Task<int> override;
-        auto stop() -> ::ilias::Task<int> override;
+        auto enable() -> ::ilias::Task<int> override;
+        auto disable() -> ::ilias::Task<int> override;
         auto name() -> const char * override;
         ///> 获取一个事件，如果没有就等待
         auto get_event() -> ::ilias::IoTask<NekoProto::IProto> override;

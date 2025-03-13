@@ -29,8 +29,8 @@ namespace mks::base
         XcbMKCapture(App &app);
         ~XcbMKCapture();
 
-        auto start() -> ::ilias::Task<int> override;
-        auto stop() -> ::ilias::Task<int> override;
+        auto enable() -> ::ilias::Task<int> override;
+        auto disable() -> ::ilias::Task<int> override;
         auto start_capture() -> ::ilias::Task<int> override;
         auto stop_capture() -> ::ilias::Task<int> override;
 
