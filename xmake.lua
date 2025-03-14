@@ -109,11 +109,11 @@ if is_plat("linux") then
     -- sudo apt install python3-pip libgirepository1.0-dev valac
 end
 
-if is_mode("mode.debug") then
+if is_mode("debug") then
     add_defines("ILIAS_ENABLE_LOG", "ILIAS_USE_FMT")
     -- add_defines("ILIAS_USE_IO_URING")
+    -- add_syslinks("rt", "uring")
     -- add_packages("liburing")
-    -- add_syslinks("rt")
 end
 
 includes("src/*/xmake.lua")

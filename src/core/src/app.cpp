@@ -111,7 +111,13 @@ namespace mks::base
             screenName = path.string();
         }
 #elif defined(__linux__)
-        XcbConnect  connect(get_io_context());
+        XcbConnect connect(get_io_context());
+        if (screenName == "unknow") {
+            char name[255] = {0};
+            if (auto ret = gethostname(name, 255); ret) {
+                screenName = name;
+            }
+        }
         const auto *display = getenv("DISPLAY");
         if (auto ret = connect.connect(display == nullptr ? ":0" : display).wait(*get_io_context());
             ret) {
