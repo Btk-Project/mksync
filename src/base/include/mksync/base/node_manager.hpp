@@ -46,17 +46,25 @@ namespace mks::base
 
         auto add_node(std::unique_ptr<NodeBase, void (*)(NodeBase *)> &&node) -> void;
 
+        [[nodiscard("coroutine function")]]
         auto dispatch(const NekoProto::IProto &proto, NodeBase *nodebase) -> ::ilias::Task<void>;
+        [[nodiscard("coroutine function")]]
         auto producer_loop(Producer *producer) -> ::ilias::Task<void>;
 
         auto subscriber(int type, Consumer *consumer) -> void;
         auto unsubscribe(int type, Consumer *consumer) -> void;
 
+        [[nodiscard("coroutine function")]]
         auto start_node() -> ilias::Task<int>;
+        [[nodiscard("coroutine function")]]
         auto start_node(NodeData &node) -> ilias::Task<int>;
+        [[nodiscard("coroutine function")]]
         auto start_node(std::string_view name) -> ilias::Task<int>;
+        [[nodiscard("coroutine function")]]
         auto stop_node() -> ilias::Task<int>;
+        [[nodiscard("coroutine function")]]
         auto stop_node(NodeData &node) -> ilias::Task<int>;
+        [[nodiscard("coroutine function")]]
         auto stop_node(std::string_view name) -> ilias::Task<int>;
 
         auto get_nodes() -> std::vector<NodeData> &;

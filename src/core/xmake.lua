@@ -1,11 +1,8 @@
-
-
 target("core")
     set_kind("$(kind)")
     set_targetdir("$(libdir)")
 
     add_deps("proto", "base")
-
     add_rules("target.clean", "target.autoname", "library.autodefine")
 
     -- version

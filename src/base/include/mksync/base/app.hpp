@@ -44,11 +44,13 @@ namespace mks::base
         static auto  app_version() -> const char *;
         virtual auto get_io_context() const -> ::ilias::IoContext * = 0;
         virtual auto get_screen_info() const -> VirtualScreenInfo   = 0;
-        virtual auto settings() -> Settings &                       = 0;
-        virtual auto node_manager() -> NodeManager &                = 0;
+        virtual auto settings() -> Settings                       & = 0;
+        virtual auto node_manager() -> NodeManager                & = 0;
 
         // main loop
+        [[nodiscard("coroutine function")]]
         virtual auto exec(int argc = 0, const char *const *argv = nullptr) -> ilias::Task<void> = 0;
-        virtual auto stop() -> void                                                             = 0;
+        [[nodiscard("coroutine function")]]
+        virtual auto stop() -> ilias::Task<void> = 0;
     };
 } // namespace mks::base

@@ -10,7 +10,7 @@
     #define DL_LOAD_SYMBOL(handle, symbol) GetProcAddress(handle, symbol)
     #define DL_HANDLE HMODULE
 #elif defined(__linux__)
-    #include <dlopen>
+    #include <dlfcn.h>
     #define DL_OPEN(dll) dlopen(dll, RTLD_LAZY)
     #define DL_CLOSE(handle) dlclose(handle)
     #define DL_LOAD_SYMBOL(handle, symbol) dlsym(handle, symbol)

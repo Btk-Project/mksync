@@ -50,11 +50,15 @@ namespace mks::base
     public:
         MKCommunication(IApp *app);
         virtual ~MKCommunication() = default;
+        [[nodiscard("coroutine function")]]
         auto enable() -> ::ilias::Task<int> override;
+        [[nodiscard("coroutine function")]]
         auto disable() -> ::ilias::Task<int> override;
         auto name() -> const char * override;
         auto get_subscribers() -> std::vector<int> override;
+        [[nodiscard("coroutine function")]]
         auto handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void> override;
+        [[nodiscard("coroutine function")]]
         auto get_event() -> ::ilias::IoTask<NekoProto::IProto> override;
 
         auto status() -> Status;
@@ -69,8 +73,10 @@ namespace mks::base
          * @param endpoint
          * @return Task<void>
          */
+        [[nodiscard("coroutine function")]]
         auto start_server(ilias::IPEndpoint endpoint) -> ilias::Task<int>;
-        auto stop_server() -> void;
+        [[nodiscard("coroutine function")]]
+        auto stop_server() -> ::ilias::Task<void>;
 
         // client
         /**
@@ -79,17 +85,23 @@ namespace mks::base
          * @param endpoint
          * @return Task<void>
          */
+        [[nodiscard("coroutine function")]]
         auto connect_to(ilias::IPEndpoint endpoint) -> ilias::Task<int>;
-        auto disconnect() -> void;
+        [[nodiscard("coroutine function")]]
+        auto disconnect() -> ilias::Task<void>;
 
         // communication
         auto set_current_peer(std::string_view currentPeer) -> void;
         auto current_peer() const -> std::string;
         auto peers() const -> std::vector<std::string>;
+        [[nodiscard("coroutine function")]]
         auto send(NekoProto::IProto &event, std::string_view peer) -> ilias::IoTask<void>;
+        [[nodiscard("coroutine function")]]
         auto recv(std::string_view peer) -> ilias::IoTask<NekoProto::IProto>;
+        [[nodiscard("coroutine function")]]
         auto set_communication_options(const CommandInvoker::ArgsType    &args,
-                                       const CommandInvoker::OptionsType &options) -> std::string;
+                                       const CommandInvoker::OptionsType &options)
+            -> ::ilias::Task<std::string>;
 
         // 作为服务端或客户端开启后才能获取，关闭或重启节点都会导致指针失效。
         auto get_communication() -> ICommunication *;
@@ -97,12 +109,16 @@ namespace mks::base
         static auto make(App &app) -> std::unique_ptr<MKCommunication, void (*)(NodeBase *)>;
 
     private:
+        [[nodiscard("coroutine function")]]
         auto _server_loop(::ilias::TcpListener tcplistener) -> ::ilias::Task<void>;
+        [[nodiscard("coroutine function")]]
         auto _client_loop(NekoProto::ProtoStreamClient<> &client) -> ::ilias::Task<void>;
-        auto _client_handshake(std::string_view peer, NekoProto::ProtoStreamClient<> &client)
-            -> ::ilias::Task<int>;
-        auto _server_handshake(std::string_view peer, NekoProto::ProtoStreamClient<> &client)
-            -> ::ilias::Task<int>;
+        [[nodiscard("coroutine function")]]
+        auto _client_handshake(std::string_view                peer,
+                               NekoProto::ProtoStreamClient<> *client) -> ::ilias::Task<int>;
+        [[nodiscard("coroutine function")]]
+        auto _server_handshake(std::string_view                peer,
+                               NekoProto::ProtoStreamClient<> *client) -> ::ilias::Task<int>;
 
     private:
         NekoProto::ProtoFactory       _protofactory;

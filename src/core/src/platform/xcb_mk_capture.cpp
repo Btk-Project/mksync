@@ -5,9 +5,10 @@
 
     #include <xcb/xcb.h>
     #include <xcb/xinput.h>
+    #include <stdlib.h>
 
     #include "mksync/core/app.hpp"
-    #include "mksync/base/platform/xcb_window.hpp"
+    #include "mksync/core/platform/xcb_window.hpp"
 
 namespace mks::base
 {
@@ -24,8 +25,10 @@ namespace mks::base
     auto XcbMKCapture::enable() -> ::ilias::Task<int>
     {
         if (!_xcbConnect) {
-            _xcbConnect = std::make_unique<XcbConnect>(_app->get_io_context());
-            if (auto ret = co_await _xcbConnect->connect(nullptr); !ret) {
+            _xcbConnect         = std::make_unique<XcbConnect>(_app->get_io_context());
+            const auto *display = getenv("DISPLAY");
+            if (auto ret = co_await _xcbConnect->connect(display == nullptr ? ":0" : display);
+                !ret) {
                 SPDLOG_ERROR("Failed to connect to X server!");
                 co_return -1;
             }

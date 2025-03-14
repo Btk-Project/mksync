@@ -1,4 +1,9 @@
-
+if is_plat("linux") then 
+    option("memcheck")
+        set_default(false)
+        set_showmenu(true)
+    option_end()
+end 
 
 target("backend")
     set_kind("binary")
@@ -18,4 +23,12 @@ target("backend")
     -- add_headerfiles("include/(**)")
     -- add_headerfiles("src/**.hpp", "src/**.h", {install = false})
     add_files("src/**.cpp")
+    if has_config("memcheck") then
+        on_run(function (target)
+            local argv = {}
+            table.insert(argv, "--leak-check=full")
+            table.insert(argv, target:targetfile())
+            os.execv("valgrind", argv)
+        end)
+    end 
 target_end()

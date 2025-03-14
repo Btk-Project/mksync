@@ -59,8 +59,10 @@ namespace mks::base
         NodeBase()          = default;
         virtual ~NodeBase() = default;
         ///> 启用节点。
+        [[nodiscard("coroutine function")]]
         virtual auto enable() -> ::ilias::Task<int> = 0;
         ///> 停用节点。
+        [[nodiscard("coroutine function")]]
         virtual auto disable() -> ::ilias::Task<int> = 0;
         ///> 获取节点名称。
         virtual auto name() -> const char * = 0;
@@ -82,6 +84,7 @@ namespace mks::base
         /// 如果需要动态增减，可以使用NodeManager的接口。
         virtual auto get_subscribers() -> std::vector<int> = 0;
         ///> 处理一个事件，需要订阅。
+        [[nodiscard("coroutine function")]]
         virtual auto handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void> = 0;
     };
 
@@ -96,6 +99,7 @@ namespace mks::base
         Producer()          = default;
         virtual ~Producer() = default;
         ///> 从节点内获取一个事件，如果没有就等待。
+        [[nodiscard("coroutine function")]]
         virtual auto get_event() -> ::ilias::IoTask<NekoProto::IProto> = 0;
     };
 

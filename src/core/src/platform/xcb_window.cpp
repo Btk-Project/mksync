@@ -109,8 +109,9 @@ namespace mks::base
                                      int *firstEventReturn, int *firstErrorReturn) -> int
     {
         auto cookie = xcb_query_extension(_connection, std::strlen(name), name);
-        std::unique_ptr<xcb_query_extension_reply_t> reply(
-            xcb_query_extension_reply(_connection, cookie, nullptr));
+        std::unique_ptr<xcb_query_extension_reply_t, void (*)(xcb_query_extension_reply_t *)> reply(
+            xcb_query_extension_reply(_connection, cookie, nullptr),
+            [](xcb_query_extension_reply_t *ptr) { free(ptr); });
         if (reply == nullptr) {
             return -1;
         }
@@ -139,9 +140,11 @@ namespace mks::base
             window = _rootWindow.get();
         }
         ILIAS_ASSERT(window != nullptr);
-        xcb_generic_error_t                       *err;
-        std::unique_ptr<xcb_query_pointer_reply_t> reply(xcb_query_pointer_reply(
-            _connection, xcb_query_pointer(_connection, window->native_handle()), &err));
+        xcb_generic_error_t                                                              *err;
+        std::unique_ptr<xcb_query_pointer_reply_t, void (*)(xcb_query_pointer_reply_t *)> reply(
+            xcb_query_pointer_reply(_connection,
+                                    xcb_query_pointer(_connection, window->native_handle()), &err),
+            [](xcb_query_pointer_reply_t *ptr) { free(ptr); });
         if (err != nullptr) {
             SPDLOG_INFO("XcbConnect::query_pointer error: {}", err->error_code);
             return {0, 0};
@@ -169,8 +172,9 @@ namespace mks::base
 
         window->set_attribute(XCB_CW_EVENT_MASK, &mask);
         if (auto cookie = xcb_query_tree(_connection, window->native_handle()); true) {
-            std::unique_ptr<xcb_query_tree_reply_t> reply(
-                xcb_query_tree_reply(_connection, cookie, nullptr));
+            std::unique_ptr<xcb_query_tree_reply_t, void (*)(xcb_query_tree_reply_t *)> reply(
+                xcb_query_tree_reply(_connection, cookie, nullptr),
+                [](xcb_query_tree_reply_t *ptr) { free(ptr); });
             if (reply) {
                 auto *children = xcb_query_tree_children(reply.get());
                 for (auto i = 0; i < xcb_query_tree_children_length(reply.get()); i++) {
@@ -239,11 +243,14 @@ namespace mks::base
         if (_connection == nullptr || _fd == nullptr) {
             co_return {};
         }
-        std::unique_ptr<xcb_generic_event_t> event;
+        std::unique_ptr<xcb_generic_event_t, void (*)(xcb_generic_event_t *)> event(
+            nullptr, [](xcb_generic_event_t *ptr) { free(ptr); });
         while (true) {
             auto result = co_await _poll_event();
             if (!result) {
-                SPDLOG_ERROR("poll_event failed, {}", result.error().message());
+                if (result.error() != Error::Canceled) {
+                    SPDLOG_ERROR("poll_event failed, {}", result.error().message());
+                }
                 break;
             }
             while (true) {
@@ -282,8 +289,8 @@ namespace mks::base
     }
 
     auto XcbConnect::grab_pointer(XcbWindow                                 *window,
-                                  std::function<void(xcb_generic_event_t *)> callback, bool owner)
-        -> int
+                                  std::function<void(xcb_generic_event_t *)> callback,
+                                  bool                                       owner) -> int
     {
         xcb_window_t root = XCB_WINDOW_NONE;
         if (window == nullptr) {
@@ -301,8 +308,9 @@ namespace mks::base
                 XCB_EVENT_MASK_BUTTON_4_MOTION | XCB_EVENT_MASK_BUTTON_5_MOTION |
                 XCB_EVENT_MASK_BUTTON_MOTION,
             XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, XCB_NONE, XCB_NONE, XCB_CURRENT_TIME);
-        std::unique_ptr<xcb_grab_pointer_reply_t> reply(
-            xcb_grab_pointer_reply(connection(), cookie, nullptr));
+        std::unique_ptr<xcb_grab_pointer_reply_t, void (*)(xcb_grab_pointer_reply_t *)> reply(
+            xcb_grab_pointer_reply(connection(), cookie, nullptr),
+            [](xcb_grab_pointer_reply_t *ptr) { free(ptr); });
         if (reply == nullptr) {
             SPDLOG_ERROR("Error: failed to grab pointer\n");
             return -1;
@@ -318,7 +326,8 @@ namespace mks::base
     auto XcbConnect::ungrab_pointer() -> int
     {
         auto cookie = xcb_ungrab_pointer_checked(connection(), XCB_CURRENT_TIME);
-        std::unique_ptr<xcb_generic_error_t> err(xcb_request_check(connection(), cookie));
+        std::unique_ptr<xcb_generic_error_t, void (*)(xcb_generic_error_t *)> err(
+            xcb_request_check(connection(), cookie), [](xcb_generic_error_t *ptr) { free(ptr); });
         if (err) {
             SPDLOG_ERROR("Failed to ungrab pointer, error {}\n", err->error_code);
             return err->error_code;
@@ -327,8 +336,8 @@ namespace mks::base
     }
 
     auto XcbConnect::grab_keyboard(XcbWindow                                 *window,
-                                   std::function<void(xcb_generic_event_t *)> callback, bool owner)
-        -> int
+                                   std::function<void(xcb_generic_event_t *)> callback,
+                                   bool                                       owner) -> int
     {
         xcb_window_t root = XCB_WINDOW_NONE;
         if (window != nullptr) {
@@ -339,8 +348,9 @@ namespace mks::base
         }
         auto cookie = xcb_grab_keyboard(connection(), static_cast<uint8_t>(owner), root,
                                         XCB_CURRENT_TIME, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
-        std::unique_ptr<xcb_grab_keyboard_reply_t> ret(
-            xcb_grab_keyboard_reply(connection(), cookie, nullptr));
+        std::unique_ptr<xcb_grab_keyboard_reply_t, void (*)(xcb_grab_keyboard_reply_t *)> ret(
+            xcb_grab_keyboard_reply(connection(), cookie, nullptr),
+            [](xcb_grab_keyboard_reply_t *ptr) { free(ptr); });
         if (ret == nullptr) {
             SPDLOG_ERROR("Failed to grab keyboard.\n");
             return -1;
@@ -361,7 +371,8 @@ namespace mks::base
     auto XcbConnect::ungrab_keyboard() -> int
     {
         auto cookie = xcb_ungrab_keyboard_checked(connection(), XCB_CURRENT_TIME);
-        std::unique_ptr<xcb_generic_error_t> err(xcb_request_check(connection(), cookie));
+        std::unique_ptr<xcb_generic_error_t, void (*)(xcb_generic_error_t *)> err(
+            xcb_request_check(connection(), cookie), [](xcb_generic_error_t *ptr) { free(ptr); });
         if (err) {
             SPDLOG_ERROR("Failed to ungrab keyboard, error {}\n", err->error_code);
             return err->error_code;
@@ -372,8 +383,9 @@ namespace mks::base
     xcb_atom_t XcbConnect::get_atom(const char *name)
     {
         xcb_intern_atom_cookie_t cookie = xcb_intern_atom(_connection, 0, strlen(name), name);
-        std::unique_ptr<xcb_intern_atom_reply_t> reply(
-            xcb_intern_atom_reply(_connection, cookie, NULL));
+        std::unique_ptr<xcb_intern_atom_reply_t, void (*)(xcb_intern_atom_reply_t *)> reply(
+            xcb_intern_atom_reply(_connection, cookie, NULL),
+            [](xcb_intern_atom_reply_t *ptr) { free(ptr); });
         if (!reply) {
             SPDLOG_ERROR("Failed to get atom: {}\n", name);
             return XCB_ATOM_NONE;
@@ -520,7 +532,9 @@ namespace mks::base
         auto cookie =
             xcb_change_property_checked(_conn->connection(), XCB_PROP_MODE_REPLACE, _window, atom,
                                         XCB_ATOM_STRING, 8, value.size(), value.c_str());
-        std::unique_ptr<xcb_generic_error_t> reply(xcb_request_check(_conn->connection(), cookie));
+        std::unique_ptr<xcb_generic_error_t, void (*)(xcb_generic_error_t *)> reply(
+            xcb_request_check(_conn->connection(), cookie),
+            [](xcb_generic_error_t *ptr) { free(ptr); });
         if (reply) {
             SPDLOG_ERROR("Failed to set property {}, error: {}\n", name.c_str(), reply->error_code);
             return -1;
@@ -541,8 +555,10 @@ namespace mks::base
     {
         auto cookie =
             xcb_get_property(_conn->connection(), 0, _window, atom, XCB_ATOM_STRING, 0, 1024);
-        auto reply = std::unique_ptr<xcb_get_property_reply_t>(
-            xcb_get_property_reply(_conn->connection(), cookie, nullptr));
+        auto reply =
+            std::unique_ptr<xcb_get_property_reply_t, void (*)(xcb_get_property_reply_t *)>(
+                xcb_get_property_reply(_conn->connection(), cookie, nullptr),
+                [](xcb_get_property_reply_t *ptr) { free(ptr); });
         if (reply) {
             value = std::string((char *)xcb_get_property_value(reply.get()),
                                 xcb_get_property_value_length(reply.get()));
@@ -554,8 +570,10 @@ namespace mks::base
     auto XcbWindow::get_attribute(xcb_get_window_attributes_reply_t &valueList) -> int
     {
         auto cookie = xcb_get_window_attributes(_conn->connection(), _window);
-        auto reply  = std::unique_ptr<xcb_get_window_attributes_reply_t>(
-            xcb_get_window_attributes_reply(_conn->connection(), cookie, nullptr));
+        auto reply  = std::unique_ptr<xcb_get_window_attributes_reply_t,
+                                      void (*)(xcb_get_window_attributes_reply_t *)>(
+            xcb_get_window_attributes_reply(_conn->connection(), cookie, nullptr),
+            [](xcb_get_window_attributes_reply_t *ptr) { free(ptr); });
         if (!reply) {
             return -1;
         }
@@ -567,7 +585,9 @@ namespace mks::base
     {
         auto cookie = xcb_change_window_attributes_checked(_conn->connection(), _window,
                                                            attributeMask, values);
-        std::unique_ptr<xcb_generic_error_t> reply(xcb_request_check(_conn->connection(), cookie));
+        std::unique_ptr<xcb_generic_error_t, void (*)(xcb_generic_error_t *)> reply(
+            xcb_request_check(_conn->connection(), cookie),
+            [](xcb_generic_error_t *ptr) { free(ptr); });
         if (reply) {
             SPDLOG_ERROR("Failed to set attribute, error: {}\n", reply->error_code);
             return -1;
@@ -586,7 +606,9 @@ namespace mks::base
     {
         auto cookie =
             xcb_configure_window_checked(_conn->connection(), _window, configMask, valueList);
-        std::unique_ptr<xcb_generic_error_t> reply(xcb_request_check(_conn->connection(), cookie));
+        std::unique_ptr<xcb_generic_error_t, void (*)(xcb_generic_error_t *)> reply(
+            xcb_request_check(_conn->connection(), cookie),
+            [](xcb_generic_error_t *ptr) { free(ptr); });
         if (reply) {
             SPDLOG_ERROR("Failed to config windows, error: {}\n", reply->error_code);
             return -1;

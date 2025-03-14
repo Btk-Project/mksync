@@ -4,7 +4,7 @@
     #include <spdlog/spdlog.h>
 
     #include "mksync/core/app.hpp"
-    #include "mksync/base/platform/xcb_window.hpp"
+    #include "mksync/core/platform/xcb_window.hpp"
 
 namespace mks::base
 {
@@ -13,7 +13,7 @@ namespace mks::base
 
     XcbMKSender::~XcbMKSender()
     {
-        stop().wait();
+        stop_sender().wait();
         _xcbConnect.reset();
     }
 

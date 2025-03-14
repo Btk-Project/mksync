@@ -87,7 +87,7 @@ namespace mks::base
 
     auto CommonCommand::execute() -> Task<void>
     {
-        if (auto ret = _data.callback(_args, _options); !ret.empty()) {
+        if (auto ret = co_await _data.callback(_args, _options); !ret.empty()) {
             SPDLOG_ERROR("{} failed : {}", name(), ret);
         }
         co_return;
@@ -218,8 +218,8 @@ namespace mks::base
                     "Core");
     }
 
-    auto CommandInvoker::install_cmd(std::unique_ptr<Command> command, std::string_view module)
-        -> bool
+    auto CommandInvoker::install_cmd(std::unique_ptr<Command> command,
+                                     std::string_view         module) -> bool
     {
         if (_trie.search(command->name())) {
             SPDLOG_ERROR("command \"{}\" already exists", command->name());
@@ -289,14 +289,15 @@ namespace mks::base
     }
 
     auto CommandInvoker::show_version([[maybe_unused]] const ArgsType    &args,
-                                      [[maybe_unused]] const OptionsType &options) -> std::string
+                                      [[maybe_unused]] const OptionsType &options)
+        -> Task<std::string>
     {
         fprintf(stdout, "%s %s\n", IApp::app_name(), IApp::app_version());
-        return "";
+        co_return "";
     }
 
     auto CommandInvoker::show_help([[maybe_unused]] const ArgsType    &args,
-                                   [[maybe_unused]] const OptionsType &options) -> std::string
+                                   [[maybe_unused]] const OptionsType &options) -> Task<std::string>
     {
         fprintf(stdout, "Usage: $%s [command] [args] [options]\n", IApp::app_name());
         std::string module;
@@ -321,7 +322,7 @@ namespace mks::base
                     ((help.size() > 2 && help[help.size() - 2] != '\n') ? "\n" : ""));
         }
         ::fflush(stdout);
-        return "";
+        co_return "";
     }
 
     auto CommandInvoker::_split(std::span<char> str, char ch) -> std::vector<const char *>
