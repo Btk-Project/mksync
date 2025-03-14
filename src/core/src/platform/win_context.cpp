@@ -1,4 +1,4 @@
-#include "mksync/base/platform/win_context.hpp"
+#include "mksync/core/platform/win_context.hpp"
 #ifdef _WIN32
 template <typename T>
 using DelegateContext = ilias::DelegateContext<T>;

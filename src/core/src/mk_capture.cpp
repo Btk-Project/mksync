@@ -1,13 +1,13 @@
-#include "mksync/base/mk_capture.hpp"
+#include "mksync/core/mk_capture.hpp"
 #ifdef _WIN32
-    #include "mksync/base/platform/win_mk_capture.hpp"
+    #include "mksync/core/platform/win_mk_capture.hpp"
 #elif defined(__linux__)
-    #include "mksync/base/platform/xcb_mk_capture.hpp"
+    #include "mksync/core/platform/xcb_mk_capture.hpp"
 #else
     #error "Unsupported platform"
 #endif
 
-#include "mksync/base/app.hpp"
+#include "mksync/core/app.hpp"
 #include "mksync/proto/proto.hpp"
 
 #include <spdlog/spdlog.h>

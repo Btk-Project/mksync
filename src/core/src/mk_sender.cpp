@@ -1,13 +1,13 @@
-#include "mksync/base/mk_sender.hpp"
+#include "mksync/core/mk_sender.hpp"
 #ifdef _WIN32
-    #include "mksync/base/platform/win_mk_sender.hpp"
+    #include "mksync/core/platform/win_mk_sender.hpp"
 #elif defined(__linux__)
-    #include "mksync/base/platform/xcb_mk_sender.hpp"
+    #include "mksync/core/platform/xcb_mk_sender.hpp"
 #else
     #error "Unsupported platform"
 #endif
 
-#include "mksync/base/app.hpp"
+#include "mksync/core/app.hpp"
 #include "mksync/proto/proto.hpp"
 
 #include <spdlog/spdlog.h>

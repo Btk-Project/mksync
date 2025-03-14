@@ -22,11 +22,11 @@ namespace mks
      * @brief Hello Event
      * 连接成功后客户端主动上报程序名和版本号
      * 收到到HelloEvent后，主动发送VirtualScreenInfo
-     * 
+     *
      */
     struct HelloEvent {
         std::string name;    /**< client name */
-        int         version; /**< server/client version */
+        std::string version; /**< server/client version */
 
         NEKO_SERIALIZER(name, version)
         NEKO_DECLARE_PROTOCOL(HelloEvent, NEKO_NAMESPACE::JsonSerializer)

@@ -1,4 +1,4 @@
-#include "mksync/base/platform/win_mk_sender.hpp"
+#include "mksync/core/platform/win_mk_sender.hpp"
 
 #ifdef _WIN32
     #include <windows.h>

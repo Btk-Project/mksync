@@ -4,8 +4,8 @@
 #include <nekoproto/communication/communication_base.hpp>
 #include <spdlog/spdlog.h>
 
-#include "mksync/base/app.hpp"
-#include "mksync/base/io_context.hpp"
+#include "mksync/core/app.hpp"
+#include "mksync/core/io_context.hpp"
 
 int main(int argc, const char *const *argv)
 {

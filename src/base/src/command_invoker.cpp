@@ -291,14 +291,14 @@ namespace mks::base
     auto CommandInvoker::show_version([[maybe_unused]] const ArgsType    &args,
                                       [[maybe_unused]] const OptionsType &options) -> std::string
     {
-        fprintf(stdout, "%s %s\n", App::app_name(), App::app_version());
+        fprintf(stdout, "%s %s\n", IApp::app_name(), IApp::app_version());
         return "";
     }
 
     auto CommandInvoker::show_help([[maybe_unused]] const ArgsType    &args,
                                    [[maybe_unused]] const OptionsType &options) -> std::string
     {
-        fprintf(stdout, "Usage: $%s [command] [args] [options]\n", App::app_name());
+        fprintf(stdout, "Usage: $%s [command] [args] [options]\n", IApp::app_name());
         std::string module;
         for (auto item = _modules.begin(); item != _modules.end(); ++item) {
             if (!args.empty() &&

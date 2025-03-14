@@ -15,7 +15,7 @@
     #include <ilias/task.hpp>
 
     #include "mksync/base/ring_buffer.hpp"
-    #include "mksync/base/mk_capture.hpp"
+    #include "mksync/core/mk_capture.hpp"
 
 namespace mks::base
 {

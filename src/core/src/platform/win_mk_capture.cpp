@@ -1,4 +1,4 @@
-#include "mksync/base/platform/win_mk_capture.hpp"
+#include "mksync/core/platform/win_mk_capture.hpp"
 #ifdef _WIN32
     #include <spdlog/spdlog.h>
 

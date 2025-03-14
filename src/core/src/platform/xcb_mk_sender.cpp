@@ -1,9 +1,9 @@
-#include "mksync/base/platform/xcb_mk_sender.hpp"
+#include "mksync/core/platform/xcb_mk_sender.hpp"
 
 #ifdef __linux__
     #include <spdlog/spdlog.h>
 
-    #include "mksync/base/app.hpp"
+    #include "mksync/core/app.hpp"
     #include "mksync/base/platform/xcb_window.hpp"
 
 namespace mks::base

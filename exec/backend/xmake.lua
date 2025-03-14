@@ -4,7 +4,7 @@ target("backend")
     set_kind("binary")
     set_targetdir("$(bindir)")
 
-    add_deps("base")
+    add_deps("core")
     add_rules("target.clean", "target.autoname")
 
     add_packages("cxxopts", "ilias", "sobjectizer", "spdlog", "neko-proto")

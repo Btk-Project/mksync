@@ -12,7 +12,7 @@
 #pragma once
 
 #if defined(_WIN32)
-    #include "mksync/base/platform/win_context.hpp"
+    #include "mksync/core/platform/win_context.hpp"
 namespace mks::base
 {
     using IoContext = WinContext;

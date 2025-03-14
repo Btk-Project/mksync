@@ -14,7 +14,6 @@
 #include <memory>
 #include <ilias/task.hpp>
 #include <algorithm>
-#include <iostream>
 
 namespace mks::base
 {
