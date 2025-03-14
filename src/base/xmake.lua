@@ -1,5 +1,3 @@
-
-
 target("base")
     set_kind("$(kind)")
     set_targetdir("$(libdir)")
@@ -22,7 +20,7 @@ target("base")
     if is_plat("windows", "mingw") then
         add_syslinks("user32")
     elseif is_plat("linux") then
-        add_links("xcb", "xcb-keysyms", "xcb-util", "xcb-xtest", "xcb-render", "xcb-xinput", "X11", "anl")
+        add_links("xcb", "xcb-keysyms", "xcb-util", "xcb-xtest", "xcb-render", "xcb-xinput", "X11", "anl", "dl")
         -- sudo apt install libxcb-util-dev libxcb-xtest0-dev libxcb-keysyms1-dev libx11-dev libxcb-render0-dev libxcb-xinput-dev
     end
 target_end()

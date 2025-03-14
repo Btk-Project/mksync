@@ -26,11 +26,14 @@ namespace mks::base
         WinMKSender(::ilias::IoContext *ctx);
         ~WinMKSender();
 
+        [[nodiscard("coroutine function")]]
         auto start_sender() -> ::ilias::Task<int> override;
+        [[nodiscard("coroutine function")]]
         auto stop_sender() -> ::ilias::Task<int> override;
         auto name() -> const char * override;
 
         auto get_subscribers() -> std::vector<int> override;
+        [[nodiscard("coroutine function")]]
         auto handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void> override;
 
     private:

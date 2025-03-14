@@ -27,16 +27,20 @@ namespace mks::base
     public:
         IServerCommunication()          = default;
         virtual ~IServerCommunication() = default;
-        virtual auto send(NekoProto::IProto &event, std::string_view peer)
-            -> ilias::IoTask<void>                                                   = 0;
+        [[nodiscard("coroutine function")]]
+        virtual auto send(NekoProto::IProto &event,
+                          std::string_view   peer) -> ilias::IoTask<void> = 0;
+        [[nodiscard("coroutine function")]]
         virtual auto recv(std::string_view peer) -> ilias::IoTask<NekoProto::IProto> = 0;
         virtual auto peers() const -> std::vector<std::string>                       = 0;
     };
     class MKS_BASE_API IClientCommunication : public ICommunication {
     public:
-        IClientCommunication()                                             = default;
-        virtual ~IClientCommunication()                                    = default;
+        IClientCommunication()          = default;
+        virtual ~IClientCommunication() = default;
+        [[nodiscard("coroutine function")]]
         virtual auto send(NekoProto::IProto &event) -> ilias::IoTask<void> = 0;
-        virtual auto recv() -> ilias::IoTask<NekoProto::IProto>            = 0;
+        [[nodiscard("coroutine function")]]
+        virtual auto recv() -> ilias::IoTask<NekoProto::IProto> = 0;
     };
 } // namespace mks::base

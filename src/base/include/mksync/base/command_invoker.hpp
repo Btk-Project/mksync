@@ -38,8 +38,8 @@ namespace mks::base
         using ArgsType     = std::vector<std::string_view>;
         using OptionsType =
             std::map<std::string_view, std::variant<bool, int, double, std::string>>;
-        using CommandCallbackType =
-            std::function<std::string(const ArgsType &args, const OptionsType &options)>;
+        using CommandCallbackType = std::function<::ilias::Task<std::string>(
+            const ArgsType &args, const OptionsType &options)>;
         struct OptionsData {
             enum OptionType
             {
@@ -62,28 +62,36 @@ namespace mks::base
     public:
         CommandInvoker(App *app);
         auto install_cmd(std::unique_ptr<Command> command, std::string_view module = "") -> bool;
+        [[nodiscard("coroutine function")]]
         auto execute(std::span<char> cmdline) -> ::ilias::Task<void>;
+        [[nodiscard("coroutine function")]]
         auto execute(const NekoProto::IProto &proto) -> ::ilias::Task<void>;
+        [[nodiscard("coroutine function")]]
         auto execute(const std::vector<const char *> &cmdline) -> ::ilias::Task<void>;
-
-        auto show_help(const ArgsType &args, const OptionsType &options) -> std::string;
-        auto show_version(const ArgsType &args, const OptionsType &options) -> std::string;
+        [[nodiscard("coroutine function")]]
+        auto show_help(const ArgsType    &args,
+                       const OptionsType &options) -> ::ilias::Task<std::string>;
+        [[nodiscard("coroutine function")]]
+        auto show_version(const ArgsType    &args,
+                          const OptionsType &options) -> ::ilias::Task<std::string>;
 
     private:
         static auto _split(std::span<char> str, char ch = ' ') -> std::vector<const char *>;
 
     private:
-        std::unordered_multimap<std::string, int> _modules;
-        std::vector<std::unique_ptr<Command>>     _commands;
-        std::unordered_map<int, int>              _protoCommandsTable;
-        Trie<int>                                 _trie;
-        App                                      *_app = nullptr;
+        std::multimap<std::string, int>       _modules;
+        std::vector<std::unique_ptr<Command>> _commands;
+        std::unordered_map<int, int>          _protoCommandsTable;
+        Trie<int>                             _trie;
+        App                                  *_app = nullptr;
     };
 
     class CommonCommand : public Command {
     public:
         CommonCommand(CommandInvoker::CommandsData &&data);
+        [[nodiscard("coroutine function")]]
         auto execute() -> ::ilias::Task<void> override;
+
         auto help() const -> std::string override;
         auto name() const -> std::string_view override;
         auto alias_names() const -> std::vector<std::string_view> override;

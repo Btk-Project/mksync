@@ -29,13 +29,18 @@ namespace mks::base
         XcbMKCapture(App &app);
         ~XcbMKCapture();
 
+        [[nodiscard("coroutine function")]]
         auto enable() -> ::ilias::Task<int> override;
+        [[nodiscard("coroutine function")]]
         auto disable() -> ::ilias::Task<int> override;
+        [[nodiscard("coroutine function")]]
         auto start_capture() -> ::ilias::Task<int> override;
+        [[nodiscard("coroutine function")]]
         auto stop_capture() -> ::ilias::Task<int> override;
 
         auto name() -> const char * override;
         ///> 获取一个事件，如果没有就等待
+        [[nodiscard("coroutine function")]]
         auto get_event() -> ::ilias::IoTask<NekoProto::IProto> override;
 
         auto pointer_proc(void *event) -> void;

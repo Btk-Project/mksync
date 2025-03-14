@@ -34,11 +34,15 @@ namespace mks::base
     public:
         MKCapture(::ilias::IoContext *ctx) : _ctx(ctx) {};
         virtual ~MKCapture() = default;
+        [[nodiscard("coroutine function")]]
         auto enable() -> ::ilias::Task<int> override;
+        [[nodiscard("coroutine function")]]
         auto disable() -> ::ilias::Task<int> override;
 
+        [[nodiscard("coroutine function")]]
         virtual auto start_capture() -> ::ilias::Task<int> = 0;
-        virtual auto stop_capture() -> ::ilias::Task<int>  = 0;
+        [[nodiscard("coroutine function")]]
+        virtual auto stop_capture() -> ::ilias::Task<int> = 0;
 
         static auto make(App &app) -> std::unique_ptr<MKCapture, void (*)(NodeBase *)>;
 

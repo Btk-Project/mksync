@@ -23,15 +23,20 @@ namespace mks::base
     public:
         WinMKCapture(::ilias::IoContext *ctx);
         ~WinMKCapture();
+        [[nodiscard("coroutine function")]]
         auto enable() -> ::ilias::Task<int> override;
+        [[nodiscard("coroutine function")]]
         auto disable() -> ::ilias::Task<int> override;
         auto name() -> const char * override;
         ///> 获取一个事件，如果没有就等待
+        [[nodiscard("coroutine function")]]
         auto get_event() -> ::ilias::IoTask<NekoProto::IProto> override;
         ///> 唤起正在等待事件的协程并弹出一个事件，如果事件队列为空则会弹出一个空事件。
         auto notify() -> void;
 
+        [[nodiscard("coroutine function")]]
         auto start_capture() -> ::ilias::Task<int> override;
+        [[nodiscard("coroutine function")]]
         auto stop_capture() -> ::ilias::Task<int> override;
 
     private:

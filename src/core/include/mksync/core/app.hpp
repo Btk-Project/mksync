@@ -51,32 +51,39 @@ namespace mks::base
         auto get_screen_info() const -> VirtualScreenInfo override;
 
         // main loop
+        [[nodiscard("coroutine function")]]
         auto exec(int argc = 0, const char *const *argv = nullptr) -> ilias::Task<void> override;
-        auto stop() -> void override;
-        auto stop(const CommandInvoker::ArgsType &args, const CommandInvoker::OptionsType &options)
-            -> std::string;
+        [[nodiscard("coroutine function")]]
+        auto stop() -> ilias::Task<void> override;
+        [[nodiscard("coroutine function")]]
+        auto stop(const CommandInvoker::ArgsType    &args,
+                  const CommandInvoker::OptionsType &options) -> ::ilias::Task<std::string>;
         auto settings() -> Settings & override;
         auto node_manager() -> NodeManager & override;
 
         // commands
+        [[nodiscard("coroutine function")]]
         auto start_console() -> ilias::Task<void>;
-        auto stop_console() -> void;
+        [[nodiscard("coroutine function")]]
+        auto stop_console() -> ilias::Task<void>;
         auto command_installer(std::string_view module)
             -> std::function<bool(std::unique_ptr<Command>)>;
 
         // status
+        [[nodiscard("coroutine function")]]
         auto log_handle(const CommandInvoker::ArgsType    &args,
-                        const CommandInvoker::OptionsType &options) -> std::string;
+                        const CommandInvoker::OptionsType &options) -> ::ilias::Task<std::string>;
 
     private:
         bool                _isRuning           = false;
         bool                _isConsoleListening = false;
+        bool                _isNoConsole        = false;
         ::ilias::IoContext *_ctx                = nullptr;
 
-        CommandInvoker          _commandInvoker;
-        NodeManager             _nodeManager;
-        Settings                _settings;
-        std::deque<std::string> _logList; // For internal log storage
-        size_t                  _logListMaxSize = 100;
+        CommandInvoker            _commandInvoker;
+        NodeManager               _nodeManager;
+        Settings                  _settings;
+        std::deque<std::string>   _logList; // For internal log storage
+        size_t                    _logListMaxSize = 100;
     };
 } // namespace mks::base

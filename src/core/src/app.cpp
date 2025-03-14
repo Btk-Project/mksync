@@ -4,13 +4,13 @@
 #include <spdlog/spdlog.h>
 #include <csignal>
 
+#include "mksync/core/communication.hpp"
+
 #ifdef _WIN32
     #include <windows.h>
 #elif defined(__linux__)
-
+    #include "mksync/core/platform/xcb_window.hpp"
 #endif
-
-#include "mksync/core/communication.hpp"
 
 namespace mks::base
 {
@@ -23,17 +23,15 @@ namespace mks::base
     App::App(::ilias::IoContext *ctx)
         : _ctx(ctx), _commandInvoker(this), _nodeManager(this), _settings("./config.json")
     {
-        using CallbackType = std::string (App::*)(const CommandInvoker::ArgsType &,
-                                                  const CommandInvoker::OptionsType &);
+        using CallbackType = Task<std::string> (App::*)(const CommandInvoker::ArgsType &,
+                                                        const CommandInvoker::OptionsType &);
         auto coreInstaller = command_installer("Core");
         // 注册退出程序命令
         coreInstaller(std::make_unique<CommonCommand>(CommandInvoker::CommandsData{
             {"exit", "quit", "q"},
             "exit the program",
-            std::bind(
-                static_cast<std::string (App::*)(const CommandInvoker::ArgsType &,
-                                                 const CommandInvoker::OptionsType &)>(&App::stop),
-                this, std::placeholders::_1, std::placeholders::_2),
+            std::bind(static_cast<CallbackType>(&App::stop), this, std::placeholders::_1,
+                      std::placeholders::_2),
             {}
         }));
         coreInstaller(std::make_unique<CommonCommand>(CommandInvoker::CommandsData{
@@ -50,15 +48,28 @@ namespace mks::base
              }
         }));
         coreInstaller(std::make_unique<CommonCommand>(CommandInvoker::CommandsData{
-            {"cofig"},
+            {"config"},
             "config [option] show the config of the program.",
-            [this]([[maybe_unused]] auto args, auto options) -> std::string {
+            [this]([[maybe_unused]]
+                   auto args,
+                   auto options) -> ::ilias::Task<std::string> {
                 options.find("dir") != options.end()
                     ? _settings.load(std::get<std::string>(options["dir"]))
-                    : _settings.load();
-                return "";
-            },
-            {{"dir", CommandInvoker::OptionsData::eString, "set the config.json dir"}}}));
+                    : true;
+                if (options.find("noconsole") != options.end()) {
+                    _isNoConsole = std::get<bool>(options["noconsole"]);
+                    if (_isNoConsole) {
+                        co_await stop_console();
+                    }
+                    else {
+                        SPDLOG_ERROR("can't start console in running!");
+                    }
+                }
+                co_return "";
+             },
+            {{"dir", CommandInvoker::OptionsData::eString, "set the config.json dir"},
+             {"noconsole", CommandInvoker::OptionsData::eBool, "no console input for app"}}
+        }));
 
 #if defined(SIGPIPE)
         ::signal(SIGPIPE, SIG_IGN); // 忽略SIGPIPE信号 防止多跑一秒就会爆炸
@@ -85,34 +96,37 @@ namespace mks::base
 
     auto App::get_screen_info() const -> VirtualScreenInfo
     {
-#ifdef _WIN32
-        HWND        hd           = GetDesktopWindow();
-        int         zoom         = GetDpiForWindow(hd); // 96 is the default DPI
-        uint32_t    screenWidth  = GetSystemMetrics(SM_CXSCREEN) * zoom / 96;
-        uint32_t    screenHeight = GetSystemMetrics(SM_CYSCREEN) * zoom / 96;
         std::string screenName   = _settings.get<std::string>("screen_name", "unknow");
-        DWORD       dwSize       = 255;
+        int         screenWidth  = 0;
+        int         screenHeight = 0;
+#ifdef _WIN32
+        HWND hd      = GetDesktopWindow();
+        int  zoom    = GetDpiForWindow(hd); // 96 is the default DPI
+        screenWidth  = GetSystemMetrics(SM_CXSCREEN) * zoom / 96;
+        screenHeight = GetSystemMetrics(SM_CYSCREEN) * zoom / 96;
+        DWORD dwSize = 255;
         if (wchar_t hostName[255] = {0};
-            screenName != "unknow" && GetComputerNameW(hostName, &dwSize) != 0) {
+            screenName == "unknow" && GetComputerNameW(hostName, &dwSize) != 0) {
             std::filesystem::path path(hostName);
             screenName = path.string();
         }
+#elif defined(__linux__)
+        XcbConnect  connect(get_io_context());
+        const auto *display = getenv("DISPLAY");
+        if (auto ret = connect.connect(display == nullptr ? ":0" : display).wait(*get_io_context());
+            ret) {
+            auto defaultWindow = connect.get_default_root_window();
+            int  posX;
+            int  posY;
+            defaultWindow.get_geometry(posX, posY, screenWidth, screenHeight);
+        }
+#endif
         return VirtualScreenInfo{
             .name      = screenName,
             .screenId  = 0,
-            .width     = screenWidth,
-            .height    = screenHeight,
+            .width     = (uint32_t)screenWidth,
+            .height    = (uint32_t)screenHeight,
             .timestamp = (uint64_t)std::chrono::system_clock::now().time_since_epoch().count()};
-#elif defined(__linux__)
-        return VirtualScreenInfo{.width = 1920, .height = 1080};
-#else
-        return VirtualScreenInfo{
-            .name      = std::string("unknow"),
-            .screenId  = 0,
-            .width     = 1920,
-            .height    = 1080,
-            .timestamp = (uint64_t)std::chrono::system_clock::now().time_since_epoch().count()};
-#endif
     }
 
     auto App::command_installer(std::string_view module)
@@ -123,7 +137,8 @@ namespace mks::base
     }
 
     auto App::log_handle([[maybe_unused]] const CommandInvoker::ArgsType    &args,
-                         [[maybe_unused]] const CommandInvoker::OptionsType &options) -> std::string
+                         [[maybe_unused]] const CommandInvoker::OptionsType &options)
+        -> ::ilias::Task<std::string>
     {
         if (options.contains("max_log")) {
             int value = std::get<int>(options.at("max_log"));
@@ -138,7 +153,7 @@ namespace mks::base
             if (std::get<bool>(options.at("clear"))) {
                 _logList.clear();
             }
-            return "";
+            co_return "";
         }
         if (options.contains("level")) {
             const auto &str = std::get<std::string>(options.at("level"));
@@ -160,18 +175,21 @@ namespace mks::base
             else if (str == "critical") {
                 spdlog::set_level(spdlog::level::critical);
             }
-            return "";
+            co_return "";
         }
         ::fprintf(stdout, "logs: %d items\n", int(_logList.size()));
         for (const auto &msg : _logList) {
             ::fprintf(stdout, "%s\n", msg.c_str());
         }
         ::fflush(stdout);
-        return "";
+        co_return "";
     }
 
     auto App::start_console() -> Task<void>
-    {                              // 监听终端输入
+    { // 监听终端输入
+        if (_isNoConsole) {
+            co_return;
+        }
         if (_isConsoleListening) { // 确保没有正在监听中。
             SPDLOG_ERROR("console is already listening");
             co_return;
@@ -190,7 +208,7 @@ namespace mks::base
             auto ret1 = co_await console->read({strBuffer.get(), 1024});
             if (!ret1) {
                 SPDLOG_ERROR("Console::read failed {}", ret1.error().message());
-                stop_console();
+                _isConsoleListening = false;
                 co_return;
             }
             auto           *line = reinterpret_cast<char *>(strBuffer.get());
@@ -203,9 +221,10 @@ namespace mks::base
         }
     }
 
-    auto App::stop_console() -> void
+    auto App::stop_console() -> Task<void>
     {
         _isConsoleListening = false;
+        co_return;
     }
 
     /**
@@ -219,6 +238,9 @@ namespace mks::base
      */
     auto App::exec(int argc, const char *const *argv) -> Task<void>
     {
+        // load plugs form file
+
+        // load core node
         _nodeManager.add_node(MKCommunication::make(*this));
         _nodeManager.add_node(MKCapture::make(*this));
         _nodeManager.add_node(MKSender::make(*this));
@@ -227,26 +249,32 @@ namespace mks::base
         co_await _nodeManager.start_node();
         _isRuning = true;
         if (argc > 1) {
-            _commandInvoker.execute(std::vector<const char *>(argv + 1, argv + argc));
+            co_await _commandInvoker.execute(std::vector<const char *>(argv + 1, argv + argc));
         }
         while (_isRuning) {
-            co_await start_console();
+            if (!_isNoConsole && !_isConsoleListening) {
+                co_await start_console();
+            }
+            else {
+                co_await std::suspend_never{};
+            }
         }
         co_return;
     }
 
     auto App::stop([[maybe_unused]] const CommandInvoker::ArgsType    &args,
-                   [[maybe_unused]] const CommandInvoker::OptionsType &options) -> std::string
+                   [[maybe_unused]] const CommandInvoker::OptionsType &options)
+        -> ::ilias::Task<std::string>
     {
-        stop();
-        return "";
+        co_await stop();
+        co_return "";
     }
 
-    auto App::stop() -> void
+    auto App::stop() -> ilias::Task<void>
     {
         _isRuning = false;
-        stop_console();
-        _nodeManager.stop_node();
+        co_await stop_console();
+        co_await _nodeManager.stop_node();
     }
 
     auto App::settings() -> Settings &
