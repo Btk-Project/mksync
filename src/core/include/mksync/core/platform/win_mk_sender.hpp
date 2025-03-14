@@ -12,7 +12,7 @@
 #ifdef _WIN32
     #include "mksync/proto/proto.hpp"
     #include "mksync/base/base_library.h"
-    #include "mksync/base/mk_sender.hpp"
+    #include "mksync/core/mk_sender.hpp"
 
 namespace mks::base
 {

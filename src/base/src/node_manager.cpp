@@ -43,7 +43,7 @@ namespace mks::base
 #endif
             return _handle != nullptr;
         }
-        auto create_node(App *app) -> std::unique_ptr<NodeBase, void (*)(NodeBase *)>
+        auto create_node(IApp *app) -> std::unique_ptr<NodeBase, void (*)(NodeBase *)>
         {
             if (_handle == nullptr) {
                 return {nullptr, +[](NodeBase *) {}};
@@ -69,7 +69,7 @@ namespace mks::base
         DL_HANDLE _handle = nullptr;
     };
 
-    NodeManager::NodeManager(App *app) : _app(app) {}
+    NodeManager::NodeManager(IApp *app) : _app(app) {}
 
     NodeManager::~NodeManager()
     {

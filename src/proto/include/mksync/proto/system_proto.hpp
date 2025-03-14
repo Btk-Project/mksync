@@ -394,7 +394,7 @@ namespace mks
         uint32_t    height;    /**< This screen height */
         uint64_t    timestamp; /**< system event time */
 
-        NEKO_SERIALIZER(name, screenId, width, height, height)
+        NEKO_SERIALIZER(name, screenId, width, height, timestamp)
         NEKO_DECLARE_PROTOCOL(VirtualScreenInfo, NEKO_NAMESPACE::JsonSerializer)
     };
 

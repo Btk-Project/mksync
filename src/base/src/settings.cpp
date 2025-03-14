@@ -36,7 +36,7 @@ namespace mks::base
         }
     }
 
-    bool Settings::save()
+    bool Settings::save() const
     {
         if (!std::filesystem::exists(_file)) {
             return false;

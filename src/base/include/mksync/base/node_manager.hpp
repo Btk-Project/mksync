@@ -23,7 +23,7 @@
 namespace mks::base
 {
     class MKS_BASE_API NodeDll;
-    class MKS_BASE_API App;
+    class MKS_BASE_API IApp;
 
     class MKS_BASE_API NodeManager {
     public:
@@ -38,7 +38,7 @@ namespace mks::base
         };
 
     public:
-        NodeManager(App *app);
+        NodeManager(IApp *app);
         ~NodeManager();
 
         auto load_node(std::string_view dll) -> std::string_view;
@@ -64,7 +64,7 @@ namespace mks::base
         auto get_node(std::string_view name) -> NodeBase *;
 
     private:
-        App                                                          *_app;
+        IApp                                                         *_app;
         std::vector<NodeData>                                         _nodeList;
         std::unordered_map<int, std::set<Consumer *>>                 _consumerMap;
         std::unordered_map<std::string_view, ilias::WaitHandle<void>> _cancelHandleMap;

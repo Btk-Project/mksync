@@ -1,4 +1,4 @@
-#include "mksync/base/platform/xcb_window.hpp"
+#include "mksync/core/platform/xcb_window.hpp"
 #ifdef __linux__
     #include <spdlog/spdlog.h>
     #include <xcb/xcb.h>

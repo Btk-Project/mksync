@@ -1,11 +1,11 @@
-#include "mksync/base/communication.hpp"
+#include "mksync/core/communication.hpp"
 
 #include <spdlog/spdlog.h>
 #include <ilias/net/tcp.hpp>
 #include <exception>
 
 #include "mksync/proto/proto.hpp"
-#include "mksync/base/app.hpp"
+#include "mksync/core/app.hpp"
 
 namespace mks::base
 {
@@ -389,7 +389,7 @@ namespace mks::base
                                            _ipendpoint.address().toString(), _ipendpoint.port());
     }
 
-    MKCommunication::MKCommunication(App *app) : _app(app)
+    MKCommunication::MKCommunication(IApp *app) : _protofactory(1, 0, 0), _events(10), _app(app)
     {
         _currentPeer         = _protoStreamClients.end();
         _communicationWapper = std::make_unique<ClientCommunication>(this);
@@ -423,10 +423,9 @@ namespace mks::base
 
     auto MKCommunication::set_current_peer(std::string_view currentPeer) -> void
     {
-        auto item = _protoStreamClients.find(std::string(currentPeer));
+        auto item = _protoStreamClients.find(currentPeer);
         if (item != _protoStreamClients.end()) {
             _currentPeer = item;
-            _syncEvent.set();
         }
         else {
             SPDLOG_WARN("peer {} not found", currentPeer);
@@ -508,29 +507,16 @@ namespace mks::base
 
     auto MKCommunication::get_event() -> ::ilias::IoTask<NekoProto::IProto>
     {
-        while (_status != eDisable) {
-            if (_currentPeer == _protoStreamClients.end()) {
-                _syncEvent.clear();
-                if (auto ret = co_await _syncEvent; !ret) {
-                    // 取消或其他异常状态。直接退出。
-                    co_return Unexpected<Error>(ret.error());
-                }
-            }
-            if (_currentPeer != _protoStreamClients.end()) {
-                if (auto ret = co_await _currentPeer->second.recv(_flags); !ret) {
-                    // 对端出现异常，关闭对端，但不关闭自己的事件生成。
-                    SPDLOG_ERROR("recv event failed {}", ret.error().message());
-                    _protoStreamClients.erase(_currentPeer);
-                    _currentPeer = _protoStreamClients.end();
-                }
-                else {
-                    // 获得消息生成一个事件。
-                    SPDLOG_INFO("recv {} from {}", ret.value().protoName(), _currentPeer->first);
-                    co_return ret;
-                }
+        if (_events.size() == 0) {
+            _syncEvent.clear();
+            auto ret = co_await _syncEvent;
+            if (!ret) {
+                co_return Unexpected<Error>(ret.error());
             }
         }
-        co_return ilias::Unexpected<ilias::Error>(ilias::Error::Unknown);
+        NekoProto::IProto proto;
+        _events.pop(proto);
+        co_return std::move(proto);
     }
 
     auto MKCommunication::status() -> Status
@@ -558,20 +544,20 @@ namespace mks::base
         return _communicationWapper.get();
     }
 
-    auto MKCommunication::start_server(ilias::IPEndpoint endpoint) -> ilias::Task<void>
+    auto MKCommunication::start_server(ilias::IPEndpoint endpoint) -> ilias::Task<int>
     {
         if (_status == eDisable || _status == eClient) {
             SPDLOG_ERROR("{} is disabled", name());
-            co_return;
+            co_return -1;
         }
         if (_status == eServer) { // 确保没有正在作为服务端运行
             SPDLOG_ERROR("server/client is already running");
-            co_return;
+            co_return -1;
         }
         TcpListener server;
         if (auto ret = co_await TcpListener::make(endpoint.family()); !ret) {
             SPDLOG_ERROR("TcpListener::make failed {}", ret.error().message());
-            co_return;
+            co_return -1;
         }
         else {
             server = std::move(ret.value());
@@ -579,16 +565,17 @@ namespace mks::base
         if (auto res = server.bind(endpoint); !res) {
             SPDLOG_ERROR("TcpListener::bind failed {}", res.error().message());
             server.close();
-            co_return;
+            co_return -1;
         }
         else {
             _status = eServer;
             SPDLOG_INFO("server listen {}", endpoint.toString());
+            if (dynamic_cast<ServerCommunication *>(_communicationWapper.get()) == nullptr) {
+                _communicationWapper = std::make_unique<ServerCommunication>(this);
+            }
+            _serverHandle = ilias::spawn(*_app->get_io_context(), _server_loop(std::move(server)));
+            co_return 0;
         }
-        if (dynamic_cast<ServerCommunication *>(_communicationWapper.get()) == nullptr) {
-            _communicationWapper = std::make_unique<ServerCommunication>(this);
-        }
-        _cancelHandle = ilias::spawn(*_app->get_io_context(), _server_loop(std::move(server)));
     }
 
     auto MKCommunication::_server_loop(::ilias::TcpListener tcplistener) -> ::ilias::Task<void>
@@ -597,9 +584,9 @@ namespace mks::base
             if (auto ret1 = co_await tcplistener.accept(); !ret1) {
                 if (ret1.error() != Error::Canceled) {
                     SPDLOG_ERROR("TcpListener::accept failed {}", ret1.error().message());
+                    stop_server();
+                    tcplistener.close();
                 }
-                tcplistener.close();
-                stop_server();
                 co_return;
             }
             else {
@@ -607,14 +594,119 @@ namespace mks::base
                 auto        tcpClient = std::move(ret1.value());
                 std::string ipstr     = tcpClient.second.toString();
                 SPDLOG_INFO("new connection from {}", ipstr);
-                _protoStreamClients.emplace(std::make_pair(
-                    ipstr,
-                    NekoProto::ProtoStreamClient<>(_protofactory, std::move(tcpClient.first))));
-#if 1 // 增加处理当前连接的逻辑
-                _currentPeer = _protoStreamClients.find(ipstr);
-                _syncEvent.set();
-#endif
+                auto client =
+                    NekoProto::ProtoStreamClient<>(_protofactory, std::move(tcpClient.first));
+                if (auto ret = co_await _server_handshake(ipstr, client); ret != 0) {
+                    _protoStreamClients.emplace(std::make_pair(ipstr, std::move(client)));
+                }
             }
+        }
+    }
+
+    // 已客户端启动时，监听来自服务端的消息。
+    auto MKCommunication::_client_loop(NekoProto::ProtoStreamClient<> &client)
+        -> ::ilias::Task<void>
+    {
+        while (_status == eClient) {
+            // TODO:
+            // 仅当为客户端时才可以挂起等待事件，考虑功能后续可能会支持服务端挂起所有客户，但目前这样做消息会混。
+            if (auto ret = co_await client.recv(_flags); !ret) {
+                // 对端出现异常，关闭对端，但不关闭自己的事件生成。
+                SPDLOG_ERROR("recv event failed {}", ret.error().message());
+                if (ret.error() != Error::Canceled) {
+                    client.close();
+                    // TODO: 一旦出现异常就断开，此处应该增加异常状态的识别和重试处理。
+                    co_return disconnect();
+                }
+                co_return;
+            }
+            else {
+                // 获得消息生成一个事件。
+                SPDLOG_INFO("recv {} from {}", ret.value().protoName(), _currentPeer->first);
+                _events.emplace(std::move(ret.value()));
+                _syncEvent.set();
+            }
+        }
+    }
+
+    /**
+     * @brief 客户端握手流程
+     *  - 上报软件信息，校队通信协议版本。 client --> server
+     *  - 成功后上报屏幕信息
+     */
+    auto MKCommunication::_client_handshake(std::string_view                peer,
+                                            NekoProto::ProtoStreamClient<> &client)
+        -> ::ilias::Task<int>
+    {
+        if (_status != eClient) {
+            SPDLOG_ERROR("Communication is not client mode");
+            co_return -1;
+        }
+
+        auto hello =
+            HelloEvent::emplaceProto(mks::base::IApp::app_name(), mks::base::IApp::app_version());
+        if (auto ret = co_await client.send(hello, NekoProto::StreamFlag::VersionVerification);
+            !ret) {
+            SPDLOG_ERROR("send hello to {} failed {}", peer, ret.error().message());
+            co_return -1;
+        }
+
+        auto screenInfo = VirtualScreenInfo::emplaceProto(_app->get_screen_info());
+        if (auto ret = co_await client.send(screenInfo); !ret) {
+            SPDLOG_ERROR("send screen info to {} failed {}", peer, ret.error().message());
+            co_return -1;
+        }
+        co_return 0;
+    }
+
+    /**
+     * @brief 服务端握手流程
+     *  - 接收软件信息，校队通信协议版本。 server <-- client
+     *  - 成功后接收屏幕信息
+     * @param peer
+     * @param client
+     * @return ::ilias::Task<int>
+     */
+    auto MKCommunication::_server_handshake(std::string_view                peer,
+                                            NekoProto::ProtoStreamClient<> &client)
+        -> ::ilias::Task<int>
+    {
+        if (_status != eServer) {
+            SPDLOG_ERROR("Communication is not server mode");
+            co_return -1;
+        }
+
+        auto hello = co_await client.recv();
+        if (!hello) {
+            SPDLOG_ERROR("recv hello from {} failed {}", peer, hello.error().message());
+            co_return -1;
+        }
+        std::string name, version;
+        if (auto *proto = hello->cast<HelloEvent>(); proto == nullptr) {
+            SPDLOG_ERROR("recv hello from {} failed {}", peer, "not hello event");
+        }
+        else {
+            name    = proto->name;
+            version = proto->version;
+            SPDLOG_INFO("recv hello from {} {} - {}", peer, proto->name, proto->version);
+        }
+
+        auto screenInfo = co_await client.recv();
+        if (!screenInfo) {
+            SPDLOG_ERROR("recv screen info from {} failed {}", peer, screenInfo.error().message());
+            co_return -1;
+        }
+        if (auto *proto = screenInfo->cast<VirtualScreenInfo>(); proto == nullptr) {
+            SPDLOG_ERROR("recv screen info from {} failed {}", peer, "not screen info event");
+            co_return -1;
+        }
+        else {
+            SPDLOG_INFO("recv screen info from {} {}:({}x{} {})", peer, proto->name, proto->width,
+                        proto->height, proto->screenId);
+            auto client = ClientConnected::emplaceProto(name, std::move(*proto));
+            _events.emplace(std::move(client));
+            _syncEvent.set();
+            co_return 0;
         }
     }
 
@@ -623,9 +715,9 @@ namespace mks::base
         if (_status != eServer) {
             return;
         }
-        if (_cancelHandle) {
-            _cancelHandle.cancel();
-            _cancelHandle = {};
+        if (_serverHandle) {
+            _serverHandle.cancel();
+            _serverHandle = {};
         }
         if (_protoStreamClients.size() != 0U) {
             _protoStreamClients.clear();
@@ -641,51 +733,59 @@ namespace mks::base
      * @param endpoint
      * @return Task<void>
      */
-    auto MKCommunication::connect_to(ilias::IPEndpoint endpoint) -> ilias::Task<void>
+    auto MKCommunication::connect_to(ilias::IPEndpoint endpoint) -> ilias::Task<int>
     {
         if (_status == eDisable || _status == eServer) {
             SPDLOG_ERROR("Communication is server mode or disabled");
-            co_return;
+            co_return -1;
         }
         if (_protoStreamClients.size() > 0) { // 确保没有正在作为服务端运行
             SPDLOG_ERROR("server/client is already running");
-            co_return;
+            co_return -1;
         }
         TcpClient tcpClient;
         if (auto ret = co_await TcpClient::make(endpoint.family()); !ret) {
             SPDLOG_ERROR("TcpClient::make failed {}", ret.error().message());
-            co_return;
+            co_return -1;
         }
         else {
             tcpClient = std::move(ret.value());
         }
         if (auto res = co_await tcpClient.connect(endpoint); !res) {
             SPDLOG_ERROR("TcpClient::connect failed {}", res.error().message());
-            co_return;
+            co_return -1;
         }
-        _currentPeer = _protoStreamClients.emplace_hint(
-            _protoStreamClients.begin(),
-            std::make_pair("self",
-                           NekoProto::ProtoStreamClient<>(
-                               _protofactory, std::move(tcpClient)))); // 构造用于传输协议的壳
+        auto client = NekoProto::ProtoStreamClient<>(_protofactory, std::move(tcpClient));
+        if (auto ret = co_await _client_handshake("self", client); ret != 0) {
+            SPDLOG_ERROR("client handshake failed {}", ret);
+            co_return -1;
+        }
+        _clientHandle = ::ilias::spawn(*_app->get_io_context(), _client_loop(client));
+        _currentPeer  = _protoStreamClients.emplace_hint(_protoStreamClients.begin(),
+                                                         std::make_pair("self", std::move(client)));
         if (dynamic_cast<ClientCommunication *>(_communicationWapper.get()) == nullptr) {
             _communicationWapper = std::make_unique<ClientCommunication>(this);
         }
-        _syncEvent.set();
         SPDLOG_INFO("connect to {}", endpoint.toString());
         _status = eClient;
-        co_return;
+        co_return 0;
     }
 
+    // 断开服务端连接
     auto MKCommunication::disconnect() -> void
     {
         if (_status != eClient) {
             return;
         }
+        if (_clientHandle) {
+            _clientHandle.cancel();
+            _clientHandle.wait();
+        }
         if (_protoStreamClients.size() != 0U) {
             _protoStreamClients.clear();
             _currentPeer = _protoStreamClients.end();
         }
+        _syncEvent.set();
         _status = eEnable;
     }
 

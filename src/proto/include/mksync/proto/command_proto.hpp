@@ -15,6 +15,8 @@
 #include <nekoproto/proto/serializer_base.hpp>
 #include <nekoproto/proto/json_serializer.hpp>
 
+#include "mksync/proto/system_proto.hpp"
+
 namespace mks
 {
     // 服务端相关命令
@@ -69,6 +71,18 @@ namespace mks
 
         NEKO_SERIALIZER(name, peer, screenId)
         NEKO_DECLARE_PROTOCOL(FocusScreenChanged, NEKO_NAMESPACE::JsonSerializer)
+    };
+
+    /**
+     * @brief 有来自客户端连接。
+     *
+     */
+    struct ClientConnected {
+        std::string       peer; /**< 客户端名称 */
+        VirtualScreenInfo info; /**< 客户端屏幕信息 */
+
+        NEKO_SERIALIZER(peer)
+        NEKO_DECLARE_PROTOCOL(ClientConnected, NEKO_NAMESPACE::JsonSerializer)
     };
 
     // 客户端相关命令

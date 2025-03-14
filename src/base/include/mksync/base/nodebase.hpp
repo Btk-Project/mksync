@@ -36,7 +36,7 @@
 
 namespace mks::base
 {
-    class App;
+    class IApp;
     /**
      * @brief Node
      * 节点基类，作为插件的最低要求，必须至少实现该类的接口。
@@ -49,10 +49,12 @@ namespace mks::base
      */
     class MKS_BASE_API NodeBase {
     public:
-        enum Result {
+        enum Result
+        {
             eError   = -1,
             eSuccess = 0,
         };
+
     public:
         NodeBase()          = default;
         virtual ~NodeBase() = default;
@@ -76,7 +78,8 @@ namespace mks::base
     public:
         Consumer()          = default;
         virtual ~Consumer() = default;
-        ///> 订阅的事件集，当有事件发生时，会调用handle_event。需要返回， 如果需要动态增减，可以使用NodeManager的接口。
+        ///> 订阅的事件集，当有事件发生时，会调用handle_event。需要返回，
+        /// 如果需要动态增减，可以使用NodeManager的接口。
         virtual auto get_subscribers() -> std::vector<int> = 0;
         ///> 处理一个事件，需要订阅。
         virtual auto handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void> = 0;
