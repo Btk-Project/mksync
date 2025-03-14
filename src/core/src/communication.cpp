@@ -146,14 +146,14 @@ namespace mks::base
     {
         switch (_operation) {
         case eStart:
-            co_await _self->start_server(_ipendpoint);
+            co_await _self->listen(_ipendpoint);
             break;
         case eStop:
-            co_await _self->stop_server();
+            co_await _self->close();
             break;
         case eRestart:
-            co_await _self->stop_server();
-            co_await _self->start_server(_ipendpoint);
+            co_await _self->close();
+            co_await _self->listen(_ipendpoint);
             break;
         default:
             SPDLOG_ERROR("Unknown server operation");
@@ -316,14 +316,14 @@ namespace mks::base
     {
         switch (_operation) {
         case eStart:
-            co_await _self->connect_to(_ipendpoint);
+            co_await _self->connect(_ipendpoint);
             break;
         case eStop:
-            co_await _self->disconnect();
+            co_await _self->close();
             break;
         case eRestart:
-            co_await _self->disconnect();
-            co_await _self->connect_to(_ipendpoint);
+            co_await _self->close();
+            co_await _self->connect(_ipendpoint);
             break;
         default:
             SPDLOG_ERROR("Unknown server operation");
@@ -381,7 +381,8 @@ namespace mks::base
                                            _ipendpoint.address().toString(), _ipendpoint.port());
     }
 
-    MKCommunication::MKCommunication(IApp *app) : _protofactory(1, 0, 0), _events(10), _app(app)
+    MKCommunication::MKCommunication(IApp *app)
+        : _protofactory(1, 0, 0), _events(10), _app(app), _taskScope(*_app->get_io_context())
     {
         _currentPeer         = _protoStreamClients.end();
         _communicationWapper = std::make_unique<ClientCommunication>(this);
@@ -397,10 +398,9 @@ namespace mks::base
 
     auto MKCommunication::disable() -> ::ilias::Task<int>
     {
-        _status = eDisable;
         _syncEvent.set();
-        co_await stop_server();
-        co_await disconnect();
+        co_await close();
+        _status = eDisable;
         co_return 0;
     }
 
@@ -537,7 +537,7 @@ namespace mks::base
         return _communicationWapper.get();
     }
 
-    auto MKCommunication::start_server(ilias::IPEndpoint endpoint) -> ilias::Task<int>
+    auto MKCommunication::listen(ilias::IPEndpoint endpoint) -> ilias::Task<int>
     {
         if (_status == eDisable || _status == eClient) {
             SPDLOG_ERROR("{} is disabled", name());
@@ -566,7 +566,7 @@ namespace mks::base
             if (dynamic_cast<ServerCommunication *>(_communicationWapper.get()) == nullptr) {
                 _communicationWapper = std::make_unique<ServerCommunication>(this);
             }
-            _serverHandle = ilias::spawn(*_app->get_io_context(), _server_loop(std::move(server)));
+            _taskScope.spawn(_server_loop(std::move(server)));
             co_return 0;
         }
     }
@@ -624,10 +624,9 @@ namespace mks::base
                     SPDLOG_ERROR("recv event failed {}", ret.error().message());
                 }
                 else {
+                    // TODO: 一旦出现异常就断开，此处应该增加异常状态的识别和重试处理。
                     SPDLOG_INFO("client loop canceled");
                 }
-                // TODO: 一旦出现异常就断开，此处应该增加异常状态的识别和重试处理。
-                co_await client.close();
                 break;
             }
         }
@@ -709,22 +708,6 @@ namespace mks::base
         }
     }
 
-    auto MKCommunication::stop_server() -> ::ilias::Task<void>
-    {
-        if (_status != eServer) {
-            co_return;
-        }
-        if (_serverHandle) {
-            _serverHandle.cancel();
-            co_await std::move(_serverHandle);
-        }
-        if (_protoStreamClients.size() != 0U) {
-            _protoStreamClients.clear();
-            _currentPeer = _protoStreamClients.end();
-        }
-        _status = eEnable;
-    }
-
     // client
     /**
      * @brief connect to server
@@ -732,7 +715,7 @@ namespace mks::base
      * @param endpoint
      * @return Task<void>
      */
-    auto MKCommunication::connect_to(ilias::IPEndpoint endpoint) -> ilias::Task<int>
+    auto MKCommunication::connect(ilias::IPEndpoint endpoint) -> ilias::Task<int>
     {
         if (_status == eDisable || _status == eServer) {
             SPDLOG_ERROR("Communication is server mode or disabled");
@@ -759,11 +742,10 @@ namespace mks::base
             SPDLOG_ERROR("client handshake failed {}", ret);
             co_return -1;
         }
-        _status       = eClient;
-        _clientHandle = ::ilias::spawn(*_app->get_io_context(), _client_loop(client));
-        _currentPeer  = _protoStreamClients.emplace_hint(_protoStreamClients.begin(),
-                                                         std::make_pair("self", std::move(client)));
-        _clientHandle = ::ilias::spawn(*_app->get_io_context(), _client_loop(_currentPeer->second));
+        _status      = eClient;
+        _currentPeer = _protoStreamClients.emplace_hint(_protoStreamClients.begin(),
+                                                        std::make_pair("self", std::move(client)));
+        _taskScope.spawn(_client_loop(_currentPeer->second));
         if (dynamic_cast<ClientCommunication *>(_communicationWapper.get()) == nullptr) {
             _communicationWapper = std::make_unique<ClientCommunication>(this);
         }
@@ -772,21 +754,18 @@ namespace mks::base
     }
 
     // 断开服务端连接
-    auto MKCommunication::disconnect() -> Task<void>
+    auto MKCommunication::close() -> Task<void>
     {
-        if (_status != eClient) {
-            co_return;
-        }
         for (auto &item : _protoStreamClients) {
             co_await item.second.close();
         }
-        if (_clientHandle) {
-            _clientHandle.cancel();
-            co_await std::move(_clientHandle);
-        }
+        _taskScope.cancel();
+        co_await _taskScope;
         _protoStreamClients.clear();
         _currentPeer = _protoStreamClients.end();
-        _status      = eEnable;
+        if (_status == eClient || _status == eServer) {
+            _status = eEnable;
+        }
     }
 
     auto MKCommunication::set_communication_options(

@@ -79,7 +79,7 @@ namespace mks::base
                                    &mask.head);
         _xcbConnect->select_event(_captureWindow.get());
 
-        _grabEventHandle = ilias_go _xcbConnect->event_loop();
+        _grabEventHandle = ::ilias::spawn(*_app->get_io_context(), _xcbConnect->event_loop());
         co_return co_await MKCapture::enable();
     }
 
@@ -116,6 +116,7 @@ namespace mks::base
         _isCapture = false;
         if (_grabEventHandle) {
             _grabEventHandle.cancel();
+            co_await std::move(_grabEventHandle);
         }
         if (_xcbConnect) {
             _xcbConnect->ungrab_pointer();

@@ -19,6 +19,7 @@
 #include "mksync/base/communication.hpp"
 
 #include <ilias/sync/event.hpp>
+#include <ilias/sync/scope.hpp>
 #include <map>
 
 namespace mks::base
@@ -68,15 +69,13 @@ namespace mks::base
 
         // server
         /**
-         * @brief start server
+         * @brief server
          * 如果需要ilias_go参数列表必须复制。
          * @param endpoint
          * @return Task<void>
          */
         [[nodiscard("coroutine function")]]
-        auto start_server(ilias::IPEndpoint endpoint) -> ilias::Task<int>;
-        [[nodiscard("coroutine function")]]
-        auto stop_server() -> ::ilias::Task<void>;
+        auto listen(ilias::IPEndpoint endpoint) -> ilias::Task<int>;
 
         // client
         /**
@@ -86,10 +85,10 @@ namespace mks::base
          * @return Task<void>
          */
         [[nodiscard("coroutine function")]]
-        auto connect_to(ilias::IPEndpoint endpoint) -> ilias::Task<int>;
-        [[nodiscard("coroutine function")]]
-        auto disconnect() -> ilias::Task<void>;
+        auto connect(ilias::IPEndpoint endpoint) -> ilias::Task<int>;
 
+        [[nodiscard("coroutine function")]]
+        auto close() -> ilias::Task<void>;
         // communication
         auto set_current_peer(std::string_view currentPeer) -> void;
         auto current_peer() const -> std::string;
@@ -114,21 +113,20 @@ namespace mks::base
         [[nodiscard("coroutine function")]]
         auto _client_loop(NekoProto::ProtoStreamClient<> &client) -> ::ilias::Task<void>;
         [[nodiscard("coroutine function")]]
-        auto _client_handshake(std::string_view                peer,
-                               NekoProto::ProtoStreamClient<> *client) -> ::ilias::Task<int>;
+        auto _client_handshake(std::string_view peer, NekoProto::ProtoStreamClient<> *client)
+            -> ::ilias::Task<int>;
         [[nodiscard("coroutine function")]]
-        auto _server_handshake(std::string_view                peer,
-                               NekoProto::ProtoStreamClient<> *client) -> ::ilias::Task<int>;
+        auto _server_handshake(std::string_view peer, NekoProto::ProtoStreamClient<> *client)
+            -> ::ilias::Task<int>;
 
     private:
         NekoProto::ProtoFactory       _protofactory;
         RingBuffer<NekoProto::IProto> _events;
         IApp                         *_app = nullptr;
         ::ilias::Event                _syncEvent;
-        ::ilias::WaitHandle<void>     _serverHandle = {};
-        ::ilias::WaitHandle<void>     _clientHandle = {};
-        Status                        _status       = eDisable;
-        NekoProto::StreamFlag         _flags        = NekoProto::StreamFlag::None;
+        ::ilias::TaskScope            _taskScope;
+        Status                        _status = eDisable;
+        NekoProto::StreamFlag         _flags  = NekoProto::StreamFlag::None;
         std::map<std::string, NekoProto::ProtoStreamClient<>, std::less<>> _protoStreamClients;
         std::map<std::string, NekoProto::ProtoStreamClient<>, std::less<>>::iterator _currentPeer;
         std::unique_ptr<ICommunication> _communicationWapper; // 通信封装
