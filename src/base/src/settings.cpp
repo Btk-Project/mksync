@@ -38,9 +38,6 @@ namespace mks::base
 
     bool Settings::save() const
     {
-        if (!std::filesystem::exists(_file)) {
-            return false;
-        }
         std::ofstream ofs(_file);
         if (!ofs.is_open()) {
             return false;
@@ -62,7 +59,7 @@ namespace mks::base
     bool Settings::load()
     {
         if (!std::filesystem::exists(_file)) {
-            return false;
+            return true;
         }
         std::ifstream ifs(_file);
         if (!ifs.is_open()) {

@@ -31,7 +31,7 @@ TEST(Settings, Default)
     std::set<std::string> ss = {"a", "b", "c"};
     settings.set("ss", ss);
     settings.set("mode", eServer);
-    settings.save();
+    EXPECT_TRUE(settings.save());
 }
 
 TEST(Settings, Load)
