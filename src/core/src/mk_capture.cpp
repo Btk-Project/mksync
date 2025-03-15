@@ -16,7 +16,7 @@ namespace mks::base
 {
     using ::ilias::Task;
 
-    class MKS_BASE_API CaptureCommand : public Command {
+    class MKS_CORE_API CaptureCommand : public Command {
     public:
         enum Operation
         {

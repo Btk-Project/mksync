@@ -114,7 +114,7 @@ namespace mks::base
         XcbConnect connect(get_io_context());
         if (screenName == "unknow") {
             char name[255] = {0};
-            if (auto ret = gethostname(name, 255); ret) {
+            if (auto ret = gethostname(name, 255); ret == 0) {
                 screenName = name;
             }
         }
@@ -211,19 +211,21 @@ namespace mks::base
             memset(strBuffer.get(), 0, 1024);
             printf("%s >>> ", App::app_name());
             fflush(stdout);
-            auto ret1 = co_await console->read({strBuffer.get(), 1024});
-            if (!ret1) {
+            if (auto ret1 = co_await console->read({strBuffer.get(), 1024}); ret1) {
+                auto           *line = reinterpret_cast<char *>(strBuffer.get());
+                std::span<char> lineView(line, line + ret1.value());
+                while (lineView.size() > 0 &&
+                       (lineView.back() == '\r' || lineView.back() == '\n')) {
+                    lineView[lineView.size() - 1] = '\0';
+                    lineView                      = lineView.subspan(0, lineView.size() - 1);
+                }
+                co_await _commandInvoker.execute(lineView);
+            }
+            else {
                 SPDLOG_ERROR("Console::read failed {}", ret1.error().message());
                 _isConsoleListening = false;
                 co_return;
             }
-            auto           *line = reinterpret_cast<char *>(strBuffer.get());
-            std::span<char> lineView(line, line + ret1.value());
-            while (lineView.size() > 0 && (lineView.back() == '\r' || lineView.back() == '\n')) {
-                lineView[lineView.size() - 1] = '\0';
-                lineView                      = lineView.subspan(0, lineView.size() - 1);
-            }
-            co_await _commandInvoker.execute(lineView);
         }
     }
 

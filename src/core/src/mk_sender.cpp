@@ -16,7 +16,7 @@ namespace mks::base
 {
     using ::ilias::Task;
 
-    class MKS_BASE_API MKSenderCommand : public Command {
+    class MKS_CORE_API MKSenderCommand : public Command {
     public:
         enum Operation
         {

@@ -12,9 +12,8 @@
 
 #include <nekoproto/communication/communication_base.hpp>
 
-#include "mksync/base/base_library.h"
+#include "mksync/core/core_library.h"
 #include "mksync/base/nodebase.hpp"
-#include "mksync/base/command_invoker.hpp"
 
 namespace mks::base
 {
@@ -30,7 +29,7 @@ namespace mks::base
      * start节点后，该节点就会开始生产BorderEvent，该事件在鼠标靠近屏幕边界时产生。
      *
      */
-    class MKS_BASE_API MKCapture : public NodeBase, public Producer {
+    class MKS_CORE_API MKCapture : public NodeBase, public Producer {
     public:
         MKCapture(::ilias::IoContext *ctx) : _ctx(ctx) {};
         virtual ~MKCapture() = default;

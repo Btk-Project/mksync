@@ -69,12 +69,12 @@ namespace mks::base
         DL_HANDLE _handle = nullptr;
     };
 
-    NodeManager::NodeManager(IApp *app) : _app(app) {}
+    NodeManager::NodeManager(IApp *app) : _app(app), _taskScope(*app->get_io_context()) {}
 
     NodeManager::~NodeManager()
     {
         stop_node().wait();
-        _cancelHandleMap.clear();
+        _taskScope.cancel();
     }
 
     auto NodeManager::load_node(std::string_view dll) -> std::string_view
@@ -86,7 +86,7 @@ namespace mks::base
                 SPDLOG_ERROR("load plugin from {} failed!", dll);
                 return "";
             }
-            auto name = node->name();
+            const auto *name = node->name();
             add_node(std::move(node));
             return name;
         }
@@ -144,8 +144,7 @@ namespace mks::base
             }
             auto *producer = dynamic_cast<Producer *>(node.node.get());
             if (producer != nullptr) {
-                _cancelHandleMap[node.node->name()] =
-                    ::ilias::spawn(*_app->get_io_context(), producer_loop(producer));
+                _cancelHandleMap[node.node->name()] = _taskScope.spawn(producer_loop(producer));
             }
             co_return 0;
         }

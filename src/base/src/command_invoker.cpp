@@ -3,6 +3,8 @@
 #include <spdlog/spdlog.h>
 #include <charconv>
 #include <fmt/format.h>
+#include <algorithm>
+#include <numeric>
 
 #include "mksync/base/app.hpp"
 namespace mks::base
@@ -58,6 +60,29 @@ namespace mks::base
             return unfold_option_variant_to_string_helper<Ts...>::unfold_value(
                 value, std::index_sequence_for<Ts...>{});
         }
+
+        template <typename T>
+        std::string to_string(const std::vector<T> &value)
+        {
+            return std::accumulate(value.begin(), value.end(), std::string{},
+                                   [](const std::string &astr, const T &bstr) {
+                                       return astr.empty() ? to_string(bstr)
+                                                           : astr + "," + to_string(bstr);
+                                   });
+        }
+
+        template <typename KeyT, typename ValueT, typename CompT>
+        std::string to_string(const std::map<KeyT, ValueT, CompT> &value)
+        {
+            return std::accumulate(
+                value.begin(), value.end(), std::string{},
+                [](const std::string &astr, const std::pair<KeyT, ValueT> &bstr) {
+                    return astr.empty()
+                               ? to_string(bstr.first) + "=" + to_string(bstr.second)
+                               : astr + "," + to_string(bstr.first) + "=" + to_string(bstr.second);
+                });
+        }
+
     } // namespace detail
 
     CommonCommand::CommonCommand(CommandInvoker::CommandsData &&data)
@@ -88,7 +113,8 @@ namespace mks::base
     auto CommonCommand::execute() -> Task<void>
     {
         if (auto ret = co_await _data.callback(_args, _options); !ret.empty()) {
-            SPDLOG_ERROR("{} failed : {}", name(), ret);
+            SPDLOG_ERROR("{} failed with args:({}) options:({}) -- error : {}", name(),
+                         detail::to_string(_args), detail::to_string(_options), ret);
         }
         co_return;
     }
@@ -111,8 +137,7 @@ namespace mks::base
     void CommonCommand::set_option(std::string_view option, std::string_view value)
     {
         if (option.empty()) {
-            _args.push_back(value);
-            SPDLOG_INFO("arg {}", value);
+            _args.push_back(std::string(value));
             return;
         }
         for (auto &opt : _data.options) {
@@ -154,11 +179,15 @@ namespace mks::base
 
     void CommonCommand::set_options([[maybe_unused]] const NekoProto::IProto &proto)
     {
+        _args.clear();
+        _options.clear();
         SPDLOG_ERROR("No command proto implemented for {}", name());
     }
 
     void CommonCommand::parser_options(const std::vector<const char *> &args)
     {
+        _args.clear();
+        _options.clear();
         auto options = _option.parse(int(args.size()), args.data());
         for (const auto &opt : _data.options) {
             if (auto size = options.count(opt.name); size == 0) {
@@ -198,7 +227,7 @@ namespace mks::base
         return NekoProto::IProto();
     }
 
-    CommandInvoker::CommandInvoker(App *app) : _app(app)
+    CommandInvoker::CommandInvoker(IApp *app) : _app(app)
     {
         install_cmd(std::make_unique<CommonCommand>(CommandsData{
                         {"help", "h", "?"},
@@ -218,8 +247,8 @@ namespace mks::base
                     "Core");
     }
 
-    auto CommandInvoker::install_cmd(std::unique_ptr<Command> command,
-                                     std::string_view         module) -> bool
+    auto CommandInvoker::install_cmd(std::unique_ptr<Command> command, std::string_view module)
+        -> bool
     {
         if (_trie.search(command->name())) {
             SPDLOG_ERROR("command \"{}\" already exists", command->name());
@@ -274,9 +303,10 @@ namespace mks::base
 
     auto CommandInvoker::execute(const NekoProto::IProto &proto) -> Task<void>
     {
-        // if (proto == nullptr) {
-        //     return;
-        // }
+        if (proto == nullptr) {
+            SPDLOG_ERROR("command invoker execute a null proto!");
+            co_return;
+        }
         int  type = proto.type();
         auto item = _protoCommandsTable.find(type);
         if (item != _protoCommandsTable.end()) {

@@ -23,7 +23,7 @@
 
 namespace mks::base
 {
-    class App;
+    class IApp;
 
     /**
      * @brief CommandInvoker
@@ -35,9 +35,9 @@ namespace mks::base
     class MKS_BASE_API CommandInvoker {
     public:
         using CommandsType = std::vector<std::string_view>;
-        using ArgsType     = std::vector<std::string_view>;
+        using ArgsType     = std::vector<std::string>;
         using OptionsType =
-            std::map<std::string_view, std::variant<bool, int, double, std::string>>;
+            std::map<std::string, std::variant<bool, int, double, std::string>, std::less<>>;
         using CommandCallbackType = std::function<::ilias::Task<std::string>(
             const ArgsType &args, const OptionsType &options)>;
         struct OptionsData {
@@ -60,7 +60,7 @@ namespace mks::base
         };
 
     public:
-        CommandInvoker(App *app);
+        CommandInvoker(IApp *app);
         auto install_cmd(std::unique_ptr<Command> command, std::string_view module = "") -> bool;
         [[nodiscard("coroutine function")]]
         auto execute(std::span<char> cmdline) -> ::ilias::Task<void>;
@@ -69,11 +69,11 @@ namespace mks::base
         [[nodiscard("coroutine function")]]
         auto execute(const std::vector<const char *> &cmdline) -> ::ilias::Task<void>;
         [[nodiscard("coroutine function")]]
-        auto show_help(const ArgsType    &args,
-                       const OptionsType &options) -> ::ilias::Task<std::string>;
+        auto show_help(const ArgsType &args, const OptionsType &options)
+            -> ::ilias::Task<std::string>;
         [[nodiscard("coroutine function")]]
-        auto show_version(const ArgsType    &args,
-                          const OptionsType &options) -> ::ilias::Task<std::string>;
+        auto show_version(const ArgsType &args, const OptionsType &options)
+            -> ::ilias::Task<std::string>;
 
     private:
         static auto _split(std::span<char> str, char ch = ' ') -> std::vector<const char *>;
@@ -83,7 +83,7 @@ namespace mks::base
         std::vector<std::unique_ptr<Command>> _commands;
         std::unordered_map<int, int>          _protoCommandsTable;
         Trie<int>                             _trie;
-        App                                  *_app = nullptr;
+        IApp                                 *_app = nullptr;
     };
 
     class CommonCommand : public Command {
@@ -102,9 +102,9 @@ namespace mks::base
         auto get_options() const -> NekoProto::IProto override;
 
     private:
-        CommandInvoker::CommandsData _data;
-        CommandInvoker::ArgsType     _args;
-        CommandInvoker::OptionsType  _options;
+        CommandInvoker::CommandsData _data    = {};
+        CommandInvoker::ArgsType     _args    = {};
+        CommandInvoker::OptionsType  _options = {};
         mutable cxxopts::Options     _option;
     };
 } // namespace mks::base
