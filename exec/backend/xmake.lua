@@ -27,6 +27,7 @@ target("backend")
         on_run(function (target)
             local argv = {}
             table.insert(argv, "--leak-check=full")
+            table.insert(argv, "--track-origins=yes")
             table.insert(argv, target:targetfile())
             os.execv("valgrind", argv)
         end)

@@ -16,7 +16,7 @@ namespace mks::base
     using ::ilias::TcpListener;
     using ::ilias::Unexpected;
 
-    class MKS_BASE_API ServerCommand : public Command {
+    class MKS_CORE_API ServerCommand : public Command {
     public:
         enum Operation
         {
@@ -47,7 +47,7 @@ namespace mks::base
         cxxopts::Options _options;
     };
 
-    class MKS_BASE_API ClientCommand : public ServerCommand {
+    class MKS_CORE_API ClientCommand : public ServerCommand {
     public:
         ClientCommand(MKCommunication *self);
 
@@ -58,7 +58,7 @@ namespace mks::base
         auto get_options() const -> NekoProto::IProto override;
     };
 
-    class MKS_BASE_API ServerCommunication : public IServerCommunication {
+    class MKS_CORE_API ServerCommunication : public IServerCommunication {
     public:
         ServerCommunication(MKCommunication *self);
         auto declare_proto_to_send(int type) -> void override;
@@ -70,7 +70,7 @@ namespace mks::base
         MKCommunication *_self = nullptr;
     };
 
-    class MKS_BASE_API ClientCommunication : public IClientCommunication {
+    class MKS_CORE_API ClientCommunication : public IClientCommunication {
     public:
         ClientCommunication(MKCommunication *self);
         auto declare_proto_to_send(int type) -> void override;
@@ -386,6 +386,7 @@ namespace mks::base
     {
         _currentPeer         = _protoStreamClients.end();
         _communicationWapper = std::make_unique<ClientCommunication>(this);
+        _taskScope.setAutoCancel(true);
     }
 
     auto MKCommunication::enable() -> ::ilias::Task<int>

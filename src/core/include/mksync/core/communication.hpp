@@ -12,7 +12,7 @@
 
 #include <nekoproto/communication/communication_base.hpp>
 
-#include "mksync/base/base_library.h"
+#include "mksync/core/core_library.h"
 #include "mksync/base/nodebase.hpp"
 #include "mksync/base/command_invoker.hpp"
 #include "mksync/base/ring_buffer.hpp"
@@ -24,7 +24,6 @@
 
 namespace mks::base
 {
-    class IApp;
     class App;
     /**
      * @brief communication
@@ -38,7 +37,7 @@ namespace mks::base
      *      - 接收来自网络的事件到本地
      *      - 发送本地事件到网络
      */
-    class MKS_BASE_API MKCommunication : public NodeBase, public Consumer, public Producer {
+    class MKS_CORE_API MKCommunication : public NodeBase, public Consumer, public Producer {
     public:
         enum Status
         {

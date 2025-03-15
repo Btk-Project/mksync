@@ -16,6 +16,7 @@
 #include <ilias/fs/console.hpp>
 #include <fmt/format.h>
 #include <cxxopts.hpp>
+#include <ilias/sync/scope.hpp>
 
 #include "mksync/base/base_library.h"
 #include "mksync/base/nodebase.hpp"
@@ -72,10 +73,11 @@ namespace mks::base
         auto get_node(std::string_view name) -> NodeBase *;
 
     private:
-        IApp                                                         *_app;
-        std::vector<NodeData>                                         _nodeList;
-        std::unordered_map<int, std::set<Consumer *>>                 _consumerMap;
-        std::unordered_map<std::string_view, ilias::WaitHandle<void>> _cancelHandleMap;
-        std::vector<std::unique_ptr<NodeDll>>                         _dlls;
+        IApp                                                                *_app;
+        std::vector<NodeData>                                                _nodeList;
+        std::unordered_map<int, std::set<Consumer *>>                        _consumerMap;
+        ::ilias::TaskScope                                                   _taskScope;
+        std::vector<std::unique_ptr<NodeDll>>                                _dlls;
+        std::unordered_map<std::string_view, ilias::TaskScope::WaitHandle<>> _cancelHandleMap;
     };
 } // namespace mks::base

@@ -12,7 +12,7 @@
 
 #include <ilias/task.hpp>
 
-#include "mksync/base/base_library.h"
+#include "mksync/core/core_library.h"
 #include "mksync/base/nodebase.hpp"
 #include "mksync/base/command_invoker.hpp"
 
@@ -24,7 +24,7 @@ namespace mks::base
      * 系统事件构造对象，用于将接收的事件构造并发送给系统。
      *
      */
-    class MKS_BASE_API MKSender : public NodeBase, public Consumer {
+    class MKS_CORE_API MKSender : public NodeBase, public Consumer {
     public:
         MKSender(::ilias::IoContext *ctx) : _ctx(ctx) {}
         virtual ~MKSender() = default;
