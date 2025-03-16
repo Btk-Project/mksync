@@ -276,7 +276,7 @@ namespace mks::base
             keymod = mks::KeyMod::eKmodScroll;
         }
 
-        _events.emplace(mks::KeyEvent::emplaceProto(
+        _events.emplace(mks::KeyboardEvent::emplaceProto(
             (wp == WM_KEYDOWN) ? mks::KeyboardState::eKeyDown : mks::KeyboardState::eKeyUp, keycode,
             keymod, (uint64_t)hookStruct->time));
         _syncEvent.set();

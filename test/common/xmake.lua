@@ -24,7 +24,7 @@ for _, file in ipairs(os.files("./**/test_*.cpp")) do
         add_defines("NEKO_PROTO_STATIC")
         add_defines("ILIAS_ENABLE_LOG", "ILIAS_USE_FMT")
         add_includedirs("../../src/base/include/")
-        add_deps("base")
+        add_deps("base", "core")
         add_packages("gtest", "ilias", "fmt", "neko-proto", "spdlog", "cxxopts", "rapidjson")
         set_targetdir("$(testdir)")
         set_languages("c++20")

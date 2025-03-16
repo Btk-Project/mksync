@@ -138,7 +138,7 @@ namespace mks::base
             node.status    = NodeStatus::eNodeStatusRunning;
             auto *consumer = dynamic_cast<Consumer *>(node.node.get());
             if (consumer != nullptr) {
-                for (int type : consumer->get_subscribers()) {
+                for (int type : consumer->get_subscribes()) {
                     _consumerMap[type].insert(consumer);
                 }
             }
@@ -164,14 +164,28 @@ namespace mks::base
         co_return;
     }
 
-    auto NodeManager::subscriber(int type, Consumer *consumer) -> void
+    auto NodeManager::subscribe(int type, Consumer *consumer) -> void
     {
         _consumerMap[type].insert(consumer);
+    }
+
+    auto NodeManager::subscribe(std::vector<int> types, Consumer *consumer) -> void
+    {
+        for (int type : types) {
+            _consumerMap[type].insert(consumer);
+        }
     }
 
     auto NodeManager::unsubscribe(int type, Consumer *consumer) -> void
     {
         _consumerMap[type].erase(consumer);
+    }
+
+    auto NodeManager::unsubscribe(std::vector<int> types, Consumer *consumer) -> void
+    {
+        for (int type : types) {
+            _consumerMap[type].erase(consumer);
+        }
     }
 
     auto NodeManager::stop_node(std::string_view name) -> ilias::Task<int>

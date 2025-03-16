@@ -2,9 +2,11 @@
 
 #ifdef _WIN32
     #include <windows.h>
+
+    #include "mksync/core/app.hpp"
 namespace mks::base
 {
-    WinMKSender::WinMKSender(::ilias::IoContext *ctx) : MKSender(ctx) {}
+    WinMKSender::WinMKSender(App &app) : MKSender(&app) {}
 
     WinMKSender::~WinMKSender() {}
 
@@ -27,22 +29,12 @@ namespace mks::base
         return "WinMKSender";
     }
 
-    auto WinMKSender::get_subscribers() -> std::vector<int>
-    {
-        return {NekoProto::ProtoFactory::protoType<MouseMotionEvent>(),
-                NekoProto::ProtoFactory::protoType<MouseButtonEvent>(),
-                NekoProto::ProtoFactory::protoType<MouseWheelEvent>(),
-                NekoProto::ProtoFactory::protoType<KeyEvent>()};
-    }
-
     auto WinMKSender::handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void>
     {
-        if (event == nullptr) {
-            co_return;
-        }
-        if (event.type() == NekoProto::ProtoFactory::protoType<MouseMotionEvent>()) {
-            ILIAS_ASSERT(event.cast<MouseMotionEvent>() != nullptr);
-            _send_motion_event(*event.cast<MouseMotionEvent>());
+        ILIAS_ASSERT(event != nullptr);
+        if (event.type() == NekoProto::ProtoFactory::protoType<MouseMotionEventConversion>()) {
+            ILIAS_ASSERT(event.cast<MouseMotionEventConversion>() != nullptr);
+            _send_motion_event(*event.cast<MouseMotionEventConversion>());
         }
         else if (event.type() == NekoProto::ProtoFactory::protoType<MouseButtonEvent>()) {
             ILIAS_ASSERT(event.cast<MouseButtonEvent>() != nullptr);
@@ -52,14 +44,14 @@ namespace mks::base
             ILIAS_ASSERT(event.cast<MouseWheelEvent>() != nullptr);
             _send_wheel_event(*event.cast<MouseWheelEvent>());
         }
-        else if (event.type() == NekoProto::ProtoFactory::protoType<KeyEvent>()) {
-            ILIAS_ASSERT(event.cast<KeyEvent>() != nullptr);
-            _send_keyboard_event(*event.cast<KeyEvent>());
+        else if (event.type() == NekoProto::ProtoFactory::protoType<KeyboardEvent>()) {
+            ILIAS_ASSERT(event.cast<KeyboardEvent>() != nullptr);
+            _send_keyboard_event(*event.cast<KeyboardEvent>());
         }
-        co_return;
+        co_return co_await MKSender::handle_event(event);
     }
 
-    void WinMKSender::_send_motion_event(const mks::MouseMotionEvent &event) const
+    void WinMKSender::_send_motion_event(const mks::MouseMotionEventConversion &event) const
     {
         if (!_isStart) {
             return;
@@ -152,7 +144,7 @@ namespace mks::base
                   sizeof(INPUT));
     }
 
-    void WinMKSender::_send_keyboard_event(const mks::KeyEvent &event) const
+    void WinMKSender::_send_keyboard_event(const mks::KeyboardEvent &event) const
     {
         if (!_isStart) {
             return;

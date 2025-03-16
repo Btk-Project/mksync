@@ -27,6 +27,7 @@
 #include "mksync/base/settings.hpp"
 #include "mksync/proto/proto.hpp"
 #include "mksync/base/app.hpp"
+#include "mksync/core/communication.hpp"
 
 namespace mks::base
 {
@@ -60,6 +61,7 @@ namespace mks::base
             -> ::ilias::Task<std::string>;
         auto settings() -> Settings & override;
         auto node_manager() -> NodeManager & override;
+        auto communication() -> ICommunication * override;
 
         // commands
         [[nodiscard("coroutine function")]]
@@ -79,6 +81,7 @@ namespace mks::base
         bool                _isConsoleListening = false;
         bool                _isNoConsole        = false;
         ::ilias::IoContext *_ctx                = nullptr;
+        MKCommunication    *_communication      = nullptr;
 
         CommandInvoker          _commandInvoker;
         NodeManager             _nodeManager;

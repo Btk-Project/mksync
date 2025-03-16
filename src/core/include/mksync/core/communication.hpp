@@ -55,7 +55,7 @@ namespace mks::base
         [[nodiscard("coroutine function")]]
         auto disable() -> ::ilias::Task<int> override;
         auto name() -> const char * override;
-        auto get_subscribers() -> std::vector<int> override;
+        auto get_subscribes() -> std::vector<int> override;
         [[nodiscard("coroutine function")]]
         auto handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void> override;
         [[nodiscard("coroutine function")]]
@@ -63,7 +63,7 @@ namespace mks::base
 
         auto status() -> Status;
         auto set_flags(NekoProto::StreamFlag flags) -> void;
-        auto add_subscribers(int type) -> void; // add event form send to current peer.
+        auto add_subscribe(int type) -> void; // add event form send to current peer.
         auto remove_subscribers(int type) -> void;
 
         // server
@@ -109,6 +109,9 @@ namespace mks::base
     private:
         [[nodiscard("coroutine function")]]
         auto _server_loop(::ilias::TcpListener tcplistener) -> ::ilias::Task<void>;
+        [[nodiscard("coroutine function")]]
+        auto _client_connection_loop(std::string peer, NekoProto::ProtoStreamClient<> &client)
+            -> ::ilias::Task<void>;
         [[nodiscard("coroutine function")]]
         auto _client_loop(NekoProto::ProtoStreamClient<> &client) -> ::ilias::Task<void>;
         [[nodiscard("coroutine function")]]

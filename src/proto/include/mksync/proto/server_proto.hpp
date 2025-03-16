@@ -22,9 +22,10 @@ namespace mks
      * 服务端收集鼠标事件，并转换成对应的逻辑屏幕上的坐标。
      */
     struct MouseMotionEventConversion {
-        float    x;         /**< X coordinate, relative to screen */
-        float    y;         /**< Y coordinate, relative to screen */
-        uint64_t timestamp; /**< system event time */
+        float    x;          /**< X coordinate, relative to screen */
+        float    y;          /**< Y coordinate, relative to screen */
+        bool     isAbsolute; /**< Whether the coordinates are absolute */
+        uint64_t timestamp;  /**< system event time */
 
         NEKO_SERIALIZER(x, y, timestamp)
         NEKO_DECLARE_PROTOCOL(MouseMotionEventConversion, NEKO_NAMESPACE::JsonSerializer)

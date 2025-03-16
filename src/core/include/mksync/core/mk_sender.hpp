@@ -26,12 +26,15 @@ namespace mks::base
      */
     class MKS_CORE_API MKSender : public NodeBase, public Consumer {
     public:
-        MKSender(::ilias::IoContext *ctx) : _ctx(ctx) {}
+        MKSender(App *app) : _app(app) {}
         virtual ~MKSender() = default;
         [[nodiscard("coroutine function")]]
         auto enable() -> ::ilias::Task<int> override;
         [[nodiscard("coroutine function")]]
         auto disable() -> ::ilias::Task<int> override;
+        auto get_subscribes() -> std::vector<int> override;
+        [[nodiscard("coroutine function")]]
+        auto handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void> override;
 
         [[nodiscard("coroutine function")]]
         virtual auto start_sender() -> ::ilias::Task<int> = 0;
@@ -40,7 +43,7 @@ namespace mks::base
 
         static auto make(App &app) -> std::unique_ptr<MKSender, void (*)(NodeBase *)>;
 
-    private:
-        ::ilias::IoContext *_ctx = nullptr;
+    protected:
+        App *_app = nullptr;
     };
 } // namespace mks::base

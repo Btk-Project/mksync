@@ -82,7 +82,7 @@ namespace mks::base
         virtual ~Consumer() = default;
         ///> 订阅的事件集，当有事件发生时，会调用handle_event。需要返回，只在enable时使用。
         /// 如果需要动态增减，可以使用NodeManager的接口。
-        virtual auto get_subscribers() -> std::vector<int> = 0;
+        virtual auto get_subscribes() -> std::vector<int> = 0;
         ///> 处理一个事件，需要订阅。
         [[nodiscard("coroutine function")]]
         virtual auto handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void> = 0;

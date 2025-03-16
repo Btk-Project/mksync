@@ -164,13 +164,45 @@ namespace mks::base
         co_return co_await stop_sender();
     }
 
+    auto MKSender::get_subscribes() -> std::vector<int>
+    {
+        return {NekoProto::ProtoFactory::protoType<AppStatusChanged>()};
+    }
+
+    auto MKSender::handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void>
+    {
+        ILIAS_ASSERT(event != nullptr);
+        if (event.type() == NekoProto::ProtoFactory::protoType<AppStatusChanged>()) {
+            ILIAS_ASSERT(event.cast<AppStatusChanged>() != nullptr);
+            const auto *appstatuschanged = event.cast<AppStatusChanged>();
+            if (appstatuschanged->status == AppStatusChanged::eStarted &&
+                appstatuschanged->mode == AppStatusChanged::eClient) {
+                _app->node_manager().subscribe(
+                    {NekoProto::ProtoFactory::protoType<MouseMotionEventConversion>(),
+                     NekoProto::ProtoFactory::protoType<MouseButtonEvent>(),
+                     NekoProto::ProtoFactory::protoType<MouseWheelEvent>(),
+                     NekoProto::ProtoFactory::protoType<KeyboardEvent>()},
+                    this);
+            }
+            else if (appstatuschanged->status == AppStatusChanged::eStopped &&
+                     appstatuschanged->mode == AppStatusChanged::eClient) {
+                _app->node_manager().unsubscribe(
+                    {NekoProto::ProtoFactory::protoType<MouseMotionEventConversion>(),
+                     NekoProto::ProtoFactory::protoType<MouseButtonEvent>(),
+                     NekoProto::ProtoFactory::protoType<MouseWheelEvent>(),
+                     NekoProto::ProtoFactory::protoType<KeyboardEvent>()},
+                    this);
+            }
+        }
+        co_return;
+    }
+
     auto MKSender::make([[maybe_unused]] App &app)
         -> std::unique_ptr<MKSender, void (*)(NodeBase *)>
     {
         std::unique_ptr<MKSender, void (*)(NodeBase *)> sender =
 #ifdef _WIN32
-            {new WinMKSender(app.get_io_context()),
-             [](NodeBase *ptr) { delete static_cast<WinMKSender *>(ptr); }};
+            {new WinMKSender(app), [](NodeBase *ptr) { delete static_cast<WinMKSender *>(ptr); }};
 #else
             {new XcbMKSender(app), [](NodeBase *ptr) { delete static_cast<XcbMKSender *>(ptr); }};
 #endif

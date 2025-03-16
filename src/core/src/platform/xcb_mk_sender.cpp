@@ -22,24 +22,14 @@ namespace mks::base
         return "XcbMKSender";
     }
 
-    auto XcbMKSender::get_subscribers() -> std::vector<int>
-    {
-        return {
-            NekoProto::ProtoFactory::protoType<mks::KeyEvent>(),
-            NekoProto::ProtoFactory::protoType<mks::MouseWheelEvent>(),
-            NekoProto::ProtoFactory::protoType<mks::MouseMotionEvent>(),
-            NekoProto::ProtoFactory::protoType<mks::MouseButtonEvent>(),
-        };
-    }
-
     auto XcbMKSender::handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void>
     {
         if (event == nullptr) {
             co_return;
         }
-        if (event.type() == NekoProto::ProtoFactory::protoType<MouseMotionEvent>()) {
-            ILIAS_ASSERT(event.cast<MouseMotionEvent>() != nullptr);
-            _send_motion_event(*event.cast<MouseMotionEvent>());
+        if (event.type() == NekoProto::ProtoFactory::protoType<MouseMotionEventConversion>()) {
+            ILIAS_ASSERT(event.cast<MouseMotionEventConversion>() != nullptr);
+            _send_motion_event(*event.cast<MouseMotionEventConversion>());
         }
         else if (event.type() == NekoProto::ProtoFactory::protoType<MouseButtonEvent>()) {
             ILIAS_ASSERT(event.cast<MouseButtonEvent>() != nullptr);
@@ -53,7 +43,7 @@ namespace mks::base
             ILIAS_ASSERT(event.cast<KeyEvent>() != nullptr);
             _send_keyboard_event(*event.cast<KeyEvent>());
         }
-        co_return;
+        co_return co_await MKSender::handle_event(event);
     }
 
     auto XcbMKSender::start_sender() -> ::ilias::Task<int>
@@ -88,11 +78,12 @@ namespace mks::base
         co_return 0;
     }
 
-    void XcbMKSender::_send_motion_event(const mks::MouseMotionEvent &event) const
+    void XcbMKSender::_send_motion_event(const mks::MouseMotionEventConversion &event) const
     {
         if (!_isStart || !_xcbConnect) {
             return;
         }
+        //TODO: 相对移动
         SPDLOG_INFO("Mouse motion event: x={}, y={}", event.x * _screenWidth,
                     event.y * _screenHeight);
         _xcbConnect->fake_mouse_move(event.x * _screenWidth, event.y * _screenHeight);
