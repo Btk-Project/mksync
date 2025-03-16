@@ -62,6 +62,7 @@ namespace mks::base
     public:
         ServerCommunication(MKCommunication *self);
         auto declare_proto_to_send(int type) -> void override;
+        auto declare_proto_to_send(std::vector<int> types) -> void override;
         auto send(NekoProto::IProto &event, std::string_view peer) -> ilias::IoTask<void> override;
         auto recv(std::string_view peer) -> ilias::IoTask<NekoProto::IProto> override;
         auto peers() const -> std::vector<std::string> override;
@@ -74,6 +75,7 @@ namespace mks::base
     public:
         ClientCommunication(MKCommunication *self);
         auto declare_proto_to_send(int type) -> void override;
+        auto declare_proto_to_send(std::vector<int> types) -> void override;
         auto send(NekoProto::IProto &event) -> ilias::IoTask<void> override;
         auto recv() -> ilias::IoTask<NekoProto::IProto> override;
 
@@ -85,7 +87,14 @@ namespace mks::base
 
     auto ServerCommunication::declare_proto_to_send(int type) -> void
     {
-        return _self->add_subscribers(type);
+        return _self->add_subscribe(type);
+    }
+
+    auto ServerCommunication::declare_proto_to_send(std::vector<int> types) -> void
+    {
+        for (auto type : types) {
+            _self->add_subscribe(type);
+        }
     }
 
     auto ServerCommunication::send(NekoProto::IProto &event, std::string_view peer)
@@ -108,7 +117,14 @@ namespace mks::base
 
     auto ClientCommunication::declare_proto_to_send(int type) -> void
     {
-        return _self->add_subscribers(type);
+        return _self->add_subscribe(type);
+    }
+
+    auto ClientCommunication::declare_proto_to_send(std::vector<int> types) -> void
+    {
+        for (auto type : types) {
+            _self->add_subscribe(type);
+        }
     }
 
     auto ClientCommunication::send(NekoProto::IProto &event) -> ilias::IoTask<void>
@@ -410,7 +426,7 @@ namespace mks::base
         return "MKCommunication";
     }
 
-    auto MKCommunication::get_subscribers() -> std::vector<int>
+    auto MKCommunication::get_subscribes() -> std::vector<int>
     {
         return {NekoProto::ProtoFactory::protoType<FocusScreenChanged>()};
     }
@@ -523,9 +539,9 @@ namespace mks::base
         _flags = flags;
     }
 
-    auto MKCommunication::add_subscribers(int type) -> void
+    auto MKCommunication::add_subscribe(int type) -> void
     {
-        _app->node_manager().subscriber(type, this);
+        _app->node_manager().subscribe(type, this);
     }
 
     auto MKCommunication::remove_subscribers(int type) -> void
@@ -568,6 +584,9 @@ namespace mks::base
                 _communicationWapper = std::make_unique<ServerCommunication>(this);
             }
             _taskScope.spawn(_server_loop(std::move(server)));
+            _events.emplace(AppStatusChanged::emplaceProto(AppStatusChanged::eStarted,
+                                                           AppStatusChanged::eServer));
+            _syncEvent.set();
             co_return 0;
         }
     }
@@ -589,6 +608,7 @@ namespace mks::base
                 if (auto ret = co_await _server_handshake(ipstr, &(item.first->second)); ret != 0) {
                     _protoStreamClients.erase(item.first);
                 }
+                _taskScope.spawn(_client_connection_loop(ipstr, item.first->second));
             }
             else {
                 if (ret1.error() != Error::Canceled) {
@@ -602,9 +622,35 @@ namespace mks::base
             }
         }
         if (_status == eServer) {
+            _events.emplace(AppStatusChanged::emplaceProto(AppStatusChanged::eStopped,
+                                                           AppStatusChanged::eServer));
+            _syncEvent.set();
             _status = eEnable;
         }
         _protoStreamClients.clear();
+    }
+
+    // 服务端已经与该客户端连接，后续会保持监听其是否掉线。
+    auto MKCommunication::_client_connection_loop(std::string                     peer,
+                                                  NekoProto::ProtoStreamClient<> &client)
+        -> ::ilias::Task<void>
+    {
+        while (true) {
+            if (auto ret = co_await client.recv(_flags); ret) {
+                // 获得消息生成一个事件。收到来自客户端的消息。
+                SPDLOG_INFO("recv {} from {}", ret.value().protoName(), _currentPeer->first);
+                _events.emplace(ClientMessage::emplaceProto(
+                    peer, std::make_shared<NekoProto::IProto>(std::move(ret.value()))));
+                _syncEvent.set();
+            }
+            else {
+                if (ret.error() != Error::Canceled) {
+                    SPDLOG_ERROR("recv event failed {}", ret.error().message());
+                }
+                _events.emplace(ClientDisconnected::emplaceProto(peer, ret.error().message()));
+                _syncEvent.set();
+            }
+        }
     }
 
     // 已客户端启动时，监听来自服务端的消息。
@@ -632,6 +678,9 @@ namespace mks::base
             }
         }
         if (_status == eClient) {
+            _events.emplace(AppStatusChanged::emplaceProto(AppStatusChanged::eStopped,
+                                                           AppStatusChanged::eClient));
+            _syncEvent.set();
             _status = eEnable;
         }
         _protoStreamClients.clear();
@@ -751,6 +800,9 @@ namespace mks::base
             _communicationWapper = std::make_unique<ClientCommunication>(this);
         }
         SPDLOG_INFO("connect to {}", endpoint.toString());
+        _events.emplace(
+            AppStatusChanged::emplaceProto(AppStatusChanged::eStarted, AppStatusChanged::eClient));
+        _syncEvent.set();
         co_return 0;
     }
 

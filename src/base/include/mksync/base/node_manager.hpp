@@ -52,8 +52,10 @@ namespace mks::base
         [[nodiscard("coroutine function")]]
         auto producer_loop(Producer *producer) -> ::ilias::Task<void>;
 
-        auto subscriber(int type, Consumer *consumer) -> void;
+        auto subscribe(int type, Consumer *consumer) -> void;
+        auto subscribe(std::vector<int> types, Consumer *consumer) -> void;
         auto unsubscribe(int type, Consumer *consumer) -> void;
+        auto unsubscribe(std::vector<int> types, Consumer *consumer) -> void;
 
         [[nodiscard("coroutine function")]]
         auto start_node() -> ilias::Task<int>;

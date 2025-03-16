@@ -373,14 +373,14 @@ namespace mks
         NEKO_DECLARE_PROTOCOL(MouseWheelEvent, NEKO_NAMESPACE::JsonSerializer)
     };
 
-    struct KeyEvent {
+    struct KeyboardEvent {
         KeyboardState state;     /**< Keyboard state (up or down) */
         KeyCode       key;       /**< Mks KeyCode enum */
         KeyMod        mod;       /**< Current key modifiers */
         uint64_t      timestamp; /**< system event time */
 
         NEKO_SERIALIZER(state, key, mod, timestamp)
-        NEKO_DECLARE_PROTOCOL(KeyEvent, NEKO_NAMESPACE::JsonSerializer)
+        NEKO_DECLARE_PROTOCOL(KeyboardEvent, NEKO_NAMESPACE::JsonSerializer)
     };
 
     /**

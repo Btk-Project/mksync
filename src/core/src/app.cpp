@@ -5,6 +5,7 @@
 #include <csignal>
 
 #include "mksync/core/communication.hpp"
+#include "mksync/core/control.hpp"
 
 #ifdef _WIN32
     #include <windows.h>
@@ -246,12 +247,22 @@ namespace mks::base
      */
     auto App::exec(int argc, const char *const *argv) -> Task<void>
     {
-        // load plugs form file
-
-        // load core node
-        _nodeManager.add_node(MKCommunication::make(*this));
+        // 确认是否指定配置文件，如果是就先处理命令行
+        if (argc > 2 && (strcmp(argv[1], "config") == 0)) {
+            co_await _commandInvoker.execute(std::vector<const char *>(argv + 1, argv + argc));
+        }
+        // 加载 modules: ["file1.dll", "file2.dll"]
+        auto moduleList = _settings.get<std::vector<std::string>>("modules", {});
+        for (const auto &moduleFile : moduleList) {
+            _nodeManager.load_node(moduleFile);
+        }
+        // 加载核心模块
+        auto communication = MKCommunication::make(*this);
+        _communication     = communication.get(); // 保存指针
+        _nodeManager.add_node(std::move(communication));
         _nodeManager.add_node(MKCapture::make(*this));
         _nodeManager.add_node(MKSender::make(*this));
+        _nodeManager.add_node(Control::make(*this));
 
         // start all node
         co_await _nodeManager.start_node();
@@ -293,6 +304,12 @@ namespace mks::base
     auto App::node_manager() -> NodeManager &
     {
         return _nodeManager;
+    }
+
+    auto App::communication() -> ICommunication *
+    {
+        ILIAS_ASSERT(_communication != nullptr);
+        return _communication->get_communication();
     }
 
 } // namespace mks::base

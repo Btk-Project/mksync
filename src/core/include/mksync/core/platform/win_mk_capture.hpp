@@ -11,11 +11,11 @@
 #pragma once
 #ifdef _WIN32
     #include <nekoproto/communication/communication_base.hpp>
-    #include <ilias/sync/event.hpp>
     #include <ilias/task.hpp>
 
     #include "mksync/base/ring_buffer.hpp"
     #include "mksync/core/mk_capture.hpp"
+    #include "mksync/core/communication.hpp"
 
 namespace mks::base
 {

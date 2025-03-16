@@ -11,12 +11,11 @@
 #pragma once
 
 #ifdef __linux__
-    #include <ilias/sync/event.hpp>
-
     #include "mksync/core/mk_capture.hpp"
     #include "mksync/base/base_library.h"
     #include "mksync/base/ring_buffer.hpp"
     #include "mksync/proto/proto.hpp"
+    #include "mksync/core/communication.hpp"
 
 namespace mks::base
 {

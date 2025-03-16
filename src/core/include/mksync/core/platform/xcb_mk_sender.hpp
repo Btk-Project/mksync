@@ -36,12 +36,11 @@ namespace mks::base
         auto stop_sender() -> ::ilias::Task<int> override;
         auto name() -> const char * override;
 
-        auto get_subscribers() -> std::vector<int> override;
         [[nodiscard("coroutine function")]]
         auto handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void> override;
 
     private:
-        void _send_motion_event(const mks::MouseMotionEvent &event) const;
+        void _send_motion_event(const mks::MouseMotionEventConversion &event) const;
         void _send_button_event(const mks::MouseButtonEvent &event) const;
         void _send_wheel_event(const mks::MouseWheelEvent &event) const;
         void _send_keyboard_event(const mks::KeyEvent &event) const;

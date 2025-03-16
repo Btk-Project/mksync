@@ -24,6 +24,7 @@
 #include "mksync/base/node_manager.hpp"
 #include "mksync/base/settings.hpp"
 #include "mksync/proto/proto.hpp"
+#include "mksync/base/communication.hpp"
 
 namespace mks::base
 {
@@ -44,8 +45,9 @@ namespace mks::base
         static auto  app_version() -> const char *;
         virtual auto get_io_context() const -> ::ilias::IoContext * = 0;
         virtual auto get_screen_info() const -> VirtualScreenInfo   = 0;
-        virtual auto settings() -> Settings                       & = 0;
-        virtual auto node_manager() -> NodeManager                & = 0;
+        virtual auto settings() -> Settings &                       = 0;
+        virtual auto node_manager() -> NodeManager &                = 0;
+        virtual auto communication() -> ICommunication *            = 0;
 
         // main loop
         [[nodiscard("coroutine function")]]
