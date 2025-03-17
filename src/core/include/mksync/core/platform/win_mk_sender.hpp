@@ -23,7 +23,7 @@ namespace mks::base
      */
     class MKS_BASE_API WinMKSender final : public MKSender {
     public:
-        WinMKSender(App &app);
+        WinMKSender(IApp *app);
         ~WinMKSender();
 
         [[nodiscard("coroutine function")]]

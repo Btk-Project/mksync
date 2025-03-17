@@ -61,8 +61,10 @@ namespace mks::base
     class MKS_CORE_API ServerCommunication : public IServerCommunication {
     public:
         ServerCommunication(MKCommunication *self);
-        auto declare_proto_to_send(int type) -> void override;
-        auto declare_proto_to_send(std::vector<int> types) -> void override;
+        auto subscribes(int type) -> void override;
+        auto subscribes(std::vector<int> types) -> void override;
+        auto unsubscribes(int type) -> void override;
+        auto unsubscribes(std::vector<int> types) -> void override;
         auto send(NekoProto::IProto &event, std::string_view peer) -> ilias::IoTask<void> override;
         auto recv(std::string_view peer) -> ilias::IoTask<NekoProto::IProto> override;
         auto peers() const -> std::vector<std::string> override;
@@ -74,8 +76,10 @@ namespace mks::base
     class MKS_CORE_API ClientCommunication : public IClientCommunication {
     public:
         ClientCommunication(MKCommunication *self);
-        auto declare_proto_to_send(int type) -> void override;
-        auto declare_proto_to_send(std::vector<int> types) -> void override;
+        auto subscribes(int type) -> void override;
+        auto subscribes(std::vector<int> types) -> void override;
+        auto unsubscribes(int type) -> void override;
+        auto unsubscribes(std::vector<int> types) -> void override;
         auto send(NekoProto::IProto &event) -> ilias::IoTask<void> override;
         auto recv() -> ilias::IoTask<NekoProto::IProto> override;
 
@@ -85,15 +89,27 @@ namespace mks::base
 
     ServerCommunication::ServerCommunication(MKCommunication *self) : _self(self) {}
 
-    auto ServerCommunication::declare_proto_to_send(int type) -> void
+    auto ServerCommunication::subscribes(int type) -> void
     {
         return _self->add_subscribe(type);
     }
 
-    auto ServerCommunication::declare_proto_to_send(std::vector<int> types) -> void
+    auto ServerCommunication::subscribes(std::vector<int> types) -> void
     {
         for (auto type : types) {
             _self->add_subscribe(type);
+        }
+    }
+
+    auto ServerCommunication::unsubscribes(int type) -> void
+    {
+        return _self->remove_subscribers(type);
+    }
+
+    auto ServerCommunication::unsubscribes(std::vector<int> types) -> void
+    {
+        for (auto type : types) {
+            _self->remove_subscribers(type);
         }
     }
 
@@ -115,15 +131,27 @@ namespace mks::base
 
     ClientCommunication::ClientCommunication(MKCommunication *self) : _self(self) {}
 
-    auto ClientCommunication::declare_proto_to_send(int type) -> void
+    auto ClientCommunication::subscribes(int type) -> void
     {
         return _self->add_subscribe(type);
     }
 
-    auto ClientCommunication::declare_proto_to_send(std::vector<int> types) -> void
+    auto ClientCommunication::subscribes(std::vector<int> types) -> void
     {
         for (auto type : types) {
             _self->add_subscribe(type);
+        }
+    }
+
+    auto ClientCommunication::unsubscribes(int type) -> void
+    {
+        return _self->remove_subscribers(type);
+    }
+
+    auto ClientCommunication::unsubscribes(std::vector<int> types) -> void
+    {
+        for (auto type : types) {
+            _self->remove_subscribers(type);
         }
     }
 

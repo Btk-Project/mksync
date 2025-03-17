@@ -18,7 +18,7 @@
 
 namespace mks::base
 {
-    class App;
+    class IApp;
     /**
      * @brief event sender
      * 系统事件构造对象，用于将接收的事件构造并发送给系统。
@@ -26,7 +26,7 @@ namespace mks::base
      */
     class MKS_CORE_API MKSender : public NodeBase, public Consumer {
     public:
-        MKSender(App *app) : _app(app) {}
+        MKSender(IApp *app) : _app(app) {}
         virtual ~MKSender() = default;
         [[nodiscard("coroutine function")]]
         auto enable() -> ::ilias::Task<int> override;
@@ -41,9 +41,9 @@ namespace mks::base
         [[nodiscard("coroutine function")]]
         virtual auto stop_sender() -> ::ilias::Task<int> = 0;
 
-        static auto make(App &app) -> std::unique_ptr<MKSender, void (*)(NodeBase *)>;
+        static auto make(IApp *app) -> std::unique_ptr<MKSender, void (*)(NodeBase *)>;
 
     protected:
-        App *_app = nullptr;
+        IApp *_app = nullptr;
     };
 } // namespace mks::base

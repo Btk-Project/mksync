@@ -23,7 +23,6 @@ namespace mks
     /**
      * @brief start/stop/restart server
      * 来自用户或控制器的命令，开启或关闭服务端程序。
-     * @note 该协议为本地控制协议，不参与序列化，请不要通过网络发送。
      */
     struct ServerControl {
         enum Command
@@ -37,14 +36,13 @@ namespace mks
         std::string ip;   /**< 需要监听的ip地址 */
         uint16_t    port; /**< 需要监听的端口号 */
 
-        NEKO_SERIALIZER() // 不需要序列化的协议
+        NEKO_SERIALIZER(cmd, ip, port)
         NEKO_DECLARE_PROTOCOL(ServerControl, NEKO_NAMESPACE::JsonSerializer)
     };
 
     /**
      * @brief capture module control
      * 根据焦点屏幕由控制器触发，开启/关闭捕获模块的拦截。
-     * @note 该协议为本地控制协议，不参与序列化，请不要通过网络发送。
      */
     struct CaptureControl {
         enum Command
@@ -55,7 +53,7 @@ namespace mks
 
         Command cmd; /**< 命令 */
 
-        NEKO_SERIALIZER() // 不需要序列化的协议
+        NEKO_SERIALIZER(cmd)
         NEKO_DECLARE_PROTOCOL(CaptureControl, NEKO_NAMESPACE::JsonSerializer)
     };
 
@@ -105,6 +103,7 @@ namespace mks
     /**
      * @brief 有来自客户端断开连接。
      * 服务端与来自客户端的连接断开后由通信节点生成该事件，上报客户端断开消息。
+     * @note 该协议为本地控制协议，不参与序列化，请不要通过网络发送。
      */
     struct ClientDisconnected {
         std::string peer;   /**< 客户端名称 */
@@ -118,7 +117,6 @@ namespace mks
     /**
      * @brief start/stop/restart client
      *
-     * @note 该协议为本地控制协议，不参与序列化，请不要通过网络发送。
      */
     struct ClientControl {
         enum Command
@@ -132,14 +130,13 @@ namespace mks
         std::string ip;
         uint16_t    port;
 
-        NEKO_SERIALIZER() // 不需要序列化的协议
+        NEKO_SERIALIZER(cmd, ip, port)
         NEKO_DECLARE_PROTOCOL(ClientControl, NEKO_NAMESPACE::JsonSerializer)
     };
 
     /**
      * @brief sender module control
      * 由控制器触发，开启/关闭发送模块的发送。默认情况下作为客户端应该可以全程开着。
-     * @note 该协议为本地控制协议，不参与序列化，请不要通过网络发送。
      */
     struct SenderControl {
         enum Command
@@ -150,7 +147,7 @@ namespace mks
 
         Command cmd;
 
-        NEKO_SERIALIZER() // 不需要序列化的协议
+        NEKO_SERIALIZER(cmd)
         NEKO_DECLARE_PROTOCOL(SenderControl, NEKO_NAMESPACE::JsonSerializer)
     };
 
@@ -171,8 +168,8 @@ namespace mks
             eClient,
         };
 
-        Status                        status;
-        Mode                          mode;
+        Status status;
+        Mode   mode;
 
         NEKO_SERIALIZER() // 不需要序列化的协议
         NEKO_DECLARE_PROTOCOL(AppStatusChanged, NEKO_NAMESPACE::JsonSerializer)

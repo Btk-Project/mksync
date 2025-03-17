@@ -197,7 +197,7 @@ namespace mks::base
         co_return;
     }
 
-    auto MKSender::make([[maybe_unused]] App &app)
+    auto MKSender::make([[maybe_unused]] IApp *app)
         -> std::unique_ptr<MKSender, void (*)(NodeBase *)>
     {
         std::unique_ptr<MKSender, void (*)(NodeBase *)> sender =
@@ -206,7 +206,7 @@ namespace mks::base
 #else
             {new XcbMKSender(app), [](NodeBase *ptr) { delete static_cast<XcbMKSender *>(ptr); }};
 #endif
-        auto commandInstaller = app.command_installer(sender->name());
+        auto commandInstaller = app->command_installer(sender->name());
         commandInstaller(std::make_unique<MKSenderCommand>(sender.get()));
         return sender;
     }

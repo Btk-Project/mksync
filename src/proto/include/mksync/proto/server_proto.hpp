@@ -1,5 +1,5 @@
 //
-// client_proto.h
+// server_proto.h
 // protos make by client
 // Package: mksync
 // Library: MksyncProto

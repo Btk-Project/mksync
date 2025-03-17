@@ -69,7 +69,7 @@ namespace mks::base
         [[nodiscard("coroutine function")]]
         auto stop_console() -> ilias::Task<void>;
         auto command_installer(std::string_view module)
-            -> std::function<bool(std::unique_ptr<Command>)>;
+            -> std::function<bool(std::unique_ptr<Command>)> override;
 
         // status
         [[nodiscard("coroutine function")]]
