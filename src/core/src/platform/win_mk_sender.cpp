@@ -6,7 +6,7 @@
     #include "mksync/core/app.hpp"
 namespace mks::base
 {
-    WinMKSender::WinMKSender(App &app) : MKSender(&app) {}
+    WinMKSender::WinMKSender(IApp *app) : MKSender(app) {}
 
     WinMKSender::~WinMKSender() {}
 

@@ -11,6 +11,7 @@
 #pragma once
 
 #include <set>
+#include <list>
 #include <ilias/ilias.hpp>
 #include <ilias/net/tcp.hpp>
 #include <ilias/fs/console.hpp>
@@ -45,7 +46,8 @@ namespace mks::base
         auto load_node(std::string_view dll) -> std::string_view;
         auto load_nodes(std::string_view path) -> std::vector<std::string_view>;
 
-        auto add_node(std::unique_ptr<NodeBase, void (*)(NodeBase *)> &&node) -> void;
+        auto add_node(std::unique_ptr<NodeBase, void (*)(NodeBase *)> &&node) -> std::string_view;
+        auto destroy_node(std::string_view) -> int;
 
         [[nodiscard("coroutine function")]]
         auto dispatch(const NekoProto::IProto &proto, NodeBase *nodebase) -> ::ilias::Task<void>;
@@ -70,13 +72,14 @@ namespace mks::base
         [[nodiscard("coroutine function")]]
         auto stop_node(std::string_view name) -> ilias::Task<int>;
 
-        auto get_nodes() -> std::vector<NodeData> &;
-        auto get_nodes() const -> const std::vector<NodeData> &;
+        auto get_nodes() -> std::list<NodeData> &;
+        auto get_nodes() const -> const std::list<NodeData> &;
         auto get_node(std::string_view name) -> NodeBase *;
 
     private:
         IApp                                                                *_app;
-        std::vector<NodeData>                                                _nodeList;
+        std::list<NodeData>                                                  _nodeList;
+        std::unordered_map<std::string_view, std::list<NodeData>::iterator>  _nodeMap;
         std::unordered_map<int, std::set<Consumer *>>                        _consumerMap;
         ::ilias::TaskScope                                                   _taskScope;
         std::vector<std::unique_ptr<NodeDll>>                                _dlls;

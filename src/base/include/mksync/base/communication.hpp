@@ -19,10 +19,12 @@ namespace mks::base
     // 公共通信接口
     class MKS_BASE_API ICommunication {
     public:
-        ICommunication()                                                   = default;
-        virtual ~ICommunication()                                          = default;
-        virtual auto declare_proto_to_send(int type) -> void               = 0;
-        virtual auto declare_proto_to_send(std::vector<int> types) -> void = 0;
+        ICommunication()                                          = default;
+        virtual ~ICommunication()                                 = default;
+        virtual auto subscribes(int type) -> void                 = 0;
+        virtual auto subscribes(std::vector<int> types) -> void   = 0;
+        virtual auto unsubscribes(int type) -> void               = 0;
+        virtual auto unsubscribes(std::vector<int> types) -> void = 0;
     };
     class MKS_BASE_API IServerCommunication : public ICommunication {
     public:

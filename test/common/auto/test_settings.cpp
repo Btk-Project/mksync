@@ -4,6 +4,7 @@
 #include <set>
 
 #include "mksync/base/settings.hpp"
+#include "mksync/proto/config_proto.hpp"
 
 enum Mode
 {
@@ -13,6 +14,15 @@ enum Mode
 
 TEST(Settings, Default)
 {
+    mks::VirtualScreenConfig vsconfig{
+        .name   = "test",
+        .width  = 1920,
+        .height = 1080,
+        .left   = "",
+        .top    = "",
+        .right  = "",
+        .bottom = "",
+    };
     mks::base::Settings settings("./config.json");
     settings.set("appname", "mksync");
     settings.set("version", "0.0.1");
@@ -24,6 +34,7 @@ TEST(Settings, Default)
     settings.set("logrotate_keep", 5);
     settings.set("logrotate_compress", true);
     settings.set("logrotate_compress_level", 6);
+    settings.set("virtual_screen_config", std::vector<mks::VirtualScreenConfig>{vsconfig});
     std::vector<double> vs = {1.0, 2.0, 3.0};
     settings.set("vs", vs);
     std::array<uint64_t, 3> as = {1, 2, 3};
@@ -66,6 +77,16 @@ TEST(Settings, Load)
     EXPECT_EQ(ss[1], "b");
     EXPECT_EQ(ss[2], "c");
     EXPECT_EQ(settings.get<Mode>("mode", eClient), eServer);
+    std::vector<mks::VirtualScreenConfig> vsconfigs;
+    vsconfigs = settings.get("virtual_screen_config", vsconfigs);
+    ASSERT_EQ(vsconfigs.size(), 1);
+    EXPECT_EQ(vsconfigs[0].name, "test");
+    EXPECT_EQ(vsconfigs[0].width, 1920);
+    EXPECT_EQ(vsconfigs[0].height, 1080);
+    EXPECT_EQ(vsconfigs[0].left, "");
+    EXPECT_EQ(vsconfigs[0].top, "");
+    EXPECT_EQ(vsconfigs[0].right, "");
+    EXPECT_EQ(vsconfigs[0].bottom, "");
 }
 
 int main(int argc, char **argv)

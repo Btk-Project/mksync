@@ -166,17 +166,17 @@ namespace mks::base
         co_return co_await stop_capture();
     }
 
-    auto MKCapture::make([[maybe_unused]] App &app)
+    auto MKCapture::make([[maybe_unused]] IApp *app)
         -> std::unique_ptr<MKCapture, void (*)(NodeBase *)>
     {
         std::unique_ptr<MKCapture, void (*)(NodeBase *)> capture =
 #ifdef _WIN32
-            {new WinMKCapture(app.get_io_context()),
+            {new WinMKCapture(app->get_io_context()),
              [](NodeBase *ptr) { delete static_cast<WinMKCapture *>(ptr); }};
 #else
             {new XcbMKCapture(app), [](NodeBase *ptr) { delete static_cast<XcbMKCapture *>(ptr); }};
 #endif
-        auto commandInstaller = app.command_installer(capture->name());
+        auto commandInstaller = app->command_installer(capture->name());
         // 注册开始捕获键鼠事件命令
         commandInstaller(std::make_unique<CaptureCommand>(capture.get()));
         return capture;

@@ -16,6 +16,7 @@
 #include "mksync/base/settings.hpp"
 #include "mksync/proto/proto.hpp"
 #include "mksync/base/app.hpp"
+#include "mksync/core/communication.hpp"
 
 namespace mks::base
 {
@@ -53,9 +54,53 @@ namespace mks::base
 
         static auto make(App &app) -> std::unique_ptr<Control, void (*)(NodeBase *)>;
 
+    public:
+        ///> 事件处理
+        [[nodiscard("coroutine function")]]
+        auto handle_event(const ClientConnected &event) -> ::ilias::Task<void>;
+        [[nodiscard("coroutine function")]]
+        auto handle_event(const ClientDisconnected &event) -> ::ilias::Task<void>;
+        [[nodiscard("coroutine function")]]
+        auto handle_event(const AppStatusChanged &event) -> ::ilias::Task<void>;
+        [[nodiscard("coroutine function")]]
+        auto handle_event(const BorderEvent &event) -> ::ilias::Task<void>;
+        [[nodiscard("coroutine function")]]
+        auto handle_event(const MouseMotionEvent &event) -> ::ilias::Task<void>;
+
     private:
-        IApp                                                 *_app = nullptr;
-        std::map<std::string, VirtualScreenInfo, std::less<>> _virtualScreens;
-        std::string                                           currentScreen;
+        template <typename T>
+        auto _register_event_handler() -> void;
+
+    private:
+        IApp                                                      *_app = nullptr;
+        std::map<std::string_view, VirtualScreenInfo, std::less<>> _virtualScreens;
+        std::set<std::string>                                      _onlineClients;
+        std::string                                                _currentScreen;
+        std::string_view                                           _captureNode;
+        std::string_view                                           _senderNode;
+        std::vector<int>                                           _subscribes;
+        RingBuffer<NekoProto::IProto>                              _events;
+        ::ilias::Event                                             _syncEvent;
+        std::unordered_map<int, ::ilias::Task<void> (*)(Control *, const NekoProto::IProto &)>
+            _eventHandlers;
     };
+
+    template <typename T>
+    auto Control::_register_event_handler() -> void
+    {
+        if (std::find(_subscribes.begin(), _subscribes.end(),
+                      NekoProto::ProtoFactory::protoType<T>()) != _subscribes.end()) {
+            return;
+        }
+        _subscribes.push_back(NekoProto::ProtoFactory::protoType<T>());
+        _eventHandlers.insert(std::make_pair(
+            NekoProto::ProtoFactory::protoType<T>(),
+            [](Control *control, const NekoProto::IProto &event) -> ::ilias::Task<void> {
+                const auto *ev = event.cast<T>();
+                if (ev != nullptr) {
+                    co_await control->handle_event(*ev);
+                }
+                co_return;
+            }));
+    }
 } // namespace mks::base

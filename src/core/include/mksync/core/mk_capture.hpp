@@ -17,7 +17,7 @@
 
 namespace mks::base
 {
-    class App;
+    class IApp;
     /**
      * @brief Capture node
      * 属于生产者节点。
@@ -43,7 +43,7 @@ namespace mks::base
         [[nodiscard("coroutine function")]]
         virtual auto stop_capture() -> ::ilias::Task<int> = 0;
 
-        static auto make(App &app) -> std::unique_ptr<MKCapture, void (*)(NodeBase *)>;
+        static auto make(IApp *app) -> std::unique_ptr<MKCapture, void (*)(NodeBase *)>;
 
     private:
         ::ilias::IoContext *_ctx = nullptr;

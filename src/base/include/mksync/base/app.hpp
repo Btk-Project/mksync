@@ -25,6 +25,7 @@
 #include "mksync/base/settings.hpp"
 #include "mksync/proto/proto.hpp"
 #include "mksync/base/communication.hpp"
+#include "mksync/base/command.hpp"
 
 namespace mks::base
 {
@@ -48,6 +49,8 @@ namespace mks::base
         virtual auto settings() -> Settings &                       = 0;
         virtual auto node_manager() -> NodeManager &                = 0;
         virtual auto communication() -> ICommunication *            = 0;
+        virtual auto command_installer(std::string_view module)
+            -> std::function<bool(std::unique_ptr<Command>)> = 0;
 
         // main loop
         [[nodiscard("coroutine function")]]

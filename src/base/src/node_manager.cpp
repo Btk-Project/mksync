@@ -84,12 +84,18 @@ namespace mks::base
             auto node = _dlls.back()->create_node(_app);
             if (node == nullptr) {
                 SPDLOG_ERROR("load plugin from {} failed!", dll);
+                _dlls.pop_back();
                 return "";
             }
-            const auto *name = node->name();
-            add_node(std::move(node));
-            return name;
+            if (auto item = _nodeMap.find(node->name()); item != _nodeMap.end()) {
+                SPDLOG_ERROR("load plugin from {} failed! node({}) already exists!", dll,
+                             node->name());
+                _dlls.pop_back();
+                return "";
+            }
+            return add_node(std::move(node));
         }
+        _dlls.pop_back();
         return "";
     }
 
@@ -107,22 +113,45 @@ namespace mks::base
         return names;
     }
 
-    auto NodeManager::add_node(std::unique_ptr<NodeBase, void (*)(NodeBase *)> &&node) -> void
+    auto NodeManager::add_node(std::unique_ptr<NodeBase, void (*)(NodeBase *)> &&node)
+        -> std::string_view
     {
         if (node == nullptr) {
-            return;
+            return "";
         }
         const auto *name = node->name();
-        SPDLOG_INFO("install node: {}<{}>", name, (void *)node.get());
-        _nodeList.emplace_back(NodeData{std::move(node), NodeStatus::eNodeStatusStopped});
+        if (auto item = _nodeMap.find(name); item != _nodeMap.end()) {
+            SPDLOG_ERROR("add node: {}<{}> failed! node already exists!", name, (void *)node.get());
+            return name;
+        }
+        SPDLOG_INFO("add node: {}<{}>", name, (void *)node.get());
+        _nodeMap.insert(std::make_pair(
+            name, _nodeList.emplace(_nodeList.end(),
+                                    NodeData{std::move(node), NodeStatus::eNodeStatusStopped})));
+        return name;
+    }
+
+    auto NodeManager::destroy_node(std::string_view name) -> int
+    {
+        auto item = _nodeMap.find(name);
+        if (item == _nodeMap.end()) {
+            return -2;
+        }
+        if (item->second->status == eNodeStatusRunning) {
+            SPDLOG_ERROR("destroy node: {}<{}> failed! node is running!");
+            return -1;
+        }
+        SPDLOG_INFO("destroy node: {}<{}>", item->second->node->name(),
+                    (void *)item->second->node.get());
+        _nodeList.erase(item->second);
+        _nodeMap.erase(item);
+        return 0;
     }
 
     auto NodeManager::start_node(std::string_view name) -> ilias::Task<int>
     {
-        for (auto &node : _nodeList) {
-            if (node.node->name() == name) {
-                co_return co_await start_node(node);
-            }
+        if (auto item = _nodeMap.find(name); item != _nodeMap.end()) {
+            co_return co_await start_node(*(item->second));
         }
         co_return -1;
     }
@@ -190,10 +219,8 @@ namespace mks::base
 
     auto NodeManager::stop_node(std::string_view name) -> ilias::Task<int>
     {
-        for (auto &node : _nodeList) {
-            if (node.node->name() == name) {
-                co_return co_await stop_node(node);
-            }
+        if (auto item = _nodeMap.find(name); item != _nodeMap.end()) {
+            co_return co_await stop_node(*(item->second));
         }
         co_return -1;
     }
@@ -264,12 +291,12 @@ namespace mks::base
         co_return ret;
     }
 
-    auto NodeManager::get_nodes() -> std::vector<NodeData> &
+    auto NodeManager::get_nodes() -> std::list<NodeData> &
     {
         return _nodeList;
     }
 
-    auto NodeManager::get_nodes() const -> const std::vector<NodeData> &
+    auto NodeManager::get_nodes() const -> const std::list<NodeData> &
     {
         return _nodeList;
     }

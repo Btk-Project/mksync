@@ -260,8 +260,6 @@ namespace mks::base
         auto communication = MKCommunication::make(*this);
         _communication     = communication.get(); // 保存指针
         _nodeManager.add_node(std::move(communication));
-        _nodeManager.add_node(MKCapture::make(*this));
-        _nodeManager.add_node(MKSender::make(*this));
         _nodeManager.add_node(Control::make(*this));
 
         // start all node

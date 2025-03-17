@@ -15,6 +15,8 @@
 #include <variant>
 #include <rapidjson/document.h>
 #include <vector>
+#include <nekoproto/proto/serializer_base.hpp>
+#include <nekoproto/proto/json_serializer.hpp>
 
 namespace mks::base::detail
 {
@@ -32,6 +34,24 @@ namespace mks::base::detail
     {
         return value ? rapidjson::Value(rapidjson::kTrueType)
                      : rapidjson::Value(rapidjson::kFalseType);
+    }
+
+    template <typename T, typename Allocator>
+        requires requires(NekoProto::JsonSerializer::OutputSerializer out, T val) {
+            { val.serialize(out) } -> std::same_as<bool>;
+        }
+    rapidjson::Value to_json_value(const T &value, Allocator &allocator)
+    {
+        std::vector<char> buffer;
+        if (NekoProto::JsonSerializer::OutputSerializer out(buffer); out(value)) {
+            rapidjson::Document doc(&allocator);
+            doc.Parse(buffer.data(), buffer.size());
+            if (doc.HasParseError()) {
+                return rapidjson::Value(rapidjson::kNullType);
+            }
+            return rapidjson::Value(doc.GetObj());
+        }
+        return rapidjson::Value(rapidjson::kNullType);
     }
 
     template <typename T, typename Allocator>
@@ -166,6 +186,7 @@ namespace mks::base::detail
         return false;
     }
 
+    // TODO: support proto
     template <typename T>
         requires std::is_convertible_v<std::string, T>
     bool from_json_value(const rapidjson::Value &value, T &result)
@@ -187,6 +208,22 @@ namespace mks::base::detail
             return true;
         }
         return false;
+    }
+
+    template <typename T>
+        requires requires(NekoProto::JsonSerializer::InputSerializer out, T val) {
+            { val.serialize(out) } -> std::same_as<bool>;
+        }
+    bool from_json_value(const rapidjson::Value &value, T &result)
+    {
+        if (!value.IsObject()) {
+            return false;
+        }
+        rapidjson::StringBuffer                    strbuf;
+        rapidjson::Writer<rapidjson::StringBuffer> writer(strbuf);
+        value.Accept(writer);
+        NekoProto::JsonSerializer::InputSerializer out(strbuf.GetString(), strbuf.GetSize());
+        return out(result);
     }
 
     template <typename T>
