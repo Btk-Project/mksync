@@ -29,9 +29,9 @@ namespace mks::base
         ~XcbMKCapture();
 
         [[nodiscard("coroutine function")]]
-        auto enable() -> ::ilias::Task<int> override;
+        auto setup() -> ::ilias::Task<int> override;
         [[nodiscard("coroutine function")]]
-        auto disable() -> ::ilias::Task<int> override;
+        auto teardown() -> ::ilias::Task<int> override;
         [[nodiscard("coroutine function")]]
         auto start_capture() -> ::ilias::Task<int> override;
         [[nodiscard("coroutine function")]]

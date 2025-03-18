@@ -33,6 +33,7 @@ namespace mks::base
         {
             eNodeStatusRunning = 1,
             eNodeStatusStopped = 2,
+            eNodeDestroyed     = 2,
         };
         struct NodeData {
             std::unique_ptr<NodeBase, void (*)(NodeBase *)> node;
@@ -60,17 +61,17 @@ namespace mks::base
         auto unsubscribe(std::vector<int> types, Consumer *consumer) -> void;
 
         [[nodiscard("coroutine function")]]
-        auto start_node() -> ilias::Task<int>;
+        auto setup_node() -> ilias::Task<int>;
         [[nodiscard("coroutine function")]]
-        auto start_node(NodeData &node) -> ilias::Task<int>;
+        auto setup_node(NodeData &node) -> ilias::Task<int>;
         [[nodiscard("coroutine function")]]
-        auto start_node(std::string_view name) -> ilias::Task<int>;
+        auto setup_node(std::string_view name) -> ilias::Task<int>;
         [[nodiscard("coroutine function")]]
-        auto stop_node() -> ilias::Task<int>;
+        auto teardown_node() -> ilias::Task<int>;
         [[nodiscard("coroutine function")]]
-        auto stop_node(NodeData &node) -> ilias::Task<int>;
+        auto teardown_node(NodeData &node) -> ilias::Task<int>;
         [[nodiscard("coroutine function")]]
-        auto stop_node(std::string_view name) -> ilias::Task<int>;
+        auto teardown_node(std::string_view name) -> ilias::Task<int>;
 
         auto get_nodes() -> std::list<NodeData> &;
         auto get_nodes() const -> const std::list<NodeData> &;

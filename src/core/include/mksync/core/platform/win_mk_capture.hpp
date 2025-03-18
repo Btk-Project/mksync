@@ -24,9 +24,9 @@ namespace mks::base
         WinMKCapture(IApp *app);
         ~WinMKCapture();
         [[nodiscard("coroutine function")]]
-        auto enable() -> ::ilias::Task<int> override;
+        auto setup() -> ::ilias::Task<int> override;
         [[nodiscard("coroutine function")]]
-        auto disable() -> ::ilias::Task<int> override;
+        auto teardown() -> ::ilias::Task<int> override;
         auto name() -> const char * override;
         ///> 获取一个事件，如果没有就等待
         [[nodiscard("coroutine function")]]

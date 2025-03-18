@@ -18,19 +18,21 @@ namespace mks::base
         _app->command_uninstaller(this);
     }
 
-    auto Control::enable() -> ::ilias::Task<int>
+    auto Control::setup() -> ::ilias::Task<int>
     {
         _register_event_handler<ClientConnected>();
         _register_event_handler<ClientDisconnected>();
         _register_event_handler<MouseMotionEvent>();
         _register_event_handler<BorderEvent>();
         _register_event_handler<AppStatusChanged>();
+        SPDLOG_INFO("node {}<{}> setup", name(), (void *)this);
         co_return 0;
     }
 
     ///> 停用节点。
-    auto Control::disable() -> ::ilias::Task<int>
+    auto Control::teardown() -> ::ilias::Task<int>
     {
+        SPDLOG_INFO("node {}<{}> teardown", name(), (void *)this);
         co_return 0;
     }
 
@@ -95,8 +97,8 @@ namespace mks::base
             });
             // 这两个节点在服务端与客户分别开启即可。因此通过Control导入并加以控制。
             _captureNode = _app->node_manager().add_node(MKCapture::make(_app));
-            if (auto ret = co_await _app->node_manager().start_node(_captureNode); ret != 0) {
-                SPDLOG_ERROR("start {} node failed.", _captureNode);
+            if (auto ret = co_await _app->node_manager().setup_node(_captureNode); ret != 0) {
+                SPDLOG_ERROR("setup {} node failed.", _captureNode);
             }
         }
         else if (event.status == AppStatusChanged::eStopped &&
@@ -107,22 +109,22 @@ namespace mks::base
                 NekoProto::ProtoFactory::protoType<MouseWheelEvent>(),
                 NekoProto::ProtoFactory::protoType<KeyboardEvent>(),
             });
-            if (auto ret = co_await _app->node_manager().stop_node(_captureNode); ret != 0) {
-                SPDLOG_ERROR("stop {} node failed.", _captureNode);
+            if (auto ret = co_await _app->node_manager().teardown_node(_captureNode); ret != 0) {
+                SPDLOG_ERROR("teardown {} node failed.", _captureNode);
             }
             _app->node_manager().destroy_node(_captureNode);
         }
         else if (event.status == AppStatusChanged::eStarted &&
                  event.mode == AppStatusChanged::eClient) {
             _senderNode = _app->node_manager().add_node(MKSender::make(_app));
-            if (auto ret = co_await _app->node_manager().start_node(_senderNode); ret != 0) {
-                SPDLOG_ERROR("start {} node failed.", _senderNode);
+            if (auto ret = co_await _app->node_manager().setup_node(_senderNode); ret != 0) {
+                SPDLOG_ERROR("setup {} node failed.", _senderNode);
             }
         }
         else if (event.status == AppStatusChanged::eStopped &&
                  event.mode == AppStatusChanged::eClient) {
-            if (auto ret = co_await _app->node_manager().stop_node(_senderNode); ret != 0) {
-                SPDLOG_ERROR("stop {} node failed.", _senderNode);
+            if (auto ret = co_await _app->node_manager().teardown_node(_senderNode); ret != 0) {
+                SPDLOG_ERROR("teardown {} node failed.", _senderNode);
             }
             _app->node_manager().destroy_node(_senderNode);
         }

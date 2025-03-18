@@ -73,7 +73,7 @@ namespace mks::base
 
     NodeManager::~NodeManager()
     {
-        stop_node().wait();
+        teardown_node().wait();
         _taskScope.cancel();
     }
 
@@ -121,6 +121,11 @@ namespace mks::base
         }
         const auto *name = node->name();
         if (auto item = _nodeMap.find(name); item != _nodeMap.end()) {
+            if (item->second->status == eNodeDestroyed) {
+                item->second->node   = std::move(node);
+                item->second->status = eNodeStatusStopped;
+                return name;
+            }
             SPDLOG_ERROR("add node: {}<{}> failed! node already exists!", name, (void *)node.get());
             return name;
         }
@@ -141,27 +146,25 @@ namespace mks::base
             SPDLOG_ERROR("destroy node: {}<{}> failed! node is running!");
             return -1;
         }
+        item->second->status = eNodeDestroyed;
         SPDLOG_INFO("destroy node: {}<{}>", item->second->node->name(),
                     (void *)item->second->node.get());
-        _app->get_io_context()->schedule(
-            [item = item->second, this]() -> void { _nodeList.erase(item); });
-        _nodeMap.erase(item);
         return 0;
     }
 
-    auto NodeManager::start_node(std::string_view name) -> ilias::Task<int>
+    auto NodeManager::setup_node(std::string_view name) -> ilias::Task<int>
     {
         if (auto item = _nodeMap.find(name); item != _nodeMap.end()) {
-            co_return co_await start_node(*(item->second));
+            co_return co_await setup_node(*(item->second));
         }
         co_return -1;
     }
 
-    auto NodeManager::start_node(NodeData &node) -> ilias::Task<int>
+    auto NodeManager::setup_node(NodeData &node) -> ilias::Task<int>
     {
         SPDLOG_INFO("start node: {}<{}>", node.node->name(), (void *)node.node.get());
         if (node.status == NodeStatus::eNodeStatusStopped) {
-            auto ret = co_await node.node->enable();
+            auto ret = co_await node.node->setup();
             if (ret != 0) {
                 co_return ret;
             }
@@ -169,7 +172,7 @@ namespace mks::base
             auto *consumer = dynamic_cast<Consumer *>(node.node.get());
             if (consumer != nullptr) {
                 for (int type : consumer->get_subscribes()) {
-                    _consumerMap[type].insert(consumer);
+                    subscribe(type, consumer);
                 }
             }
             auto *producer = dynamic_cast<Producer *>(node.node.get());
@@ -200,45 +203,62 @@ namespace mks::base
 
     auto NodeManager::subscribe(int type, Consumer *consumer) -> void
     {
+        SPDLOG_INFO("subscribe: {}<{}> type: {}", dynamic_cast<NodeBase *>(consumer)->name(),
+                    (void *)dynamic_cast<NodeBase *>(consumer), type);
         _consumerMap[type].insert(consumer);
     }
 
     auto NodeManager::subscribe(std::vector<int> types, Consumer *consumer) -> void
     {
         for (int type : types) {
+            SPDLOG_INFO("subscribe: {}<{}> type: {}", dynamic_cast<NodeBase *>(consumer)->name(),
+                        (void *)dynamic_cast<NodeBase *>(consumer), type);
             _consumerMap[type].insert(consumer);
         }
     }
 
     auto NodeManager::unsubscribe(int type, Consumer *consumer) -> void
     {
+        SPDLOG_INFO("unsubscribe: {}<{}> type: {}", dynamic_cast<NodeBase *>(consumer)->name(),
+                    (void *)dynamic_cast<NodeBase *>(consumer), type);
         _consumerMap[type].erase(consumer);
     }
 
     auto NodeManager::unsubscribe(std::vector<int> types, Consumer *consumer) -> void
     {
         for (int type : types) {
+            SPDLOG_INFO("unsubscribe: {}<{}> type: {}", dynamic_cast<NodeBase *>(consumer)->name(),
+                        (void *)dynamic_cast<NodeBase *>(consumer), type);
             _consumerMap[type].erase(consumer);
         }
     }
 
-    auto NodeManager::stop_node(std::string_view name) -> ilias::Task<int>
+    auto NodeManager::teardown_node(std::string_view name) -> ilias::Task<int>
     {
         if (auto item = _nodeMap.find(name); item != _nodeMap.end()) {
-            co_return co_await stop_node(*(item->second));
+            co_return co_await teardown_node(*(item->second));
         }
         co_return -1;
     }
 
-    auto NodeManager::stop_node(NodeData &node) -> ilias::Task<int>
+    auto NodeManager::teardown_node(NodeData &node) -> ilias::Task<int>
     {
         if (node.status == NodeStatus::eNodeStatusRunning) {
             node.status    = NodeStatus::eNodeStatusStopped;
             auto *consumer = dynamic_cast<Consumer *>(node.node.get());
             if (consumer != nullptr) {
-                for (auto item : _consumerMap) {
+                for (auto item = _consumerMap.begin(); item != _consumerMap.end();) {
                     // 遍历所有协议的消费者表，删除防止其运行时订阅的遗漏。
-                    item.second.erase(consumer);
+                    SPDLOG_INFO("unsubscribe: {}<{}> type: {}",
+                                dynamic_cast<NodeBase *>(consumer)->name(),
+                                (void *)dynamic_cast<NodeBase *>(consumer), item->first);
+                    item->second.erase(consumer);
+                    if (item->second.size() == 0) {
+                        item = _consumerMap.erase(item);
+                    }
+                    else {
+                        ++item;
+                    }
                 }
             }
             auto *producer = dynamic_cast<Producer *>(node.node.get());
@@ -250,7 +270,7 @@ namespace mks::base
                 }
                 _cancelHandleMap.erase(handle);
             }
-            co_return co_await node.node->disable();
+            co_return co_await node.node->teardown();
         }
         co_return 0;
     }
@@ -265,18 +285,19 @@ namespace mks::base
             if (dynamic_cast<NodeBase *>(consumer) == nodebase) {
                 continue;
             }
-            SPDLOG_INFO("dispatch {} to {}", proto.protoName(),
-                        dynamic_cast<NodeBase *>(consumer)->name());
+            SPDLOG_INFO("dispatch {} to {}<{}>", proto.protoName(),
+                        dynamic_cast<NodeBase *>(consumer)->name(),
+                        (void *)dynamic_cast<NodeBase *>(consumer));
             co_await consumer->handle_event(proto);
         }
         co_return;
     }
 
-    auto NodeManager::start_node() -> ilias::Task<int>
+    auto NodeManager::setup_node() -> ilias::Task<int>
     {
         auto ret = 0;
         for (auto &node : _nodeList) {
-            if (auto re = co_await start_node(node); re != 0) {
+            if (auto re = co_await setup_node(node); re != 0) {
                 ret = re;
                 SPDLOG_ERROR("node {} start failed!", node.node->name());
             }
@@ -284,13 +305,13 @@ namespace mks::base
         co_return ret;
     }
 
-    auto NodeManager::stop_node() -> ilias::Task<int>
+    auto NodeManager::teardown_node() -> ilias::Task<int>
     {
         auto ret = 0;
-        for (auto &node : _nodeList) {
-            if (auto re = co_await stop_node(node); re != 0) {
+        for (auto node = _nodeList.rbegin(); node != _nodeList.rend(); ++node) {
+            if (auto re = co_await teardown_node(*node); re != 0) {
                 ret = re;
-                SPDLOG_ERROR("node {} stop failed!", node.node->name());
+                SPDLOG_ERROR("node {} stop failed!", node->node->name());
             }
         }
         co_return ret;

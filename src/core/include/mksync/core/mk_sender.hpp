@@ -29,9 +29,9 @@ namespace mks::base
         MKSender(IApp *app);
         virtual ~MKSender();
         [[nodiscard("coroutine function")]]
-        auto enable() -> ::ilias::Task<int> override;
+        auto setup() -> ::ilias::Task<int> override;
         [[nodiscard("coroutine function")]]
-        auto disable() -> ::ilias::Task<int> override;
+        auto teardown() -> ::ilias::Task<int> override;
         auto get_subscribes() -> std::vector<int> override;
         [[nodiscard("coroutine function")]]
         auto handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void> override;

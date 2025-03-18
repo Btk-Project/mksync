@@ -262,6 +262,8 @@ namespace mks::base
         auto item = _commands.emplace(_commands.end(), std::move(command));
         _modules.insert({std::string(module == nullptr ? "Core" : module->name()), item});
         _trie.insert(_commands.back()->name(), item);
+        SPDLOG_INFO("install command \"{}\" for module {}<{}>", (*item)->name(),
+                    module == nullptr ? "Core" : module->name(), (void *)module);
         for (const auto &cmd : _commands.back()->alias_names()) {
             _trie.insert(cmd, item);
         }
@@ -279,8 +281,10 @@ namespace mks::base
             _modules.clear();
             _trie.clear();
             _protoCommandsTable.clear();
+            SPDLOG_INFO("remove all commands");
             return;
         }
+        SPDLOG_INFO("remove commands for module {}<{}>", module->name(), (void *)module);
         auto itemRange = _modules.equal_range(module->name());
         for (auto item = itemRange.first; item != itemRange.second; ++item) {
             const auto &command = *item->second;

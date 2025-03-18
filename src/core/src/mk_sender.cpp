@@ -158,16 +158,18 @@ namespace mks::base
 
     MKSender::~MKSender() {}
 
-    auto MKSender::enable() -> Task<int>
+    auto MKSender::setup() -> Task<int>
     {
         auto commandInstaller = _app->command_installer(this);
         commandInstaller(std::make_unique<MKSenderCommand>(this));
+        SPDLOG_INFO("node {}<{}> setup", name(), (void *)this);
         co_return 0;
     }
 
-    auto MKSender::disable() -> Task<int>
+    auto MKSender::teardown() -> Task<int>
     {
         _app->command_uninstaller(this);
+        SPDLOG_INFO("node {}<{}> teardown", name(), (void *)this);
         co_return co_await stop_sender();
     }
 
