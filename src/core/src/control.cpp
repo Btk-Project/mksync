@@ -13,7 +13,10 @@ namespace mks::base
     using ::ilias::Unexpected;
 
     Control::Control(IApp *app) : _app(app), _events(10) {}
-    Control::~Control() {}
+    Control::~Control()
+    {
+        _app->command_uninstaller(this);
+    }
 
     auto Control::enable() -> ::ilias::Task<int>
     {

@@ -84,7 +84,7 @@ namespace mks::base
         _syncEvent.set();
     }
 
-    WinMKCapture::WinMKCapture(::ilias::IoContext *ctx) : MKCapture(ctx), _events(10)
+    WinMKCapture::WinMKCapture(IApp *app) : MKCapture(app), _events(10)
     {
         if (g_self != nullptr) {
             SPDLOG_ERROR("WinMKcapture can't be created more than one");

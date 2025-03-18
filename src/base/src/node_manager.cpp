@@ -143,7 +143,8 @@ namespace mks::base
         }
         SPDLOG_INFO("destroy node: {}<{}>", item->second->node->name(),
                     (void *)item->second->node.get());
-        _nodeList.erase(item->second);
+        _app->get_io_context()->schedule(
+            [item = item->second, this]() -> void { _nodeList.erase(item); });
         _nodeMap.erase(item);
         return 0;
     }
@@ -183,10 +184,14 @@ namespace mks::base
     auto NodeManager::producer_loop(Producer *producer) -> ::ilias::Task<void>
     {
         while (true) {
-            if (auto ret = co_await producer->get_event(); ret) {
-                co_await dispatch(std::move(ret.value()), dynamic_cast<NodeBase *>(producer));
+            auto ret = co_await producer->get_event();
+            if (ret && !(ret.value() == nullptr)) {
+                co_await dispatch(ret.value(), dynamic_cast<NodeBase *>(producer));
             }
             else {
+                SPDLOG_ERROR("producer: {}<{}> get event failed! exit producer loop!, {}",
+                             dynamic_cast<NodeBase *>(producer)->name(), (void *)producer,
+                             ret.has_value() ? "null proto" : ret.error().message());
                 break;
             }
         }

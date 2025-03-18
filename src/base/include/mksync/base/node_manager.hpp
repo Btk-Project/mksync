@@ -79,8 +79,8 @@ namespace mks::base
     private:
         IApp                                                                *_app;
         std::list<NodeData>                                                  _nodeList;
+        std::map<int, std::set<Consumer *>>                                  _consumerMap;
         std::unordered_map<std::string_view, std::list<NodeData>::iterator>  _nodeMap;
-        std::unordered_map<int, std::set<Consumer *>>                        _consumerMap;
         ::ilias::TaskScope                                                   _taskScope;
         std::vector<std::unique_ptr<NodeDll>>                                _dlls;
         std::unordered_map<std::string_view, ilias::TaskScope::WaitHandle<>> _cancelHandleMap;

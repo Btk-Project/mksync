@@ -26,7 +26,7 @@ namespace mks::base
     {
         using CallbackType = Task<std::string> (App::*)(const CommandInvoker::ArgsType &,
                                                         const CommandInvoker::OptionsType &);
-        auto coreInstaller = command_installer("Core");
+        auto coreInstaller = command_installer(nullptr);
         // 注册退出程序命令
         coreInstaller(std::make_unique<CommonCommand>(CommandInvoker::CommandsData{
             {"exit", "quit", "q"},
@@ -136,11 +136,14 @@ namespace mks::base
             .timestamp = (uint64_t)std::chrono::system_clock::now().time_since_epoch().count()};
     }
 
-    auto App::command_installer(std::string_view module)
-        -> std::function<bool(std::unique_ptr<Command>)>
+    auto App::command_installer(NodeBase *module) -> std::function<bool(std::unique_ptr<Command>)>
     {
         return std::bind(&CommandInvoker::install_cmd, &_commandInvoker, std::placeholders::_1,
                          module);
+    }
+    auto App::command_uninstaller(NodeBase *module) -> void
+    {
+        _commandInvoker.remove_cmd(module);
     }
 
     auto App::log_handle([[maybe_unused]] const CommandInvoker::ArgsType    &args,

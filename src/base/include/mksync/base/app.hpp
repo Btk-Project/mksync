@@ -49,8 +49,9 @@ namespace mks::base
         virtual auto settings() -> Settings &                       = 0;
         virtual auto node_manager() -> NodeManager &                = 0;
         virtual auto communication() -> ICommunication *            = 0;
-        virtual auto command_installer(std::string_view module)
-            -> std::function<bool(std::unique_ptr<Command>)> = 0;
+        virtual auto command_installer(NodeBase *module)
+            -> std::function<bool(std::unique_ptr<Command>)>       = 0;
+        virtual auto command_uninstaller(NodeBase *module) -> void = 0;
 
         // main loop
         [[nodiscard("coroutine function")]]
