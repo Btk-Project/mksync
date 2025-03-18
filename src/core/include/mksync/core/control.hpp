@@ -39,10 +39,10 @@ namespace mks::base
         Control(IApp *app);
         ~Control();
         [[nodiscard("coroutine function")]]
-        auto enable() -> ::ilias::Task<int> override;
+        auto setup() -> ::ilias::Task<int> override;
         ///> 停用节点。
         [[nodiscard("coroutine function")]]
-        auto disable() -> ::ilias::Task<int> override;
+        auto teardown() -> ::ilias::Task<int> override;
         ///> 获取节点名称。
         auto name() -> const char * override;
         ///> 预先订阅的事件类型集合。

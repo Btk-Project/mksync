@@ -266,7 +266,7 @@ namespace mks::base
         _nodeManager.add_node(Control::make(*this));
 
         // start all node
-        co_await _nodeManager.start_node();
+        co_await _nodeManager.setup_node();
         _isRuning = true;
         if (argc > 1) {
             co_await _commandInvoker.execute(std::vector<const char *>(argv + 1, argv + argc));
@@ -294,7 +294,7 @@ namespace mks::base
     {
         _isRuning = false;
         co_await stop_console();
-        co_await _nodeManager.stop_node();
+        co_await _nodeManager.teardown_node();
     }
 
     auto App::settings() -> Settings &

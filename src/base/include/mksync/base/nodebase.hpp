@@ -60,10 +60,10 @@ namespace mks::base
         virtual ~NodeBase() = default;
         ///> 启用节点。
         [[nodiscard("coroutine function")]]
-        virtual auto enable() -> ::ilias::Task<int> = 0;
+        virtual auto setup() -> ::ilias::Task<int> = 0;
         ///> 停用节点。
         [[nodiscard("coroutine function")]]
-        virtual auto disable() -> ::ilias::Task<int> = 0;
+        virtual auto teardown() -> ::ilias::Task<int> = 0;
         ///> 获取节点名称。
         virtual auto name() -> const char * = 0;
     };

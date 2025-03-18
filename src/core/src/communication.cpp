@@ -431,6 +431,18 @@ namespace mks::base
         _currentPeer         = _protoStreamClients.end();
         _communicationWapper = std::make_unique<ClientCommunication>(this);
         _taskScope.setAutoCancel(true);
+    }
+
+    MKCommunication::~MKCommunication()
+    {
+        _app->command_uninstaller(this);
+    }
+
+    auto MKCommunication::setup() -> ::ilias::Task<int>
+    {
+        if (_status == eDisable) {
+            _status = eEnable;
+        }
         using CallbackType = Task<std::string> (MKCommunication::*)(
             const CommandInvoker::ArgsType &, const CommandInvoker::OptionsType &);
 
@@ -449,26 +461,17 @@ namespace mks::base
                  "enable independent thread for serialization"},
              }
         }));
-    }
-
-    MKCommunication::~MKCommunication()
-    {
-        _app->command_uninstaller(this);
-    }
-
-    auto MKCommunication::enable() -> ::ilias::Task<int>
-    {
-        if (_status == eDisable) {
-            _status = eEnable;
-        }
+        SPDLOG_INFO("node {}<{}> setup", name(), (void *)this);
         co_return 0;
     }
 
-    auto MKCommunication::disable() -> ::ilias::Task<int>
+    auto MKCommunication::teardown() -> ::ilias::Task<int>
     {
+        _app->command_uninstaller(this);
         _syncEvent.set();
         co_await close();
         _status = eDisable;
+        SPDLOG_INFO("node {}<{}> teardown", name(), (void *)this);
         co_return 0;
     }
 

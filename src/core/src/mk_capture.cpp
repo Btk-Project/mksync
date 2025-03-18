@@ -160,17 +160,19 @@ namespace mks::base
 
     MKCapture::~MKCapture() {}
 
-    auto MKCapture::enable() -> Task<int>
+    auto MKCapture::setup() -> Task<int>
     {
         auto commandInstaller = _app->command_installer(this);
         // 注册开始捕获键鼠事件命令
         commandInstaller(std::make_unique<CaptureCommand>(this));
+        SPDLOG_INFO("node {}<{}> setup", name(), (void *)this);
         co_return 0;
     }
 
-    auto MKCapture::disable() -> Task<int>
+    auto MKCapture::teardown() -> Task<int>
     {
         _app->command_uninstaller(this);
+        SPDLOG_INFO("node {}<{}> teardown", name(), (void *)this);
         co_return co_await stop_capture();
     }
 

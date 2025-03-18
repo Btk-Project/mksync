@@ -34,9 +34,9 @@ namespace mks::base
         MKCapture(IApp *app);
         virtual ~MKCapture();
         [[nodiscard("coroutine function")]]
-        auto enable() -> ::ilias::Task<int> override;
+        auto setup() -> ::ilias::Task<int> override;
         [[nodiscard("coroutine function")]]
-        auto disable() -> ::ilias::Task<int> override;
+        auto teardown() -> ::ilias::Task<int> override;
 
         [[nodiscard("coroutine function")]]
         virtual auto start_capture() -> ::ilias::Task<int> = 0;

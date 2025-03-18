@@ -52,9 +52,9 @@ namespace mks::base
         MKCommunication(IApp *app);
         virtual ~MKCommunication();
         [[nodiscard("coroutine function")]]
-        auto enable() -> ::ilias::Task<int> override;
+        auto setup() -> ::ilias::Task<int> override;
         [[nodiscard("coroutine function")]]
-        auto disable() -> ::ilias::Task<int> override;
+        auto teardown() -> ::ilias::Task<int> override;
         auto name() -> const char * override;
         auto get_subscribes() -> std::vector<int> override;
         [[nodiscard("coroutine function")]]
