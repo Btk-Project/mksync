@@ -236,7 +236,7 @@ namespace mks::base
                                   std::placeholders::_2),
                         {}
         }),
-                    "Core");
+                    nullptr);
         install_cmd(std::make_unique<CommonCommand>(CommandsData{
                         {"version", "v"},
                         "version(v) : show version",
@@ -244,11 +244,10 @@ namespace mks::base
                                   std::placeholders::_2),
                         {}
         }),
-                    "Core");
+                    nullptr);
     }
 
-    auto CommandInvoker::install_cmd(std::unique_ptr<Command> command, std::string_view module)
-        -> bool
+    auto CommandInvoker::install_cmd(std::unique_ptr<Command> command, NodeBase *module) -> bool
     {
         if (_trie.search(command->name())) {
             SPDLOG_ERROR("command \"{}\" already exists", command->name());
@@ -260,17 +259,39 @@ namespace mks::base
                             command->name(), cmd);
             }
         }
-        _commands.emplace_back(std::move(command));
-        _modules.insert({std::string(module), _commands.size() - 1});
-        _trie.insert(_commands.back()->name(), (int)_commands.size() - 1);
+        auto item = _commands.emplace(_commands.end(), std::move(command));
+        _modules.insert({std::string(module == nullptr ? "Core" : module->name()), item});
+        _trie.insert(_commands.back()->name(), item);
         for (const auto &cmd : _commands.back()->alias_names()) {
-            _trie.insert(cmd, (int)_commands.size() - 1);
+            _trie.insert(cmd, item);
         }
         auto proto = _commands.back()->get_options();
         if (proto != nullptr) { // 建立协议-->命令的映射表。
-            _protoCommandsTable[proto.type()] = (int)_commands.size() - 1;
+            _protoCommandsTable[proto.type()] = item;
         }
         return true;
+    }
+
+    auto CommandInvoker::remove_cmd(NodeBase *module) -> void
+    {
+        if (module == nullptr) {
+            _commands.clear();
+            _modules.clear();
+            _trie.clear();
+            _protoCommandsTable.clear();
+            return;
+        }
+        auto itemRange = _modules.equal_range(module->name());
+        for (auto item = itemRange.first; item != itemRange.second; ++item) {
+            const auto &command = *item->second;
+            _trie.remove(command->name());
+            for (const auto &cmd : command->alias_names()) {
+                _trie.remove(cmd);
+            }
+            _protoCommandsTable.erase(command->get_options().type());
+            _commands.erase(item->second);
+        }
+        _modules.erase(itemRange.first, itemRange.second);
     }
 
     auto CommandInvoker::execute(std::span<char> cmd) -> Task<void>
@@ -283,22 +304,14 @@ namespace mks::base
         if (cmdline.empty()) {
             co_return;
         }
-        const auto *cmd   = cmdline.front();
-        auto        item  = _trie.search(cmd);
-        int         index = -1;
+        const auto *cmd  = cmdline.front();
+        auto        item = _trie.search(cmd);
         if (item) {
-            index = item.value();
-            if (index < 0 && index >= (int)_commands.size()) {
-                SPDLOG_ERROR("command \"{}\" not found", cmd);
-                co_return;
-            }
+            (*(*item))->parser_options(cmdline);
+            co_return co_await (*(*item))->execute();
         }
-        else {
-            SPDLOG_ERROR("command \"{}\" not found", cmd);
-            co_return;
-        }
-        _commands[index]->parser_options(cmdline);
-        co_return co_await _commands[index]->execute();
+        SPDLOG_ERROR("command \"{}\" not found", cmd);
+        co_return;
     }
 
     auto CommandInvoker::execute(const NekoProto::IProto &proto) -> Task<void>
@@ -310,12 +323,11 @@ namespace mks::base
         int  type = proto.type();
         auto item = _protoCommandsTable.find(type);
         if (item != _protoCommandsTable.end()) {
-            int index = item->second;
-            if (index >= 0 && index < (int)_commands.size()) {
-                _commands[index]->set_options(proto);
-                co_return co_await _commands[index]->execute();
-            }
+            auto commandItem = item->second;
+            (*commandItem)->set_options(proto);
+            co_return co_await (*commandItem)->execute();
         }
+        co_return;
     }
 
     auto CommandInvoker::show_version([[maybe_unused]] const ArgsType    &args,
@@ -346,7 +358,7 @@ namespace mks::base
                 module = item->first;
                 fprintf(stdout, "%s:\n", module.c_str());
             }
-            const auto &command = _commands[item->second];
+            const auto &command = (*item->second);
             auto        help    = command->help();
             fprintf(stdout, "%s%s", help.c_str(),
                     ((help.size() > 2 && help[help.size() - 2] != '\n') ? "\n" : ""));

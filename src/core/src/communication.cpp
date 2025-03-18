@@ -42,7 +42,7 @@ namespace mks::base
 
     protected:
         MKCommunication *_self       = nullptr;
-        IPEndpoint       _ipendpoint = {"127.0.0.1:12345"};
+        IPEndpoint       _ipendpoint = {"0.0.0.0:12345"};
         Operation        _operation  = eNone;
         cxxopts::Options _options;
     };
@@ -181,7 +181,7 @@ namespace mks::base
             fmt::format("{}{}{}{} <start/stop/restart> [options...], e.g. server start",
                         this->name(), ret.empty() ? "" : "(", ret, ret.empty() ? "" : ")"));
         _options.add_options()("a,address", "server address",
-                               cxxopts::value<std::string>()->default_value("127.0.0.1"), "[ip]")(
+                               cxxopts::value<std::string>()->default_value("0.0.0.0"), "[ip]")(
             "p,port", "server port", cxxopts::value<uint16_t>()->default_value("12345"), "[int]");
         _options.allow_unrecognised_options();
     }
@@ -281,7 +281,7 @@ namespace mks::base
         default:
             SPDLOG_ERROR("Unknown server operation");
         }
-        std::string address = "127.0.0.1";
+        std::string address = "0.0.0.0";
         if (!control->ip.empty()) {
             address = control->ip;
         }
@@ -403,7 +403,7 @@ namespace mks::base
         default:
             SPDLOG_ERROR("Unknown server operation");
         }
-        std::string address = "127.0.0.1";
+        std::string address = "0.0.0.0";
         if (!control->ip.empty()) {
             address = control->ip;
         }
@@ -426,11 +426,34 @@ namespace mks::base
     }
 
     MKCommunication::MKCommunication(IApp *app)
-        : _protofactory(1, 0, 0), _events(10), _app(app), _taskScope(*_app->get_io_context())
+        : _protofactory(1, 0, 0), _app(app), _taskScope(*_app->get_io_context())
     {
         _currentPeer         = _protoStreamClients.end();
         _communicationWapper = std::make_unique<ClientCommunication>(this);
         _taskScope.setAutoCancel(true);
+        using CallbackType = Task<std::string> (MKCommunication::*)(
+            const CommandInvoker::ArgsType &, const CommandInvoker::OptionsType &);
+
+        auto commandInstaller = _app->command_installer(this);
+        // 注册服务器监听相关命令
+        commandInstaller(std::make_unique<ServerCommand>(this));
+        // 注册连接到服务器命令
+        commandInstaller(std::make_unique<ClientCommand>(this));
+        commandInstaller(std::make_unique<CommonCommand>(CommandInvoker::CommandsData{
+            {"communication_attributes", "comm_attr"},
+            "communication_attributes(comm_attr) [options...], set communication attributes",
+            std::bind(static_cast<CallbackType>(&MKCommunication::set_communication_options), this,
+                      std::placeholders::_1, std::placeholders::_2),
+            {
+             {"thread", CommandInvoker::OptionsData::eBool,
+                 "enable independent thread for serialization"},
+             }
+        }));
+    }
+
+    MKCommunication::~MKCommunication()
+    {
+        _app->command_uninstaller(this);
     }
 
     auto MKCommunication::enable() -> ::ilias::Task<int>
@@ -552,9 +575,16 @@ namespace mks::base
                 co_return Unexpected<Error>(ret.error());
             }
         }
-        NekoProto::IProto proto;
-        _events.pop(proto);
-        co_return std::move(proto);
+        // NekoProto::IProto proto;
+        if (_events.size() > 0) {
+            auto event = std::move(_events.front());
+            assert(event != nullptr);
+            _events.pop_front();
+            co_return event;
+        }
+        else {
+            co_return Unexpected<Error>(Error::Unknown);
+        }
     }
 
     auto MKCommunication::status() -> Status
@@ -612,8 +642,8 @@ namespace mks::base
                 _communicationWapper = std::make_unique<ServerCommunication>(this);
             }
             _taskScope.spawn(_server_loop(std::move(server)));
-            _events.emplace(AppStatusChanged::emplaceProto(AppStatusChanged::eStarted,
-                                                           AppStatusChanged::eServer));
+            _events.emplace_back(AppStatusChanged::emplaceProto(AppStatusChanged::eStarted,
+                                                                AppStatusChanged::eServer));
             _syncEvent.set();
             co_return 0;
         }
@@ -650,8 +680,8 @@ namespace mks::base
             }
         }
         if (_status == eServer) {
-            _events.emplace(AppStatusChanged::emplaceProto(AppStatusChanged::eStopped,
-                                                           AppStatusChanged::eServer));
+            _events.emplace_back(AppStatusChanged::emplaceProto(AppStatusChanged::eStopped,
+                                                                AppStatusChanged::eServer));
             _syncEvent.set();
             _status = eEnable;
         }
@@ -667,7 +697,7 @@ namespace mks::base
             if (auto ret = co_await client.recv(_flags); ret) {
                 // 获得消息生成一个事件。收到来自客户端的消息。
                 SPDLOG_INFO("recv {} from {}", ret.value().protoName(), _currentPeer->first);
-                _events.emplace(ClientMessage::emplaceProto(
+                _events.emplace_back(ClientMessage::emplaceProto(
                     peer, std::make_shared<NekoProto::IProto>(std::move(ret.value()))));
                 _syncEvent.set();
             }
@@ -675,8 +705,9 @@ namespace mks::base
                 if (ret.error() != Error::Canceled) {
                     SPDLOG_ERROR("recv event failed {}", ret.error().message());
                 }
-                _events.emplace(ClientDisconnected::emplaceProto(peer, ret.error().message()));
+                _events.emplace_back(ClientDisconnected::emplaceProto(peer, ret.error().message()));
                 _syncEvent.set();
+                break;
             }
         }
     }
@@ -691,7 +722,7 @@ namespace mks::base
             if (auto ret = co_await client.recv(_flags); ret) {
                 // 获得消息生成一个事件。
                 SPDLOG_INFO("recv {} from {}", ret.value().protoName(), _currentPeer->first);
-                _events.emplace(std::move(ret.value()));
+                _events.emplace_back(std::move(ret.value()));
                 _syncEvent.set();
             }
             else {
@@ -706,8 +737,8 @@ namespace mks::base
             }
         }
         if (_status == eClient) {
-            _events.emplace(AppStatusChanged::emplaceProto(AppStatusChanged::eStopped,
-                                                           AppStatusChanged::eClient));
+            _events.emplace_back(AppStatusChanged::emplaceProto(AppStatusChanged::eStopped,
+                                                                AppStatusChanged::eClient));
             _syncEvent.set();
             _status = eEnable;
         }
@@ -780,7 +811,7 @@ namespace mks::base
             SPDLOG_INFO("recv screen info from {} {}:({}x{} {})", peer, proto->name, proto->width,
                         proto->height, proto->screenId);
             auto clientConnected = ClientConnected::emplaceProto(name, std::move(*proto));
-            _events.emplace(std::move(clientConnected));
+            _events.emplace_back(std::move(clientConnected));
             _syncEvent.set();
             co_return 0;
         }
@@ -828,7 +859,7 @@ namespace mks::base
             _communicationWapper = std::make_unique<ClientCommunication>(this);
         }
         SPDLOG_INFO("connect to {}", endpoint.toString());
-        _events.emplace(
+        _events.emplace_back(
             AppStatusChanged::emplaceProto(AppStatusChanged::eStarted, AppStatusChanged::eClient));
         _syncEvent.set();
         co_return 0;
@@ -866,26 +897,9 @@ namespace mks::base
 
     auto MKCommunication::make(App &app) -> std::unique_ptr<MKCommunication, void (*)(NodeBase *)>
     {
-        using CallbackType = Task<std::string> (MKCommunication::*)(
-            const CommandInvoker::ArgsType &, const CommandInvoker::OptionsType &);
         std::unique_ptr<MKCommunication, void (*)(NodeBase *)> communication(
             new MKCommunication(&app),
             [](NodeBase *ptr) { delete static_cast<MKCommunication *>(ptr); });
-        auto commandInstaller = app.command_installer(communication->name());
-        // 注册服务器监听相关命令
-        commandInstaller(std::make_unique<ServerCommand>(communication.get()));
-        // 注册连接到服务器命令
-        commandInstaller(std::make_unique<ClientCommand>(communication.get()));
-        commandInstaller(std::make_unique<CommonCommand>(CommandInvoker::CommandsData{
-            {"communication_attributes", "comm_attr"},
-            "communication_attributes(comm_attr) [options...], set communication attributes",
-            std::bind(static_cast<CallbackType>(&MKCommunication::set_communication_options),
-                      communication.get(), std::placeholders::_1, std::placeholders::_2),
-            {
-             {"thread", CommandInvoker::OptionsData::eBool,
-                 "enable independent thread for serialization"},
-             }
-        }));
         return communication;
     }
 

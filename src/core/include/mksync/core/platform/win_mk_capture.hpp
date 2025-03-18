@@ -21,7 +21,7 @@ namespace mks::base
 {
     class MKS_BASE_API WinMKCapture final : public MKCapture {
     public:
-        WinMKCapture(::ilias::IoContext *ctx);
+        WinMKCapture(IApp *app);
         ~WinMKCapture();
         [[nodiscard("coroutine function")]]
         auto enable() -> ::ilias::Task<int> override;

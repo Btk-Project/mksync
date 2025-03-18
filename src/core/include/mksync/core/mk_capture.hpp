@@ -31,8 +31,8 @@ namespace mks::base
      */
     class MKS_CORE_API MKCapture : public NodeBase, public Producer {
     public:
-        MKCapture(::ilias::IoContext *ctx) : _ctx(ctx) {};
-        virtual ~MKCapture() = default;
+        MKCapture(IApp *app);
+        virtual ~MKCapture();
         [[nodiscard("coroutine function")]]
         auto enable() -> ::ilias::Task<int> override;
         [[nodiscard("coroutine function")]]
@@ -46,6 +46,6 @@ namespace mks::base
         static auto make(IApp *app) -> std::unique_ptr<MKCapture, void (*)(NodeBase *)>;
 
     private:
-        ::ilias::IoContext *_ctx = nullptr;
+        IApp *_app = nullptr;
     };
 } // namespace mks::base

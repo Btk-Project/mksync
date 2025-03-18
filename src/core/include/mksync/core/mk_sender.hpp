@@ -26,8 +26,8 @@ namespace mks::base
      */
     class MKS_CORE_API MKSender : public NodeBase, public Consumer {
     public:
-        MKSender(IApp *app) : _app(app) {}
-        virtual ~MKSender() = default;
+        MKSender(IApp *app);
+        virtual ~MKSender();
         [[nodiscard("coroutine function")]]
         auto enable() -> ::ilias::Task<int> override;
         [[nodiscard("coroutine function")]]

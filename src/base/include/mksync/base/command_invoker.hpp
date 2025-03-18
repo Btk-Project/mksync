@@ -24,6 +24,7 @@
 namespace mks::base
 {
     class IApp;
+    class NodeBase;
 
     /**
      * @brief CommandInvoker
@@ -61,7 +62,10 @@ namespace mks::base
 
     public:
         CommandInvoker(IApp *app);
-        auto install_cmd(std::unique_ptr<Command> command, std::string_view module = "") -> bool;
+        auto install_cmd(std::unique_ptr<Command> command, NodeBase *module = nullptr) -> bool;
+        auto remove_cmd(NodeBase *module) -> void;
+        // 将删除其对应模块的所有命令。
+        auto remove_cmd(std::string_view cmd) -> void;
         [[nodiscard("coroutine function")]]
         auto execute(std::span<char> cmdline) -> ::ilias::Task<void>;
         [[nodiscard("coroutine function")]]
@@ -79,11 +83,11 @@ namespace mks::base
         static auto _split(std::span<char> str, char ch = ' ') -> std::vector<const char *>;
 
     private:
-        std::multimap<std::string, int>       _modules;
-        std::vector<std::unique_ptr<Command>> _commands;
-        std::unordered_map<int, int>          _protoCommandsTable;
-        Trie<int>                             _trie;
-        IApp                                 *_app = nullptr;
+        IApp                                                                  *_app = nullptr;
+        std::list<std::unique_ptr<Command>>                                    _commands;
+        Trie<std::list<std::unique_ptr<Command>>::iterator>                    _trie;
+        std::unordered_map<int, std::list<std::unique_ptr<Command>>::iterator> _protoCommandsTable;
+        std::multimap<std::string, std::list<std::unique_ptr<Command>>::iterator> _modules;
     };
 
     class CommonCommand : public Command {

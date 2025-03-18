@@ -68,8 +68,9 @@ namespace mks::base
         auto start_console() -> ilias::Task<void>;
         [[nodiscard("coroutine function")]]
         auto stop_console() -> ilias::Task<void>;
-        auto command_installer(std::string_view module)
+        auto command_installer(NodeBase *module)
             -> std::function<bool(std::unique_ptr<Command>)> override;
+        auto command_uninstaller(NodeBase *module) -> void override;
 
         // status
         [[nodiscard("coroutine function")]]

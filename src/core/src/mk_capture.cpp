@@ -156,13 +156,21 @@ namespace mks::base
         return CaptureControl::emplaceProto();
     }
 
+    MKCapture::MKCapture(IApp *app) : _app(app) {}
+
+    MKCapture::~MKCapture() {}
+
     auto MKCapture::enable() -> Task<int>
     {
+        auto commandInstaller = _app->command_installer(this);
+        // 注册开始捕获键鼠事件命令
+        commandInstaller(std::make_unique<CaptureCommand>(this));
         co_return 0;
     }
 
     auto MKCapture::disable() -> Task<int>
     {
+        _app->command_uninstaller(this);
         co_return co_await stop_capture();
     }
 
@@ -171,14 +179,10 @@ namespace mks::base
     {
         std::unique_ptr<MKCapture, void (*)(NodeBase *)> capture =
 #ifdef _WIN32
-            {new WinMKCapture(app->get_io_context()),
-             [](NodeBase *ptr) { delete static_cast<WinMKCapture *>(ptr); }};
+            {new WinMKCapture(app), [](NodeBase *ptr) { delete static_cast<WinMKCapture *>(ptr); }};
 #else
             {new XcbMKCapture(app), [](NodeBase *ptr) { delete static_cast<XcbMKCapture *>(ptr); }};
 #endif
-        auto commandInstaller = app->command_installer(capture->name());
-        // 注册开始捕获键鼠事件命令
-        commandInstaller(std::make_unique<CaptureCommand>(capture.get()));
         return capture;
     }
 

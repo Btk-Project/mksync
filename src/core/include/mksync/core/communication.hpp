@@ -15,12 +15,13 @@
 #include "mksync/core/core_library.h"
 #include "mksync/base/nodebase.hpp"
 #include "mksync/base/command_invoker.hpp"
-#include "mksync/base/ring_buffer.hpp"
+// #include "mksync/base/ring_buffer.hpp"
 #include "mksync/base/communication.hpp"
 
 #include <ilias/sync/event.hpp>
 #include <ilias/sync/scope.hpp>
 #include <map>
+#include <deque>
 
 namespace mks::base
 {
@@ -49,7 +50,7 @@ namespace mks::base
 
     public:
         MKCommunication(IApp *app);
-        virtual ~MKCommunication() = default;
+        virtual ~MKCommunication();
         [[nodiscard("coroutine function")]]
         auto enable() -> ::ilias::Task<int> override;
         [[nodiscard("coroutine function")]]
@@ -123,7 +124,7 @@ namespace mks::base
 
     private:
         NekoProto::ProtoFactory       _protofactory;
-        RingBuffer<NekoProto::IProto> _events;
+        std::deque<NekoProto::IProto> _events;
         IApp                         *_app = nullptr;
         ::ilias::Event                _syncEvent;
         ::ilias::TaskScope            _taskScope;

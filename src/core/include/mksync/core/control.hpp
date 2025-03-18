@@ -17,6 +17,7 @@
 #include "mksync/proto/proto.hpp"
 #include "mksync/base/app.hpp"
 #include "mksync/core/communication.hpp"
+#include "mksync/base/ring_buffer.hpp"
 
 namespace mks::base
 {

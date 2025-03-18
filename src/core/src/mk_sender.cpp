@@ -154,13 +154,20 @@ namespace mks::base
         return SenderControl::emplaceProto();
     }
 
+    MKSender::MKSender(IApp *app) : _app(app) {}
+
+    MKSender::~MKSender() {}
+
     auto MKSender::enable() -> Task<int>
     {
+        auto commandInstaller = _app->command_installer(this);
+        commandInstaller(std::make_unique<MKSenderCommand>(this));
         co_return 0;
     }
 
     auto MKSender::disable() -> Task<int>
     {
+        _app->command_uninstaller(this);
         co_return co_await stop_sender();
     }
 
@@ -206,8 +213,6 @@ namespace mks::base
 #else
             {new XcbMKSender(app), [](NodeBase *ptr) { delete static_cast<XcbMKSender *>(ptr); }};
 #endif
-        auto commandInstaller = app->command_installer(sender->name());
-        commandInstaller(std::make_unique<MKSenderCommand>(sender.get()));
         return sender;
     }
 } // namespace mks::base
