@@ -102,8 +102,7 @@ namespace mks::base
         void set_option(std::string_view option, std::string_view value) override;
         void set_options(const NekoProto::IProto &proto) override;
         void parser_options(const std::vector<const char *> &args) override;
-        auto get_option(std::string_view option) const -> std::string override;
-        auto get_options() const -> NekoProto::IProto override;
+        auto need_proto_type() const -> int override;
 
     private:
         CommandInvoker::CommandsData _data    = {};

@@ -36,9 +36,8 @@ namespace mks::base
         auto alias_names() const -> std::vector<std::string_view> override;
         void set_option(std::string_view option, std::string_view value) override;
         void parser_options(const std::vector<const char *> &args) override;
-        auto get_option(std::string_view option) const -> std::string override;
         void set_options(const NekoProto::IProto &proto) override;
-        auto get_options() const -> NekoProto::IProto override;
+        auto need_proto_type() const -> int override;
 
     protected:
         MKCommunication *_self       = nullptr;
@@ -55,7 +54,7 @@ namespace mks::base
         auto name() const -> std::string_view override;
         auto alias_names() const -> std::vector<std::string_view> override;
         void set_options(const NekoProto::IProto &proto) override;
-        auto get_options() const -> NekoProto::IProto override;
+        auto need_proto_type() const -> int override;
     };
 
     class MKS_CORE_API ServerCommunication : public IServerCommunication {
@@ -323,21 +322,9 @@ namespace mks::base
         }
     }
 
-    auto ServerCommand::get_option(std::string_view option) const -> std::string
+    auto ServerCommand::need_proto_type() const -> int
     {
-        if (option == "address") {
-            return _ipendpoint.address().toString();
-        }
-        if (option == "port") {
-            return std::to_string(_ipendpoint.port());
-        }
-        return {};
-    }
-
-    auto ServerCommand::get_options() const -> NekoProto::IProto
-    {
-        return ServerControl::emplaceProto((ServerControl::Command)-1,
-                                           _ipendpoint.address().toString(), _ipendpoint.port());
+        return NekoProto::ProtoFactory::protoType<ServerControl>();
     }
 
     ClientCommand::ClientCommand(MKCommunication *self) : ServerCommand(self, "client")
@@ -419,10 +406,9 @@ namespace mks::base
         }
     }
 
-    auto ClientCommand::get_options() const -> NekoProto::IProto
+    auto ClientCommand::need_proto_type() const -> int
     {
-        return ClientControl::emplaceProto((ClientControl::Command)-1,
-                                           _ipendpoint.address().toString(), _ipendpoint.port());
+        return NekoProto::ProtoFactory::protoType<ClientControl>();
     }
 
     MKCommunication::MKCommunication(IApp *app)

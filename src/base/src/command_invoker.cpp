@@ -213,18 +213,9 @@ namespace mks::base
         }
     }
 
-    auto CommonCommand::get_option(std::string_view option) const -> std::string
+    auto CommonCommand::need_proto_type() const -> int
     {
-        auto item = _options.find(option);
-        if (item != _options.end()) {
-            return detail::to_string(item->second);
-        }
-        return std::string();
-    }
-
-    auto CommonCommand::get_options() const -> NekoProto::IProto
-    {
-        return NekoProto::IProto();
+        return 0;
     }
 
     CommandInvoker::CommandInvoker(IApp *app) : _app(app)
@@ -267,9 +258,9 @@ namespace mks::base
         for (const auto &cmd : _commands.back()->alias_names()) {
             _trie.insert(cmd, item);
         }
-        auto proto = _commands.back()->get_options();
-        if (proto != nullptr) { // 建立协议-->命令的映射表。
-            _protoCommandsTable[proto.type()] = item;
+        auto protoType = _commands.back()->need_proto_type();
+        if (protoType != 0) { // 建立协议-->命令的映射表。
+            _protoCommandsTable[protoType] = item;
         }
         return true;
     }
@@ -292,7 +283,7 @@ namespace mks::base
             for (const auto &cmd : command->alias_names()) {
                 _trie.remove(cmd);
             }
-            _protoCommandsTable.erase(command->get_options().type());
+            _protoCommandsTable.erase(command->need_proto_type());
             _commands.erase(item->second);
         }
         _modules.erase(itemRange.first, itemRange.second);
