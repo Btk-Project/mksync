@@ -27,7 +27,7 @@ namespace mks::base
      */
     class MKS_BASE_API XcbMKSender final : public MKSender {
     public:
-        XcbMKSender(App &app);
+        XcbMKSender(IApp *app);
         ~XcbMKSender();
 
         [[nodiscard("coroutine function")]]
@@ -43,11 +43,10 @@ namespace mks::base
         void _send_motion_event(const mks::MouseMotionEventConversion &event) const;
         void _send_button_event(const mks::MouseButtonEvent &event) const;
         void _send_wheel_event(const mks::MouseWheelEvent &event) const;
-        void _send_keyboard_event(const mks::KeyEvent &event) const;
+        void _send_keyboard_event(const mks::KeyboardEvent &event) const;
 
     private:
         bool                                       _isStart = false;
-        App                                       *_app     = nullptr;
         std::unique_ptr<XcbConnect>                _xcbConnect;
         ::ilias::WaitHandle<::ilias::Result<void>> _eventLoopHandle;
         ::ilias::WaitHandle<::ilias::Result<void>> _xcbLoopHandle;

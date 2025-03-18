@@ -21,11 +21,11 @@ namespace mks::base
 {
     class XcbConnect;
     class XcbWindow;
-    class App;
+    class IApp;
 
     class MKS_BASE_API XcbMKCapture final : public MKCapture {
     public:
-        XcbMKCapture(App &app);
+        XcbMKCapture(IApp *app);
         ~XcbMKCapture();
 
         [[nodiscard("coroutine function")]]
@@ -47,7 +47,6 @@ namespace mks::base
         auto window_proc(void *event) -> void;
 
     private:
-        App                                       *_app = nullptr;
         RingBuffer<NekoProto::IProto>              _events;
         std::unique_ptr<XcbConnect>                _xcbConnect;
         std::unique_ptr<XcbWindow>                 _captureWindow;

@@ -12,13 +12,12 @@
 
 namespace mks::base
 {
-    XcbMKCapture::XcbMKCapture(App &app) : MKCapture(app.get_io_context()), _app(&app), _events(10)
+    XcbMKCapture::XcbMKCapture(IApp* app) : MKCapture(app), _events(10)
     {
     }
 
     XcbMKCapture::~XcbMKCapture()
     {
-        teardown().wait();
         _xcbConnect.reset();
     }
 
@@ -210,7 +209,7 @@ namespace mks::base
             if ((buttonEvent->state & XCB_MOD_MASK_4) != 0) {
                 keyMod |= (uint16_t)KeyMod::eKmodGui;
             }
-            proto = KeyEvent::emplaceProto(KeyboardState::eKeyDown, keycode, (KeyMod)keyMod,
+            proto = KeyboardEvent::emplaceProto(KeyboardState::eKeyDown, keycode, (KeyMod)keyMod,
                                            buttonEvent->time);
         } break;
         case XCB_KEY_RELEASE: {
@@ -224,7 +223,7 @@ namespace mks::base
             }
             auto keycode = linux_keysym_to_key_code(keysym);
             SPDLOG_INFO("keycode {}", (int)keycode);
-            proto = KeyEvent::emplaceProto(KeyboardState::eKeyUp, keycode, KeyMod::eKmodNone,
+            proto = KeyboardEvent::emplaceProto(KeyboardState::eKeyUp, keycode, KeyMod::eKmodNone,
                                            buttonEvent->time);
         } break;
         default:

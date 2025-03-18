@@ -9,11 +9,10 @@
 namespace mks::base
 {
 
-    XcbMKSender::XcbMKSender(App &app) : MKSender(app.get_io_context()), _app(&app) {}
+    XcbMKSender::XcbMKSender(IApp *app) : MKSender(app) {}
 
     XcbMKSender::~XcbMKSender()
     {
-        stop_sender().wait();
         _xcbConnect.reset();
     }
 
@@ -39,9 +38,9 @@ namespace mks::base
             ILIAS_ASSERT(event.cast<MouseWheelEvent>() != nullptr);
             _send_wheel_event(*event.cast<MouseWheelEvent>());
         }
-        else if (event.type() == NekoProto::ProtoFactory::protoType<KeyEvent>()) {
-            ILIAS_ASSERT(event.cast<KeyEvent>() != nullptr);
-            _send_keyboard_event(*event.cast<KeyEvent>());
+        else if (event.type() == NekoProto::ProtoFactory::protoType<KeyboardEvent>()) {
+            ILIAS_ASSERT(event.cast<KeyboardEvent>() != nullptr);
+            _send_keyboard_event(*event.cast<KeyboardEvent>());
         }
         co_return co_await MKSender::handle_event(event);
     }
@@ -152,7 +151,7 @@ namespace mks::base
         }
     }
 
-    void XcbMKSender::_send_keyboard_event(const mks::KeyEvent &event) const
+    void XcbMKSender::_send_keyboard_event(const mks::KeyboardEvent &event) const
     {
         if (!_isStart || !_xcbConnect) {
             return;
