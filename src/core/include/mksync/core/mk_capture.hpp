@@ -45,7 +45,7 @@ namespace mks::base
 
         static auto make(IApp *app) -> std::unique_ptr<MKCapture, void (*)(NodeBase *)>;
 
-    private:
+    protected:
         IApp *_app = nullptr;
     };
 } // namespace mks::base
