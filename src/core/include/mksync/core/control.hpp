@@ -15,6 +15,7 @@
 #include "mksync/base/node_manager.hpp"
 #include "mksync/base/settings.hpp"
 #include "mksync/proto/proto.hpp"
+#include "mksync/proto/config_proto.hpp"
 #include "mksync/base/app.hpp"
 #include "mksync/core/communication.hpp"
 #include "mksync/base/ring_buffer.hpp"
@@ -68,20 +69,32 @@ namespace mks::base
         [[nodiscard("coroutine function")]]
         auto handle_event(const MouseMotionEvent &event) -> ::ilias::Task<void>;
 
+    public:
+        ///> 配置屏幕信息
+        auto set_virtual_screen_positions(std::string_view srcScreen, std::string_view dstScreen,
+                                          int direction) -> void;
+        ///> 展示当前配置
+        auto show_virtual_screen_positions() -> void;
+        ///> 从配置中删除屏幕
+        auto remove_virtual_screen(std::string_view screen) -> void;
+
     private:
         template <typename T>
         auto _register_event_handler() -> void;
 
     private:
-        IApp                                                      *_app = nullptr;
-        std::map<std::string_view, VirtualScreenInfo, std::less<>> _virtualScreens;
-        std::set<std::string>                                      _onlineClients;
-        std::string                                                _currentScreen;
-        std::string_view                                           _captureNode;
-        std::string_view                                           _senderNode;
-        std::vector<int>                                           _subscribes;
-        RingBuffer<NekoProto::IProto>                              _events;
-        ::ilias::Event                                             _syncEvent;
+        IApp                                                 *_app = nullptr;
+        std::map<std::string, VirtualScreenInfo, std::less<>> _virtualScreens;
+        std::string                                           _currentScreen;
+        std::string_view                                      _captureNode;
+        std::string_view                                      _senderNode;
+        std::vector<int>                                      _subscribes;
+        RingBuffer<NekoProto::IProto>                         _events;
+        ::ilias::Event                                        _syncEvent;
+        std::vector<VirtualScreenConfig>                      _vscreenConfig;
+        std::map<std::string, std::map<std::string, VirtualScreenInfo, std::less<>>::iterator,
+                 std::less<>>
+            _screenNameTable;
         std::unordered_map<int, ::ilias::Task<void> (*)(Control *, const NekoProto::IProto &)>
             _eventHandlers;
     };

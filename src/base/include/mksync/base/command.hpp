@@ -67,9 +67,7 @@ namespace mks::base
         virtual void set_options(const NekoProto::IProto &proto) = 0;
         /// @brief 解析来自命令行的输入
         virtual void parser_options(const std::vector<const char *> &args) = 0;
-        /// @brief 获取选项的值
-        virtual auto get_option(std::string_view option) const -> std::string = 0;
-        /// @brief 打包所有选项的值到协议中，如果未实现对应协议可以返回空。
-        virtual auto get_options() const -> NekoProto::IProto = 0;
+        /// @brief 可以使用的协议版本，为0时不绑定协议。
+        virtual auto need_proto_type() const -> int = 0;
     };
 } // namespace mks::base

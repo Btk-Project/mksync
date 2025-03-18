@@ -6,6 +6,7 @@
 
 #include "mksync/core/communication.hpp"
 #include "mksync/core/control.hpp"
+#include "mksync/base/default_configs.hpp"
 
 #ifdef _WIN32
     #include <windows.h>
@@ -97,9 +98,10 @@ namespace mks::base
 
     auto App::get_screen_info() const -> VirtualScreenInfo
     {
-        std::string screenName   = _settings.get<std::string>("screen_name", "unknow");
-        int         screenWidth  = 0;
-        int         screenHeight = 0;
+        std::string screenName =
+            _settings.get<std::string>(screen_name_config_name, screen_name_default_value);
+        int screenWidth  = 0;
+        int screenHeight = 0;
 #ifdef _WIN32
         HWND hd      = GetDesktopWindow();
         int  zoom    = GetDpiForWindow(hd); // 96 is the default DPI
@@ -255,7 +257,8 @@ namespace mks::base
             co_await _commandInvoker.execute(std::vector<const char *>(argv + 1, argv + argc));
         }
         // 加载 modules: ["file1.dll", "file2.dll"]
-        auto moduleList = _settings.get<std::vector<std::string>>("modules", {});
+        auto moduleList = _settings.get<std::vector<std::string>>(module_list_config_name,
+                                                                  module_list_default_value);
         for (const auto &moduleFile : moduleList) {
             _nodeManager.load_node(moduleFile);
         }

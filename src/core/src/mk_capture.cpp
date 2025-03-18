@@ -34,8 +34,7 @@ namespace mks::base
         void set_option(std::string_view option, std::string_view value) override;
         void set_options(const NekoProto::IProto &proto) override;
         void parser_options(const std::vector<const char *> &args) override;
-        auto get_option(std::string_view option) const -> std::string override;
-        auto get_options() const -> NekoProto::IProto override;
+        auto need_proto_type() const -> int override;
 
     private:
         MKCapture       *_capture;
@@ -145,15 +144,10 @@ namespace mks::base
         }
     }
 
-    auto CaptureCommand::get_option([[maybe_unused]] std::string_view option) const -> std::string
-    {
-        return "";
-    }
-
-    auto CaptureCommand::get_options() const -> NekoProto::IProto
+    auto CaptureCommand::need_proto_type() const -> int
     {
         // SPDLOG_ERROR("Not implemented proto parameter");
-        return CaptureControl::emplaceProto();
+        return NekoProto::ProtoFactory::protoType<CaptureControl>();
     }
 
     MKCapture::MKCapture(IApp *app) : _app(app) {}

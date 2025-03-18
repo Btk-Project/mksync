@@ -34,8 +34,7 @@ namespace mks::base
         void set_option(std::string_view option, std::string_view value) override;
         void set_options(const NekoProto::IProto &proto) override;
         void parser_options(const std::vector<const char *> &args) override;
-        auto get_option(std::string_view option) const -> std::string override;
-        auto get_options() const -> NekoProto::IProto override;
+        auto need_proto_type() const -> int override;
 
     private:
         MKSender        *_sender;
@@ -144,14 +143,9 @@ namespace mks::base
         }
     }
 
-    auto MKSenderCommand::get_option([[maybe_unused]] std::string_view option) const -> std::string
+    auto MKSenderCommand::need_proto_type() const -> int
     {
-        return "";
-    }
-
-    auto MKSenderCommand::get_options() const -> NekoProto::IProto
-    {
-        return SenderControl::emplaceProto();
+        return NekoProto::ProtoFactory::protoType<SenderControl>();
     }
 
     MKSender::MKSender(IApp *app) : _app(app) {}
