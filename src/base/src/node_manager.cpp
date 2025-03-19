@@ -146,9 +146,10 @@ namespace mks::base
             SPDLOG_ERROR("destroy node: {}<{}> failed! node is running!");
             return -1;
         }
-        item->second->status = eNodeDestroyed;
         SPDLOG_INFO("destroy node: {}<{}>", item->second->node->name(),
                     (void *)item->second->node.get());
+        _nodeList.erase(item->second);
+        _nodeMap.erase(item);
         return 0;
     }
 

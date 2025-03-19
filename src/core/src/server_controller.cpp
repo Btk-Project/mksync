@@ -1,10 +1,9 @@
-#include "mksync/core/control.hpp"
+#include "mksync/core/controller.hpp"
 #include "mksync/proto/proto.hpp"
 #include "mksync/proto/config_proto.hpp"
 
-#include "mksync/core/app.hpp"
+#include "mksync/core/server_controller.hpp"
 #include "mksync/core/mk_capture.hpp"
-#include "mksync/core/mk_sender.hpp"
 #include "mksync/base/default_configs.hpp"
 
 namespace mks::base
@@ -33,7 +32,7 @@ namespace mks::base
         };
 
     public:
-        VScreenCmd(Control *control);
+        VScreenCmd(ServerController *controller);
         ~VScreenCmd() override = default;
         auto execute() -> Task<void> override;
         auto help() const -> std::string override;
@@ -45,16 +44,16 @@ namespace mks::base
         auto need_proto_type() const -> int override;
 
     private:
-        Operation        _operation;
-        Direction        _direction;
-        std::string      _srcScreen;
-        std::string      _dstScreen;
-        Control         *_control;
-        cxxopts::Options _options;
+        Operation         _operation;
+        Direction         _direction;
+        std::string       _srcScreen;
+        std::string       _dstScreen;
+        ServerController *_controller;
+        cxxopts::Options  _options;
     };
 
-    VScreenCmd::VScreenCmd(Control *control)
-        : _operation(eNone), _control(control), _options("screen")
+    VScreenCmd::VScreenCmd(ServerController *controller)
+        : _operation(eNone), _controller(controller), _options("screen")
     {
         std::string ret;
         for (auto alias : alias_names()) {
@@ -88,17 +87,17 @@ namespace mks::base
                     "please specify the src, dst and direction to set the screen position");
                 break;
             }
-            _control->set_virtual_screen_positions(_srcScreen, _dstScreen, _direction);
+            _controller->set_virtual_screen_positions(_srcScreen, _dstScreen, _direction);
             break;
         case eRemoveScreen:
             if (_srcScreen.empty()) {
                 SPDLOG_ERROR("please specify the src to remove the screen");
                 break;
             }
-            _control->remove_virtual_screen(_srcScreen);
+            _controller->remove_virtual_screen(_srcScreen);
             break;
         case eShowConfigs:
-            _control->show_virtual_screen_positions();
+            _controller->show_virtual_screen_positions();
             break;
         default:
             SPDLOG_ERROR("unknown operation");
@@ -204,160 +203,102 @@ namespace mks::base
         return 0;
     }
 
-    Control::Control(IApp *app) : _app(app), _events(10)
+    ServerController::ServerController(Controller *self, IApp *app) : ControllerImp(self, app) {}
+
+    ServerController::~ServerController()
     {
-        auto selfScreen = _app->get_screen_info();
-        _virtualScreens.insert(std::make_pair("self", selfScreen));
-        _currentScreen = selfScreen.name;
-    }
-    Control::~Control()
-    {
-        _app->command_uninstaller(this);
+        if (!_captureNode.empty()) { // 收个尾
+            teardown().wait();
+        }
     }
 
-    auto Control::setup() -> ::ilias::Task<int>
+    auto ServerController::setup() -> ::ilias::Task<int>
     {
+        if (!_captureNode.empty()) {
+            co_return 0;
+        }
+        // 这两个节点在服务端与客户分别开启即可。因此通过Controller导入并加以控制。
+        _captureNode = _app->node_manager().add_node(MKCapture::make(_app));
+        if (auto ret = co_await _app->node_manager().setup_node(_captureNode); ret != 0) {
+            SPDLOG_ERROR("setup {} node failed.", _captureNode);
+            _captureNode = "";
+            co_return ret;
+        }
         _register_event_handler<ClientConnected>();
         _register_event_handler<ClientDisconnected>();
         _register_event_handler<MouseMotionEvent>();
         _register_event_handler<BorderEvent>();
-        _register_event_handler<AppStatusChanged>();
-        auto commandInstaller = _app->command_installer(this);
+        // _register_event_handler<AppStatusChanged>();
+        // _subscribes.pop_back(); // AppStatusChanged在主节点里面被订阅了，弹出防止其被取消订阅。
+        auto commandInstaller = _app->command_installer(_self);
         commandInstaller(std::make_unique<VScreenCmd>(this));
-        auto &settings = _app->settings();
-        _vscreenConfig = settings.get(screen_settings_config_name, screen_settings_default_value);
-        SPDLOG_INFO("node {}<{}> setup", name(), (void *)this);
+        auto &settings  = _app->settings();
+        _vscreenConfig  = settings.get(screen_settings_config_name, screen_settings_default_value);
+        auto selfScreen = _app->get_screen_info();
+        _virtualScreens.insert(std::make_pair("self", selfScreen));
+        _currentScreen.name = selfScreen.name;
+        _currentScreen.peer = "self";
+        if (auto item = std::find_if(_vscreenConfig.begin(), _vscreenConfig.end(),
+                                     [](auto &item) { return item.name == "self"; });
+            item != _vscreenConfig.end()) {
+            _currentScreen.config = std::addressof(*item);
+        }
+        else {
+            _currentScreen.config = std::addressof(*_vscreenConfig.emplace(
+                _vscreenConfig.end(), VirtualScreenConfig{.name   = "self",
+                                                          .width  = (int)selfScreen.width,
+                                                          .height = (int)selfScreen.height,
+                                                          .left   = "",
+                                                          .top    = "",
+                                                          .right  = "",
+                                                          .bottom = ""}));
+        }
+        _app->node_manager().subscribe(_subscribes, _self);
+        _app->communication()->subscribes({
+            NekoProto::ProtoFactory::protoType<MouseButtonEvent>(),
+            NekoProto::ProtoFactory::protoType<MouseMotionEventConversion>(),
+            NekoProto::ProtoFactory::protoType<MouseWheelEvent>(),
+            NekoProto::ProtoFactory::protoType<KeyboardEvent>(),
+        });
         co_return 0;
     }
 
-    ///> 停用节点。
-    auto Control::teardown() -> ::ilias::Task<int>
+    auto ServerController::teardown() -> ::ilias::Task<int>
     {
-        _app->command_uninstaller(this);
+        if (_captureNode.empty()) {
+            co_return 0;
+        }
+        _app->node_manager().unsubscribe(_subscribes, _self);
+        _app->command_uninstaller(_self);
         auto &settings = _app->settings();
         settings.set(screen_settings_config_name, _vscreenConfig);
-        _syncEvent.set();
-        SPDLOG_INFO("node {}<{}> teardown", name(), (void *)this);
+        _app->communication()->unsubscribes({
+            NekoProto::ProtoFactory::protoType<MouseButtonEvent>(),
+            NekoProto::ProtoFactory::protoType<MouseMotionEventConversion>(),
+            NekoProto::ProtoFactory::protoType<MouseWheelEvent>(),
+            NekoProto::ProtoFactory::protoType<KeyboardEvent>(),
+        });
+        if (auto ret = co_await _app->node_manager().teardown_node(_captureNode); ret != 0) {
+            SPDLOG_ERROR("teardown {} node failed.", _captureNode);
+        }
+        _app->node_manager().destroy_node(_captureNode);
+        _captureNode = "";
         co_return 0;
     }
 
-    ///> 获取节点名称。
-    auto Control::name() -> const char *
-    {
-        return "Control";
-    }
-
-    ///> 预先订阅的事件类型集合。
-    auto Control::get_subscribes() -> std::vector<int>
-    {
-        return _subscribes;
-    }
-
-    ///> 处理一个事件，需要订阅。
-    auto Control::handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void>
+    auto ServerController::handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void>
     {
         if (auto item = _eventHandlers.find(event.type()); item != _eventHandlers.end()) {
             co_return co_await item->second(this, event);
         }
-        SPDLOG_ERROR("unhandle event {}!", event.protoName());
-        co_return;
-    }
-
-    // 新客户端连接
-    auto Control::handle_event(const ClientConnected &event) -> ::ilias::Task<void>
-    {
-        auto item = _virtualScreens.find(event.peer);
-        if (item == _virtualScreens.end()) {
-            item = _virtualScreens.emplace(std::make_pair(event.peer, event.info)).first;
-            _screenNameTable.emplace(std::make_pair(item->second.name, item));
-        }
-        else {
-            _virtualScreens[event.peer] = event.info;
-        }
-        SPDLOG_INFO("client {} connect...\nscreent name : {}\nscreen id : {}\nscreen size : "
-                    "{}x{}\ntimestamp : {}",
-                    event.peer, event.info.name, event.info.screenId, event.info.width,
-                    event.info.height, event.info.timestamp);
-        co_return;
-    }
-
-    // 客户端断开连接
-    auto Control::handle_event(const ClientDisconnected &event) -> ::ilias::Task<void>
-    {
-        auto item = _virtualScreens.find(event.peer);
-        if (item != _virtualScreens.end()) {
-            _screenNameTable.erase(item->second.name);
-            _virtualScreens.erase(event.peer);
-        }
-        SPDLOG_INFO("client {} disconnect... [{}]", event.peer, event.reason);
-        co_return;
-    }
-
-    // App模式状态改变
-    auto Control::handle_event(const AppStatusChanged &event) -> ::ilias::Task<void>
-    {
-        SPDLOG_INFO("app status changed : {}", (int)event.status);
-        if (event.status == AppStatusChanged::eStarted && event.mode == AppStatusChanged::eServer) {
-            _app->communication()->subscribes({
-                NekoProto::ProtoFactory::protoType<MouseButtonEvent>(),
-                NekoProto::ProtoFactory::protoType<MouseMotionEventConversion>(),
-                NekoProto::ProtoFactory::protoType<MouseWheelEvent>(),
-                NekoProto::ProtoFactory::protoType<KeyboardEvent>(),
-            });
-            // 这两个节点在服务端与客户分别开启即可。因此通过Control导入并加以控制。
-            _captureNode = _app->node_manager().add_node(MKCapture::make(_app));
-            if (auto ret = co_await _app->node_manager().setup_node(_captureNode); ret != 0) {
-                SPDLOG_ERROR("setup {} node failed.", _captureNode);
-            }
-        }
-        else if (event.status == AppStatusChanged::eStopped &&
-                 event.mode == AppStatusChanged::eServer) {
-            _app->communication()->unsubscribes({
-                NekoProto::ProtoFactory::protoType<MouseButtonEvent>(),
-                NekoProto::ProtoFactory::protoType<MouseMotionEventConversion>(),
-                NekoProto::ProtoFactory::protoType<MouseWheelEvent>(),
-                NekoProto::ProtoFactory::protoType<KeyboardEvent>(),
-            });
-            if (auto ret = co_await _app->node_manager().teardown_node(_captureNode); ret != 0) {
-                SPDLOG_ERROR("teardown {} node failed.", _captureNode);
-            }
-            _app->node_manager().destroy_node(_captureNode);
-        }
-        else if (event.status == AppStatusChanged::eStarted &&
-                 event.mode == AppStatusChanged::eClient) {
-            _senderNode = _app->node_manager().add_node(MKSender::make(_app));
-            if (auto ret = co_await _app->node_manager().setup_node(_senderNode); ret != 0) {
-                SPDLOG_ERROR("setup {} node failed.", _senderNode);
-            }
-        }
-        else if (event.status == AppStatusChanged::eStopped &&
-                 event.mode == AppStatusChanged::eClient) {
-            if (auto ret = co_await _app->node_manager().teardown_node(_senderNode); ret != 0) {
-                SPDLOG_ERROR("teardown {} node failed.", _senderNode);
-            }
-            _app->node_manager().destroy_node(_senderNode);
-        }
-        co_return;
-    }
-
-    // 鼠标靠近屏幕边界
-    auto Control::handle_event(const BorderEvent &event) -> ::ilias::Task<void>
-    {
-        // TODO:
-        co_return;
-    }
-
-    // 鼠标移动
-    auto Control::handle_event(const MouseMotionEvent &event) -> ::ilias::Task<void>
-    {
-        // 将鼠标位置转换到当前屏幕的位置上。并输出MouseMotionEventConversion事件。
-        // TODO: 对鼠标进行处理。
+        SPDLOG_ERROR("ServerController unhandle event {}!", event.protoName());
         co_return;
     }
 
     ///> 配置屏幕信息
-    auto Control::set_virtual_screen_positions(std::string_view srcScreen,
-                                               std::string_view dstScreen, int direction) -> void
+    auto ServerController::set_virtual_screen_positions(std::string_view srcScreen,
+                                                        std::string_view dstScreen, int direction)
+        -> void
     {
         // TODO: 用更高效的方式存储该配置，目前的方式遍历次数有点多了。
         VirtualScreenInfo srcVs;
@@ -429,13 +370,12 @@ namespace mks::base
             item->height = (int)dstVs.height;
         }
     }
-
     ///> 展示当前配置
-    auto Control::show_virtual_screen_positions() -> void
+    auto ServerController::show_virtual_screen_positions() -> void
     {
         for (const auto &item : _vscreenConfig) {
             fprintf(stdout, "%s\n",
-                    fmt::format("screen {} : {}x{}\n    left: {}\n     top: {}\n     right: {}\n   "
+                    fmt::format("screen {} : {}x{}\n    left: {}\n    top: {}\n    right: {}\n  "
                                 "  bottom: {}",
                                 item.name, item.width, item.height, item.left, item.top, item.right,
                                 item.bottom)
@@ -443,32 +383,116 @@ namespace mks::base
             fflush(stdout);
         }
     }
-
     ///> 从配置中删除屏幕
-    auto Control::remove_virtual_screen(std::string_view screen) -> void
+    auto ServerController::remove_virtual_screen(std::string_view screen) -> void
     {
+        SPDLOG_INFO("remove virtual screen {}", screen);
         _vscreenConfig.erase(
             std::remove_if(_vscreenConfig.begin(), _vscreenConfig.end(),
                            [screen](const auto &sct) { return screen == sct.name; }));
-    }
-
-    auto Control::get_event() -> ::ilias::IoTask<NekoProto::IProto>
-    {
-        if (_events.size() == 0) {
-            _syncEvent.clear();
-            auto ret = co_await _syncEvent;
-            if (!ret) {
-                co_return Unexpected<Error>(ret.error());
+        for (auto &item : _vscreenConfig) {
+            if (item.left == screen) {
+                item.left = "";
+            }
+            if (item.top == screen) {
+                item.top = "";
+            }
+            if (item.right == screen) {
+                item.right = "";
+            }
+            if (item.bottom == screen) {
+                item.bottom = "";
             }
         }
-        NekoProto::IProto proto;
-        _events.pop(proto);
-        co_return std::move(proto);
     }
 
-    auto Control::make(App &app) -> std::unique_ptr<Control, void (*)(NodeBase *)>
+    auto ServerController::set_current_screen(std::string_view screen) -> void
     {
-        return std::unique_ptr<Control, void (*)(NodeBase *)>(new Control(&app),
-                                                              [](NodeBase *ptr) { delete ptr; });
+        if (screen == _currentScreen.name) {
+            return;
+        }
+        // 切换屏幕
+        if (auto item = _screenNameTable.find(screen); item != _screenNameTable.end()) {
+            _self->pust_event(
+                FocusScreenChanged::emplaceProto(item->second->second.name, item->second->first,
+                                                 _currentScreen.name, _currentScreen.peer));
+            _currentScreen.name = item->second->second.name;
+            _currentScreen.peer = item->second->first;
+            SPDLOG_INFO("switch to screen {}", screen);
+        }
+        else {
+            SPDLOG_ERROR("screen {} not found.", screen);
+            return;
+        }
+        if (auto item = std::find_if(_vscreenConfig.begin(), _vscreenConfig.end(),
+                                     [screen](auto &item) { return item.name == screen; });
+            item != _vscreenConfig.end()) {
+            _currentScreen.config = std::addressof(*item);
+        }
+        else {
+            SPDLOG_CRITICAL("near screen {} config not found.", screen);
+        }
     }
+
+    auto ServerController::handle_event(const ClientConnected &event) -> ::ilias::Task<void>
+    {
+        auto item = _virtualScreens.find(event.peer);
+        if (item == _virtualScreens.end()) {
+            item = _virtualScreens.emplace(std::make_pair(event.peer, event.info)).first;
+            _screenNameTable.emplace(std::make_pair(item->second.name, item));
+        }
+        else {
+            _virtualScreens[event.peer] = event.info;
+        }
+        SPDLOG_INFO("client {} connect...\nscreent name : {}\nscreen id : {}\nscreen size : "
+                    "{}x{}\ntimestamp : {}",
+                    event.peer, event.info.name, event.info.screenId, event.info.width,
+                    event.info.height, event.info.timestamp);
+        co_return;
+    }
+
+    auto ServerController::handle_event(const ClientDisconnected &event) -> ::ilias::Task<void>
+    {
+        auto item = _virtualScreens.find(event.peer);
+        if (item != _virtualScreens.end()) {
+            _screenNameTable.erase(item->second.name);
+            _virtualScreens.erase(event.peer);
+        }
+        SPDLOG_INFO("client {} disconnect... [{}]", event.peer, event.reason);
+        co_return;
+    }
+
+    auto ServerController::handle_event(const BorderEvent &event) -> ::ilias::Task<void>
+    {
+        if (_currentScreen.config == nullptr) {
+            SPDLOG_ERROR("current screen config is null!!!");
+            co_return;
+        }
+        std::string_view nextScreen;
+        if (event.border == BorderEvent::eLeft && !_currentScreen.config->left.empty()) {
+            nextScreen = _currentScreen.config->left;
+        }
+        else if (event.border == BorderEvent::eRight && !_currentScreen.config->right.empty()) {
+            nextScreen = _currentScreen.config->right;
+        }
+        else if (event.border == BorderEvent::eTop && !_currentScreen.config->top.empty()) {
+            nextScreen = _currentScreen.config->top;
+        }
+        else if (event.border == BorderEvent::eBottom && !_currentScreen.config->bottom.empty()) {
+            nextScreen = _currentScreen.config->bottom;
+        }
+        else {
+            co_return;
+        }
+        set_current_screen(nextScreen);
+        co_return;
+    }
+
+    auto ServerController::handle_event(const MouseMotionEvent &event) -> ::ilias::Task<void>
+    {
+        // 将鼠标位置转换到当前屏幕的位置上。并输出MouseMotionEventConversion事件。
+        // TODO: 对鼠标进行处理。
+        co_return;
+    }
+
 } // namespace mks::base

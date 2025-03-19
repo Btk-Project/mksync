@@ -63,12 +63,10 @@ namespace mks
      * @note 该协议为本地控制协议，不参与序列化，请不要通过网络发送。
      */
     struct FocusScreenChanged {
-        std::string name;        /**< 获取焦点的屏幕 */
-        std::string peer;        /**< 在通信中的对端名称 */
-        uint32_t    screenId;    /**< 获取焦点的屏幕id */
-        std::string oldName;     /**< 旧的焦点所在屏幕 */
-        std::string oldPeer;     /**< 旧的焦点所在对端 */
-        uint32_t    oldScreenId; /**< 旧的屏幕id */
+        std::string name;    /**< 获取焦点的屏幕 */
+        std::string peer;    /**< 在通信中的对端名称 */
+        std::string oldName; /**< 旧的焦点所在屏幕 */
+        std::string oldPeer; /**< 旧的焦点所在对端 */
 
         NEKO_SERIALIZER() // 不需要序列化的协议
         NEKO_DECLARE_PROTOCOL(FocusScreenChanged, NEKO_NAMESPACE::JsonSerializer)
