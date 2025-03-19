@@ -15,13 +15,12 @@
 #include "mksync/core/core_library.h"
 #include "mksync/base/nodebase.hpp"
 #include "mksync/base/command_invoker.hpp"
-// #include "mksync/base/ring_buffer.hpp"
+#include "mksync/base/ring_buffer.hpp"
 #include "mksync/base/communication.hpp"
 
 #include <ilias/sync/event.hpp>
 #include <ilias/sync/scope.hpp>
 #include <map>
-#include <deque>
 
 namespace mks::base
 {
@@ -61,6 +60,7 @@ namespace mks::base
         auto handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void> override;
         [[nodiscard("coroutine function")]]
         auto get_event() -> ::ilias::IoTask<NekoProto::IProto> override;
+        auto pust_event(NekoProto::IProto &&event) -> void;
 
         auto status() -> Status;
         auto set_flags(NekoProto::StreamFlag flags) -> void;
@@ -123,13 +123,14 @@ namespace mks::base
             -> ::ilias::Task<int>;
 
     private:
-        NekoProto::ProtoFactory       _protofactory;
-        std::deque<NekoProto::IProto> _events;
         IApp                         *_app = nullptr;
+        NekoProto::ProtoFactory       _protofactory;
+        RingBuffer<NekoProto::IProto> _events;
         ::ilias::Event                _syncEvent;
         ::ilias::TaskScope            _taskScope;
         Status                        _status = eDisable;
         NekoProto::StreamFlag         _flags  = NekoProto::StreamFlag::None;
+        ilias::IPEndpoint             _ipEndpoint;
         std::map<std::string, NekoProto::ProtoStreamClient<>, std::less<>> _protoStreamClients;
         std::map<std::string, NekoProto::ProtoStreamClient<>, std::less<>>::iterator _currentPeer;
         std::unique_ptr<ICommunication> _communicationWapper; // 通信封装

@@ -50,6 +50,7 @@ namespace mks::base
         bool  _isStartCapture = false;
         int   _posX           = 0;
         int   _posY           = 0;
+        bool  _isInBorder     = false;
 
         RingBuffer<NekoProto::IProto> _events;
         ::ilias::Event                _syncEvent;

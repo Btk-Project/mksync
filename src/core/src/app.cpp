@@ -5,7 +5,7 @@
 #include <csignal>
 
 #include "mksync/core/communication.hpp"
-#include "mksync/core/control.hpp"
+#include "mksync/core/controller.hpp"
 #include "mksync/base/default_configs.hpp"
 
 #ifdef _WIN32
@@ -31,7 +31,7 @@ namespace mks::base
         // 注册退出程序命令
         coreInstaller(std::make_unique<CommonCommand>(CommandInvoker::CommandsData{
             {"exit", "quit", "q"},
-            "exit the program",
+            "exit(quit, q) : exit the program",
             std::bind(static_cast<CallbackType>(&App::stop), this, std::placeholders::_1,
                       std::placeholders::_2),
             {}
@@ -266,7 +266,7 @@ namespace mks::base
         auto communication = MKCommunication::make(*this);
         _communication     = communication.get(); // 保存指针
         _nodeManager.add_node(std::move(communication));
-        _nodeManager.add_node(Control::make(*this));
+        _nodeManager.add_node(Controller::make(*this));
 
         // start all node
         co_await _nodeManager.setup_node();

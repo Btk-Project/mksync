@@ -8,6 +8,7 @@ namespace mks::base
 {
     using ::ilias::Error;
     using ::ilias::IoTask;
+    using ::ilias::Result;
     using ::ilias::Task;
     using ::ilias::Unexpected;
     WinMKCapture *WinMKCapture::g_self = nullptr;
@@ -75,8 +76,12 @@ namespace mks::base
             }
         }
         NekoProto::IProto proto;
-        _events.pop(proto);
-        co_return std::move(proto);
+        if (_events.pop(proto)) {
+            co_return proto;
+        }
+        else {
+            co_return Unexpected<Error>(Error::Unknown);
+        }
     }
 
     auto WinMKCapture::notify() -> void
@@ -105,24 +110,33 @@ namespace mks::base
         if (!_isStartCapture) {
             if (wp == WM_MOUSEMOVE) {
                 uint32_t border = 0;
-                if (hookStruct->pt.x <= 0) {
-                    border |= (uint32_t)BorderEvent::eLeft;
+                if (_isInBorder) {
+                    if (hookStruct->pt.x > 10 && hookStruct->pt.x < _screenWidth - 10 &&
+                        hookStruct->pt.y > 10 && hookStruct->pt.y < _screenHeight - 10) {
+                        _isInBorder = false;
+                    }
                 }
-                if (hookStruct->pt.x >= _screenWidth) {
-                    border |= (uint32_t)BorderEvent::eRight;
-                }
-                if (hookStruct->pt.y <= 0) {
-                    border |= (uint32_t)BorderEvent::eTop;
-                }
-                if (hookStruct->pt.y >= _screenHeight) {
-                    border |= (uint32_t)BorderEvent::eBottom;
+                else {
+                    if (hookStruct->pt.x <= 0) {
+                        border |= (uint32_t)BorderEvent::eLeft;
+                    }
+                    if (hookStruct->pt.x >= _screenWidth) {
+                        border |= (uint32_t)BorderEvent::eRight;
+                    }
+                    if (hookStruct->pt.y <= 0) {
+                        border |= (uint32_t)BorderEvent::eTop;
+                    }
+                    if (hookStruct->pt.y >= _screenHeight) {
+                        border |= (uint32_t)BorderEvent::eBottom;
+                    }
                 }
                 if (border != 0) {
                     SPDLOG_INFO("Mouse Border: {}, x {}, y {}", border, hookStruct->pt.x,
                                 hookStruct->pt.y);
-                    proto = mks::BorderEvent::emplaceProto(0U, border,
-                                                           (float)hookStruct->pt.x / _screenWidth,
-                                                           (float)hookStruct->pt.y / _screenHeight);
+                    _isInBorder = true;
+                    proto       = mks::BorderEvent::emplaceProto(0U, border,
+                                                                 (float)hookStruct->pt.x / _screenWidth,
+                                                                 (float)hookStruct->pt.y / _screenHeight);
                 }
                 _posX = hookStruct->pt.x;
                 _posY = hookStruct->pt.y;

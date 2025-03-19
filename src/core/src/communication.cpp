@@ -189,10 +189,15 @@ namespace mks::base
     {
         switch (_operation) {
         case eStart:
-            co_await _self->listen(_ipendpoint);
+            if (auto ret = co_await _self->listen(_ipendpoint); ret == 0) {
+                _self->pust_event(AppStatusChanged::emplaceProto(AppStatusChanged::eStarted,
+                                                                 AppStatusChanged::eServer));
+            }
             break;
         case eStop:
             co_await _self->close();
+            _self->pust_event(AppStatusChanged::emplaceProto(AppStatusChanged::eStopped,
+                                                             AppStatusChanged::eServer));
             break;
         case eRestart:
             co_await _self->close();
@@ -347,10 +352,15 @@ namespace mks::base
     {
         switch (_operation) {
         case eStart:
-            co_await _self->connect(_ipendpoint);
+            if (auto ret = co_await _self->connect(_ipendpoint); ret == 0) {
+                _self->pust_event(AppStatusChanged::emplaceProto(AppStatusChanged::eStarted,
+                                                                 AppStatusChanged::eClient));
+            }
             break;
         case eStop:
             co_await _self->close();
+            _self->pust_event(AppStatusChanged::emplaceProto(AppStatusChanged::eStopped,
+                                                             AppStatusChanged::eClient));
             break;
         case eRestart:
             co_await _self->close();
@@ -412,7 +422,7 @@ namespace mks::base
     }
 
     MKCommunication::MKCommunication(IApp *app)
-        : _protofactory(1, 0, 0), _app(app), _taskScope(*_app->get_io_context())
+        : _app(app), _protofactory(1, 0, 0), _events(10), _taskScope(*_app->get_io_context())
     {
         _currentPeer         = _protoStreamClients.end();
         _communicationWapper = std::make_unique<ClientCommunication>(this);
@@ -564,16 +574,19 @@ namespace mks::base
                 co_return Unexpected<Error>(ret.error());
             }
         }
-        // NekoProto::IProto proto;
-        if (_events.size() > 0) {
-            auto event = std::move(_events.front());
-            assert(event != nullptr);
-            _events.pop_front();
-            co_return event;
+        NekoProto::IProto proto;
+        if (_events.pop(proto)) {
+            co_return proto;
         }
         else {
             co_return Unexpected<Error>(Error::Unknown);
         }
+    }
+
+    auto MKCommunication::pust_event(NekoProto::IProto &&event) -> void
+    {
+        _events.push(std::forward<NekoProto::IProto>(event));
+        _syncEvent.set();
     }
 
     auto MKCommunication::status() -> Status
@@ -627,13 +640,11 @@ namespace mks::base
         else {
             _status = eServer;
             SPDLOG_INFO("server listen {}", endpoint.toString());
+            _ipEndpoint = endpoint; // 记录服务端监听的地址
             if (dynamic_cast<ServerCommunication *>(_communicationWapper.get()) == nullptr) {
                 _communicationWapper = std::make_unique<ServerCommunication>(this);
             }
             _taskScope.spawn(_server_loop(std::move(server)));
-            _events.emplace_back(AppStatusChanged::emplaceProto(AppStatusChanged::eStarted,
-                                                                AppStatusChanged::eServer));
-            _syncEvent.set();
             co_return 0;
         }
     }
@@ -659,7 +670,11 @@ namespace mks::base
             }
             else {
                 if (ret1.error() != Error::Canceled) {
+                    // TODO: 一旦出现异常就断开，此处应该增加异常状态的识别和重试处理。
                     SPDLOG_ERROR("TcpListener::accept failed {}", ret1.error().message());
+                    pust_event(ServerControl::emplaceProto(ServerControl::eStart,
+                                                           _ipEndpoint.address().toString(),
+                                                           _ipEndpoint.port()));
                 }
                 else {
                     SPDLOG_INFO("server loop canceled!");
@@ -669,9 +684,6 @@ namespace mks::base
             }
         }
         if (_status == eServer) {
-            _events.emplace_back(AppStatusChanged::emplaceProto(AppStatusChanged::eStopped,
-                                                                AppStatusChanged::eServer));
-            _syncEvent.set();
             _status = eEnable;
         }
         _protoStreamClients.clear();
@@ -686,7 +698,7 @@ namespace mks::base
             if (auto ret = co_await client.recv(_flags); ret) {
                 // 获得消息生成一个事件。收到来自客户端的消息。
                 SPDLOG_INFO("recv {} from {}", ret.value().protoName(), _currentPeer->first);
-                _events.emplace_back(ClientMessage::emplaceProto(
+                _events.emplace(ClientMessage::emplaceProto(
                     peer, std::make_shared<NekoProto::IProto>(std::move(ret.value()))));
                 _syncEvent.set();
             }
@@ -694,7 +706,7 @@ namespace mks::base
                 if (ret.error() != Error::Canceled) {
                     SPDLOG_ERROR("recv event failed {}", ret.error().message());
                 }
-                _events.emplace_back(ClientDisconnected::emplaceProto(peer, ret.error().message()));
+                _events.emplace(ClientDisconnected::emplaceProto(peer, ret.error().message()));
                 _syncEvent.set();
                 break;
             }
@@ -711,24 +723,24 @@ namespace mks::base
             if (auto ret = co_await client.recv(_flags); ret) {
                 // 获得消息生成一个事件。
                 SPDLOG_INFO("recv {} from {}", ret.value().protoName(), _currentPeer->first);
-                _events.emplace_back(std::move(ret.value()));
+                _events.emplace(std::move(ret.value()));
                 _syncEvent.set();
             }
             else {
                 if (ret.error() != Error::Canceled) {
                     SPDLOG_ERROR("recv event failed {}", ret.error().message());
+                    // TODO: 一旦出现异常就断开，此处应该增加异常状态的识别和重试处理。
+                    pust_event(ClientControl::emplaceProto(ClientControl::eStart,
+                                                           _ipEndpoint.address().toString(),
+                                                           _ipEndpoint.port()));
                 }
                 else {
-                    // TODO: 一旦出现异常就断开，此处应该增加异常状态的识别和重试处理。
                     SPDLOG_INFO("client loop canceled");
                 }
                 break;
             }
         }
         if (_status == eClient) {
-            _events.emplace_back(AppStatusChanged::emplaceProto(AppStatusChanged::eStopped,
-                                                                AppStatusChanged::eClient));
-            _syncEvent.set();
             _status = eEnable;
         }
         _protoStreamClients.clear();
@@ -800,7 +812,7 @@ namespace mks::base
             SPDLOG_INFO("recv screen info from {} {}:({}x{} {})", peer, proto->name, proto->width,
                         proto->height, proto->screenId);
             auto clientConnected = ClientConnected::emplaceProto(name, std::move(*proto));
-            _events.emplace_back(std::move(clientConnected));
+            _events.emplace(std::move(clientConnected));
             _syncEvent.set();
             co_return 0;
         }
@@ -848,9 +860,6 @@ namespace mks::base
             _communicationWapper = std::make_unique<ClientCommunication>(this);
         }
         SPDLOG_INFO("connect to {}", endpoint.toString());
-        _events.emplace_back(
-            AppStatusChanged::emplaceProto(AppStatusChanged::eStarted, AppStatusChanged::eClient));
-        _syncEvent.set();
         co_return 0;
     }
 
