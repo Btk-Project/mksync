@@ -4,6 +4,7 @@
 #include "mksync/core/server_controller.hpp"
 #include "mksync/core/mk_capture.hpp"
 #include "mksync/base/default_configs.hpp"
+#include "mksync/core/mk_sender.hpp"
 
 namespace mks::base
 {
@@ -204,7 +205,10 @@ namespace mks::base
         return 0;
     }
 
-    ServerController::ServerController(Controller *self, IApp *app) : ControllerImp(self, app) {}
+    ServerController::ServerController(Controller *self, IApp *app)
+        : ControllerImp(self, app), _sender(MKSender::make(app))
+    {
+    }
 
     ServerController::~ServerController()
     {
@@ -216,6 +220,9 @@ namespace mks::base
     auto ServerController::setup() -> ::ilias::Task<int>
     {
         if (!_captureNode.empty()) {
+            co_return 0;
+        }
+        if (co_await _sender->setup() != 0) {
             co_return 0;
         }
         // 这两个节点在服务端与客户分别开启即可。因此通过Controller导入并加以控制。
@@ -236,8 +243,9 @@ namespace mks::base
         auto &settings  = _app->settings();
         _vscreenConfig  = settings.get(screen_settings_config_name, screen_settings_default_value);
         auto selfScreen = _app->get_screen_info();
-        auto item       = _virtualScreens.insert(std::make_pair("self", selfScreen));
-        _screenNameTable.insert(std::make_pair(selfScreen.name, item.first));
+        if (auto item = _virtualScreens.insert(std::make_pair("self", selfScreen)); item.second) {
+            _screenNameTable.insert(std::make_pair(selfScreen.name, item.first));
+        }
         _currentScreen.name       = selfScreen.name;
         _currentScreen.peer       = "self";
         _currentScreen.isInBorder = false;
@@ -275,6 +283,7 @@ namespace mks::base
         if (_captureNode.empty()) {
             co_return 0;
         }
+        co_await _sender->teardown();
         _app->node_manager().unsubscribe(_subscribes, _self);
         _app->command_uninstaller(_self);
         auto &settings = _app->settings();
@@ -443,7 +452,7 @@ namespace mks::base
         // 切换屏幕
         if (auto item = _screenNameTable.find(screen); item != _screenNameTable.end()) {
             co_await _app->push_event(
-                FocusScreenChanged::emplaceProto(item->second->second.name, item->second->first,
+                FocusScreenChanged::emplaceProto(item->first, item->second->first,
                                                  _currentScreen.name, _currentScreen.peer),
                 _self);
             if (item->second->first != "self") {
@@ -543,6 +552,12 @@ namespace mks::base
                 _currentScreen.posY = 0;
                 break;
             }
+            if (_currentScreen.peer == "self") {
+                co_await dynamic_cast<Consumer *>(_sender.get())
+                    ->handle_event(MouseMotionEventConversion::emplaceProto(
+                        (float)_currentScreen.posX / _currentScreen.config->width,
+                        (float)_currentScreen.posY / _currentScreen.config->height, true, 0U));
+            }
         }
         co_return;
     }
@@ -554,10 +569,12 @@ namespace mks::base
             co_return;
         }
         // 将鼠标位置转换到当前屏幕的位置上。并输出MouseMotionEventConversion事件。
-        _currentScreen.posX = (int)((event.isAbsolute ? 0 : _currentScreen.posX) +
-                                    (event.x * _currentScreen.config->width));
-        _currentScreen.posY = (int)((event.isAbsolute ? 0 : _currentScreen.posY) +
-                                    (event.y * _currentScreen.config->height));
+        _currentScreen.posX = std::clamp((int)((event.isAbsolute ? 0 : _currentScreen.posX) +
+                                               (event.x * _vscreenConfig[0].width)),
+                                         0, _currentScreen.config->width);
+        _currentScreen.posY = std::clamp((int)((event.isAbsolute ? 0 : _currentScreen.posY) +
+                                               (event.y * _vscreenConfig[0].height)),
+                                         0, _currentScreen.config->height);
         if (_currentScreen.isInBorder) {
             if (_currentScreen.posX > 10 &&
                 _currentScreen.posX < _currentScreen.config->width - 10 &&

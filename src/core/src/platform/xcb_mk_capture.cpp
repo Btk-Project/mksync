@@ -91,6 +91,7 @@ namespace mks::base
     auto XcbMKCapture::start_capture() -> ::ilias::Task<int>
     {
         auto xcbWindow = _xcbConnect->get_default_root_window();
+        _xcbConnect->fake_mouse_move(_screenWidth / 2, _screenWidth / 2);
         if (auto ret = _xcbConnect->grab_pointer(
                 _captureWindow.get(), [this](xcb_generic_event_t *event) { pointer_proc(event); },
                 true);
@@ -161,9 +162,11 @@ namespace mks::base
         }
         case XCB_MOTION_NOTIFY: {
             xcb_motion_notify_event_t *motionEvent = (xcb_motion_notify_event_t *)event;
-            proto = mks::MouseMotionEvent::emplaceProto((float)motionEvent->event_x / _screenWidth,
-                                                        (float)motionEvent->event_y / _screenHeight,
-                                                        motionEvent->time);
+            proto                                  = mks::MouseMotionEvent::emplaceProto(
+                (float)(motionEvent->event_x - (_screenWidth / 2)) / _screenWidth,
+                (float)(motionEvent->event_y - (_screenHeight / 2)) / _screenHeight, false,
+                motionEvent->time);
+            _xcbConnect->fake_mouse_move(_screenWidth / 2, _screenWidth / 2);
             SPDLOG_INFO("mouse move to ({}, {})", motionEvent->event_x, motionEvent->event_y);
             break;
         }

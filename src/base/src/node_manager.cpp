@@ -149,10 +149,19 @@ namespace mks::base
             SPDLOG_ERROR("destroy node: {}<{}> failed! node is running!");
             return -1;
         }
+        if (_isInProcess) {
+            item->second->status = eNodeDestroyed;
+        }
+        else {
+            _isInProcess = true;
+            _nodeList.erase(item->second);
+            _nodeMap.erase(item);
+            _isInProcess = false;
+        }
         SPDLOG_INFO("destroy node: {}<{}>", item->second->node->name(),
                     (void *)item->second->node.get());
-        _nodeList.erase(item->second);
-        _nodeMap.erase(item);
+        // _nodeList.erase(item->second);
+        // _nodeMap.erase(item);
         return 0;
     }
 
@@ -340,13 +349,25 @@ namespace mks::base
 
     auto NodeManager::teardown_node() -> ilias::Task<int>
     {
-        auto ret = 0;
+        auto ret     = 0;
+        _isInProcess = true;
         for (auto node = _nodeList.rbegin(); node != _nodeList.rend(); ++node) {
+            // FIXME:过程中删除节点在windows上可以运行，在ubuntu上会出现内存异常
             if (auto re = co_await teardown_node(*node); re != 0) {
                 ret = re;
                 SPDLOG_ERROR("node {} stop failed!", node->node->name());
             }
         }
+        for (auto item = _nodeMap.begin(); item != _nodeMap.end();) {
+            if (item->second->status == eNodeDestroyed) {
+                _nodeList.erase(item->second);
+                item = _nodeMap.erase(item);
+            }
+            else {
+                ++item;
+            }
+        }
+        _isInProcess = false;
         co_return ret;
     }
 
