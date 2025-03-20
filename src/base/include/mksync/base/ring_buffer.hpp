@@ -116,10 +116,10 @@ namespace mks::base
     template <typename T>
     auto RingBuffer<T>::clear() -> void
     {
-        for (int i = _head; i < ((_tail > _head) ? _tail : _capacity); ++i) {
+        for (int i = _head; i < (int)((_tail > _head) ? _tail : _capacity); ++i) {
             _buffer[i] = T{};
         }
-        for (int i = 0; i < ((_tail >= _head) ? 0 : _tail); ++i) {
+        for (int i = 0; i < (int)((_tail >= _head) ? 0 : _tail); ++i) {
             _buffer[i] = T{};
         }
         _head = _tail;

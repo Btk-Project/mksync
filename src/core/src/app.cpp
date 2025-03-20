@@ -263,6 +263,8 @@ namespace mks::base
             _nodeManager.load_node(moduleFile);
         }
         // 加载核心模块
+        _nodeManager.add_node(
+            std::unique_ptr<NodeBase, void (*)(NodeBase *)>(&_commandInvoker, [](NodeBase *) {}));
         auto communication = MKCommunication::make(*this);
         _communication     = communication.get(); // 保存指针
         _nodeManager.add_node(std::move(communication));

@@ -133,6 +133,7 @@ namespace mks::base
             _dstScreen = value;
         }
         else if (option == "direction") {
+            _operation = eSetScreen;
             if (value == "left") {
                 _direction = eLeft;
             }
@@ -149,7 +150,7 @@ namespace mks::base
                 _direction = eUnknown;
             }
         }
-        else if (option == "show") {
+        if (option == "show") {
             _operation = eShowConfigs;
         }
         else if (option == "remove") {
@@ -173,6 +174,7 @@ namespace mks::base
         }
         if (retsult.count("direction") != 0U) {
             auto direction = retsult["direction"].as<std::string>();
+            _operation     = eSetScreen;
             if (direction == "left") {
                 _direction = eLeft;
             }
@@ -234,21 +236,23 @@ namespace mks::base
         auto &settings  = _app->settings();
         _vscreenConfig  = settings.get(screen_settings_config_name, screen_settings_default_value);
         auto selfScreen = _app->get_screen_info();
-        _virtualScreens.insert(std::make_pair("self", selfScreen));
+        auto item       = _virtualScreens.insert(std::make_pair("self", selfScreen));
+        _screenNameTable.insert(std::make_pair(selfScreen.name, item.first));
         _currentScreen.name       = selfScreen.name;
         _currentScreen.peer       = "self";
         _currentScreen.isInBorder = false;
         _currentScreen.config     = nullptr;
         _currentScreen.posX       = 0;
         _currentScreen.posY       = 0;
-        if (auto item = std::find_if(_vscreenConfig.begin(), _vscreenConfig.end(),
-                                     [](auto &item) { return item.name == "self"; });
+        if (auto item =
+                std::find_if(_vscreenConfig.begin(), _vscreenConfig.end(),
+                             [&self = selfScreen.name](auto &item) { return item.name == self; });
             item != _vscreenConfig.end()) {
             _currentScreen.config = std::addressof(*item);
         }
         else {
             _currentScreen.config = std::addressof(*_vscreenConfig.emplace(
-                _vscreenConfig.end(), VirtualScreenConfig{.name   = "self",
+                _vscreenConfig.end(), VirtualScreenConfig{.name   = selfScreen.name,
                                                           .width  = (int)selfScreen.width,
                                                           .height = (int)selfScreen.height,
                                                           .left   = "",
@@ -389,6 +393,14 @@ namespace mks::base
     ///> 展示当前配置
     auto ServerController::show_virtual_screen_positions() -> void
     {
+        fprintf(stdout, "---------- virtual screens -----------\n");
+        for (const auto &screen : _virtualScreens) {
+            fprintf(stdout, "%s\n",
+                    fmt::format("screen {}({}) : {}x{}", screen.second.name, screen.second.screenId,
+                                screen.second.width, screen.second.height)
+                        .c_str());
+        }
+        fprintf(stdout, "---------- screens config ----------\n");
         for (const auto &item : _vscreenConfig) {
             fprintf(stdout, "%s\n",
                     fmt::format("screen {} : {}x{}\n    left: {}\n    top: {}\n    right: {}\n  "
@@ -396,8 +408,9 @@ namespace mks::base
                                 item.name, item.width, item.height, item.left, item.top, item.right,
                                 item.bottom)
                         .c_str());
-            fflush(stdout);
         }
+        fprintf(stdout, "---------------------------------------\n");
+        fflush(stdout);
     }
     ///> 从配置中删除屏幕
     auto ServerController::remove_virtual_screen(std::string_view screen) -> void
@@ -433,6 +446,14 @@ namespace mks::base
                 FocusScreenChanged::emplaceProto(item->second->second.name, item->second->first,
                                                  _currentScreen.name, _currentScreen.peer),
                 _self);
+            if (item->second->first != "self") {
+                co_await _app->push_event(CaptureControl::emplaceProto(CaptureControl::eStart),
+                                          _self);
+            }
+            else {
+                co_await _app->push_event(CaptureControl::emplaceProto(CaptureControl::eStop),
+                                          _self);
+            }
             _currentScreen.name = item->second->second.name;
             _currentScreen.peer = item->second->first;
             SPDLOG_INFO("switch to screen {}", screen);
@@ -501,7 +522,7 @@ namespace mks::base
         else {
             co_return;
         }
-        if (set_current_screen(nextScreen)) {
+        if (co_await set_current_screen(nextScreen)) {
             _currentScreen.isInBorder = true; // 标记防止马上就被识别成在屏幕边界。
             ILIAS_ASSERT(_currentScreen.config != nullptr);
             switch (event.border) { // 计算从上一个屏幕边界出去的鼠标应该从下一块屏幕的何处进入。
@@ -533,9 +554,9 @@ namespace mks::base
             co_return;
         }
         // 将鼠标位置转换到当前屏幕的位置上。并输出MouseMotionEventConversion事件。
-        _currentScreen.posX = (int)((event.isAbsolute ? _currentScreen.posX : 0) +
+        _currentScreen.posX = (int)((event.isAbsolute ? 0 : _currentScreen.posX) +
                                     (event.x * _currentScreen.config->width));
-        _currentScreen.posY = (int)((event.isAbsolute ? _currentScreen.posY : 0) +
+        _currentScreen.posY = (int)((event.isAbsolute ? 0 : _currentScreen.posY) +
                                     (event.y * _currentScreen.config->height));
         if (_currentScreen.isInBorder) {
             if (_currentScreen.posX > 10 &&
@@ -563,6 +584,7 @@ namespace mks::base
             }
         }
         // 构建用于发送到客户端的鼠标移动事件
+        SPDLOG_INFO("MouseMotionEvent: x {}, y {}", _currentScreen.posX, _currentScreen.posY);
         co_await _app->push_event(MouseMotionEventConversion::emplaceProto(
                                       (float)_currentScreen.posX / _currentScreen.config->width,
                                       (float)_currentScreen.posY / _currentScreen.config->height,

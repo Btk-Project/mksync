@@ -20,6 +20,7 @@
 #include "mksync/base/trie.hpp"
 #include "mksync/base/base_library.h"
 #include "mksync/base/command.hpp"
+#include "mksync/base/nodebase.hpp"
 
 namespace mks::base
 {
@@ -33,7 +34,7 @@ namespace mks::base
      *      - 解析命令行
      *      - 通过事件/命令行输入执行命令
      */
-    class MKS_BASE_API CommandInvoker {
+    class MKS_BASE_API CommandInvoker : public NodeBase, public Consumer {
     public:
         using CommandsType = std::vector<std::string_view>;
         using ArgsType     = std::vector<std::string>;
@@ -62,6 +63,16 @@ namespace mks::base
 
     public:
         CommandInvoker(IApp *app);
+
+        [[nodiscard("coroutine function")]]
+        auto setup() -> ::ilias::Task<int> override;
+        [[nodiscard("coroutine function")]]
+        auto teardown() -> ::ilias::Task<int> override;
+        auto name() -> const char * override;
+        auto get_subscribes() -> std::vector<int> override;
+        [[nodiscard("coroutine function")]]
+        auto handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void> override;
+
         auto install_cmd(std::unique_ptr<Command> command, NodeBase *module = nullptr) -> bool;
         auto remove_cmd(NodeBase *module) -> void;
         // 将删除其对应模块的所有命令。

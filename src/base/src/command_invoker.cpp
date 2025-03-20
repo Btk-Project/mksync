@@ -260,9 +260,38 @@ namespace mks::base
         }
         auto protoType = _commands.back()->need_proto_type();
         if (protoType != 0) { // 建立协议-->命令的映射表。
+            _app->node_manager().subscribe(protoType, this);
             _protoCommandsTable[protoType] = item;
         }
         return true;
+    }
+
+    [[nodiscard("coroutine function")]]
+    auto CommandInvoker::setup() -> ::ilias::Task<int>
+    {
+        co_return 0;
+    }
+
+    [[nodiscard("coroutine function")]]
+    auto CommandInvoker::teardown() -> ::ilias::Task<int>
+    {
+        co_return 0;
+    }
+
+    auto CommandInvoker::name() -> const char *
+    {
+        return "CommandInvoker";
+    }
+
+    auto CommandInvoker::get_subscribes() -> std::vector<int>
+    {
+        return {};
+    }
+
+    [[nodiscard("coroutine function")]]
+    auto CommandInvoker::handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void>
+    {
+        co_return co_await execute(event);
     }
 
     auto CommandInvoker::remove_cmd(NodeBase *module) -> void
@@ -271,6 +300,9 @@ namespace mks::base
             _commands.clear();
             _modules.clear();
             _trie.clear();
+            for (auto &[key, value] : _protoCommandsTable) {
+                _app->node_manager().unsubscribe(key, this);
+            }
             _protoCommandsTable.clear();
             SPDLOG_INFO("remove all commands");
             return;
@@ -283,6 +315,7 @@ namespace mks::base
             for (const auto &cmd : command->alias_names()) {
                 _trie.remove(cmd);
             }
+            _app->node_manager().unsubscribe(command->need_proto_type(), this);
             _protoCommandsTable.erase(command->need_proto_type());
             _commands.erase(item->second);
         }

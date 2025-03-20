@@ -11,9 +11,6 @@
 
 #pragma once
 
-#include <string>
-#include <any>
-#include <list>
 #include <ilias/ilias.hpp>
 #include <ilias/net/tcp.hpp>
 #include <ilias/fs/console.hpp>
@@ -23,7 +20,7 @@
 #include "mksync/base/base_library.h"
 #include "mksync/base/node_manager.hpp"
 #include "mksync/base/settings.hpp"
-#include "mksync/proto/proto.hpp"
+#include "mksync/proto/system_proto.hpp"
 #include "mksync/base/communication.hpp"
 #include "mksync/base/command.hpp"
 
