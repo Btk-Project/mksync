@@ -316,4 +316,17 @@ namespace mks::base
         return _communication->get_communication();
     }
 
+    [[nodiscard("coroutine function")]]
+    auto App::push_event(NekoProto::IProto &&event) -> ::ilias::Task<::ilias::Error>
+    {
+        co_return co_await _nodeManager.get_events().push(
+            {nullptr, std::forward<NekoProto::IProto>(event)});
+    }
+
+    [[nodiscard("coroutine function")]]
+    auto App::push_event(NekoProto::IProto &&event, NodeBase *node) -> ::ilias::Task<::ilias::Error>
+    {
+        co_return co_await _nodeManager.get_events().push(
+            {node, std::forward<NekoProto::IProto>(event)});
+    }
 } // namespace mks::base

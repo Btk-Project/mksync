@@ -27,7 +27,7 @@ namespace mks::base
         };
 
     public:
-        ServerCommand(MKCommunication *self, const char *name = "server");
+        ServerCommand(IApp *app, MKCommunication *self, const char *name = "server");
         virtual ~ServerCommand() = default;
 
         auto execute() -> Task<void> override;
@@ -40,6 +40,7 @@ namespace mks::base
         auto need_proto_type() const -> int override;
 
     protected:
+        IApp            *_app        = nullptr;
         MKCommunication *_self       = nullptr;
         IPEndpoint       _ipendpoint = {"0.0.0.0:12345"};
         Operation        _operation  = eNone;
@@ -48,7 +49,7 @@ namespace mks::base
 
     class MKS_CORE_API ClientCommand : public ServerCommand {
     public:
-        ClientCommand(MKCommunication *self);
+        ClientCommand(IApp *app, MKCommunication *self);
 
         auto execute() -> Task<void> override;
         auto name() const -> std::string_view override;
@@ -164,8 +165,8 @@ namespace mks::base
         return _self->recv("self");
     }
 
-    ServerCommand::ServerCommand(MKCommunication *self, const char *name)
-        : _self(self), _options(name)
+    ServerCommand::ServerCommand(IApp *app, MKCommunication *self, const char *name)
+        : _app(app), _self(self), _options(name)
     {
         std::string ret;
         for (auto alias : alias_names()) {
@@ -190,14 +191,16 @@ namespace mks::base
         switch (_operation) {
         case eStart:
             if (auto ret = co_await _self->listen(_ipendpoint); ret == 0) {
-                _self->pust_event(AppStatusChanged::emplaceProto(AppStatusChanged::eStarted,
-                                                                 AppStatusChanged::eServer));
+                co_await _app->push_event(AppStatusChanged::emplaceProto(AppStatusChanged::eStarted,
+                                                                         AppStatusChanged::eServer),
+                                          _self);
             }
             break;
         case eStop:
             co_await _self->close();
-            _self->pust_event(AppStatusChanged::emplaceProto(AppStatusChanged::eStopped,
-                                                             AppStatusChanged::eServer));
+            co_await _app->push_event(AppStatusChanged::emplaceProto(AppStatusChanged::eStopped,
+                                                                     AppStatusChanged::eServer),
+                                      _self);
             break;
         case eRestart:
             co_await _self->close();
@@ -332,7 +335,8 @@ namespace mks::base
         return NekoProto::ProtoFactory::protoType<ServerControl>();
     }
 
-    ClientCommand::ClientCommand(MKCommunication *self) : ServerCommand(self, "client")
+    ClientCommand::ClientCommand(IApp *app, MKCommunication *self)
+        : ServerCommand(app, self, "client")
     {
         std::string ret;
         for (auto alias : alias_names()) {
@@ -353,14 +357,15 @@ namespace mks::base
         switch (_operation) {
         case eStart:
             if (auto ret = co_await _self->connect(_ipendpoint); ret == 0) {
-                _self->pust_event(AppStatusChanged::emplaceProto(AppStatusChanged::eStarted,
-                                                                 AppStatusChanged::eClient));
+                co_await _app->push_event(AppStatusChanged::emplaceProto(AppStatusChanged::eStarted,
+                                                                         AppStatusChanged::eClient),
+                                          _self);
             }
             break;
         case eStop:
             co_await _self->close();
-            _self->pust_event(AppStatusChanged::emplaceProto(AppStatusChanged::eStopped,
-                                                             AppStatusChanged::eClient));
+            co_await _app->push_event(AppStatusChanged::emplaceProto(AppStatusChanged::eStopped,
+                                                                     AppStatusChanged::eClient));
             break;
         case eRestart:
             co_await _self->close();
@@ -422,7 +427,7 @@ namespace mks::base
     }
 
     MKCommunication::MKCommunication(IApp *app)
-        : _app(app), _protofactory(1, 0, 0), _events(10), _taskScope(*_app->get_io_context())
+        : _app(app), _protofactory(1, 0, 0), _taskScope(*_app->get_io_context())
     {
         _currentPeer         = _protoStreamClients.end();
         _communicationWapper = std::make_unique<ClientCommunication>(this);
@@ -444,9 +449,9 @@ namespace mks::base
 
         auto commandInstaller = _app->command_installer(this);
         // 注册服务器监听相关命令
-        commandInstaller(std::make_unique<ServerCommand>(this));
+        commandInstaller(std::make_unique<ServerCommand>(_app, this));
         // 注册连接到服务器命令
-        commandInstaller(std::make_unique<ClientCommand>(this));
+        commandInstaller(std::make_unique<ClientCommand>(_app, this));
         commandInstaller(std::make_unique<CommonCommand>(CommandInvoker::CommandsData{
             {"communication_attributes", "comm_attr"},
             "communication_attributes(comm_attr) [options...], set communication attributes",
@@ -464,7 +469,6 @@ namespace mks::base
     auto MKCommunication::teardown() -> ::ilias::Task<int>
     {
         _app->command_uninstaller(this);
-        _syncEvent.set();
         co_await close();
         _status = eDisable;
         SPDLOG_INFO("node {}<{}> teardown", name(), (void *)this);
@@ -565,30 +569,6 @@ namespace mks::base
         }
     }
 
-    auto MKCommunication::get_event() -> ::ilias::IoTask<NekoProto::IProto>
-    {
-        if (_events.size() == 0) {
-            _syncEvent.clear();
-            auto ret = co_await _syncEvent;
-            if (!ret) {
-                co_return Unexpected<Error>(ret.error());
-            }
-        }
-        NekoProto::IProto proto;
-        if (_events.pop(proto)) {
-            co_return proto;
-        }
-        else {
-            co_return Unexpected<Error>(Error::Unknown);
-        }
-    }
-
-    auto MKCommunication::pust_event(NekoProto::IProto &&event) -> void
-    {
-        _events.push(std::forward<NekoProto::IProto>(event));
-        _syncEvent.set();
-    }
-
     auto MKCommunication::status() -> Status
     {
         return _status;
@@ -672,9 +652,11 @@ namespace mks::base
                 if (ret1.error() != Error::Canceled) {
                     // TODO: 一旦出现异常就断开，此处应该增加异常状态的识别和重试处理。
                     SPDLOG_ERROR("TcpListener::accept failed {}", ret1.error().message());
-                    pust_event(ServerControl::emplaceProto(ServerControl::eStart,
-                                                           _ipEndpoint.address().toString(),
-                                                           _ipEndpoint.port()));
+                    co_await _app->push_event(
+                        ServerControl::emplaceProto(ServerControl::eStart,
+                                                    _ipEndpoint.address().toString(),
+                                                    _ipEndpoint.port()),
+                        this);
                 }
                 else {
                     SPDLOG_INFO("server loop canceled!");
@@ -698,16 +680,15 @@ namespace mks::base
             if (auto ret = co_await client.recv(_flags); ret) {
                 // 获得消息生成一个事件。收到来自客户端的消息。
                 SPDLOG_INFO("recv {} from {}", ret.value().protoName(), _currentPeer->first);
-                _events.emplace(ClientMessage::emplaceProto(
+                co_await _app->push_event(ClientMessage::emplaceProto(
                     peer, std::make_shared<NekoProto::IProto>(std::move(ret.value()))));
-                _syncEvent.set();
             }
             else {
                 if (ret.error() != Error::Canceled) {
                     SPDLOG_ERROR("recv event failed {}", ret.error().message());
                 }
-                _events.emplace(ClientDisconnected::emplaceProto(peer, ret.error().message()));
-                _syncEvent.set();
+                co_await _app->push_event(
+                    ClientDisconnected::emplaceProto(peer, ret.error().message()));
                 break;
             }
         }
@@ -723,16 +704,15 @@ namespace mks::base
             if (auto ret = co_await client.recv(_flags); ret) {
                 // 获得消息生成一个事件。
                 SPDLOG_INFO("recv {} from {}", ret.value().protoName(), _currentPeer->first);
-                _events.emplace(std::move(ret.value()));
-                _syncEvent.set();
+                co_await _app->push_event(std::move(ret.value()));
             }
             else {
                 if (ret.error() != Error::Canceled) {
                     SPDLOG_ERROR("recv event failed {}", ret.error().message());
                     // TODO: 一旦出现异常就断开，此处应该增加异常状态的识别和重试处理。
-                    pust_event(ClientControl::emplaceProto(ClientControl::eStart,
-                                                           _ipEndpoint.address().toString(),
-                                                           _ipEndpoint.port()));
+                    co_await _app->push_event(ClientControl::emplaceProto(
+                        ClientControl::eStart, _ipEndpoint.address().toString(),
+                        _ipEndpoint.port()));
                 }
                 else {
                     SPDLOG_INFO("client loop canceled");
@@ -812,8 +792,7 @@ namespace mks::base
             SPDLOG_INFO("recv screen info from {} {}:({}x{} {})", peer, proto->name, proto->width,
                         proto->height, proto->screenId);
             auto clientConnected = ClientConnected::emplaceProto(name, std::move(*proto));
-            _events.emplace(std::move(clientConnected));
-            _syncEvent.set();
+            co_await _app->push_event(std::move(clientConnected));
             co_return 0;
         }
     }

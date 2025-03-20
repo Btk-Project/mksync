@@ -15,7 +15,7 @@
 
     #include "mksync/base/ring_buffer.hpp"
     #include "mksync/core/mk_capture.hpp"
-    #include "mksync/core/communication.hpp"
+    #include "mksync/base/event_base.hpp"
 
 namespace mks::base
 {

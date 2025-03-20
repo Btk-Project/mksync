@@ -92,7 +92,7 @@ namespace mks::base
      * @brief producer
      * 生产者接口，可以生产任意事件，需要通过协程co_await。
      * - get_event
-     * 从节点内获取一个事件，如果没有就使用协程等待。
+     * 从节点内获取一个事件，如果没有就使用协程等待。只有当需要产出大量事件或者想要自己定义独立的事件缓冲区才实现该接口。
      */
     class MKS_BASE_API Producer {
     public:

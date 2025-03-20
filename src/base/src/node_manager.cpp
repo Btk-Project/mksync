@@ -69,7 +69,10 @@ namespace mks::base
         DL_HANDLE _handle = nullptr;
     };
 
-    NodeManager::NodeManager(IApp *app) : _app(app), _taskScope(*app->get_io_context()) {}
+    NodeManager::NodeManager(IApp *app) : _app(app), _taskScope(*app->get_io_context())
+    {
+        _taskScope.spawn(events_loop());
+    }
 
     NodeManager::~NodeManager()
     {
@@ -213,6 +216,24 @@ namespace mks::base
         co_return;
     }
 
+    auto NodeManager::events_loop() -> ::ilias::Task<void>
+    {
+        while (true) {
+            EventBase::Event event;
+            if (auto ret = co_await _events.pop(event); ret == ::ilias::Error::Ok) {
+                co_await dispatch(event.data, event.from);
+            }
+            else if (ret != ::ilias::Error::Canceled) {
+                SPDLOG_ERROR("get event failed! exit events loop!, {}", ret.message());
+                break;
+            }
+            else {
+                SPDLOG_INFO("get event canceled! exit events loop!");
+                break;
+            }
+        }
+    }
+
     auto NodeManager::subscribe(int type, Consumer *consumer) -> void
     {
         SPDLOG_INFO("subscribe: {}<{}> type: {}", dynamic_cast<NodeBase *>(consumer)->name(),
@@ -297,9 +318,9 @@ namespace mks::base
             if (dynamic_cast<NodeBase *>(consumer) == nodebase) {
                 continue;
             }
-            SPDLOG_INFO("dispatch {} to {}<{}>", proto.protoName(),
-                        dynamic_cast<NodeBase *>(consumer)->name(),
-                        (void *)dynamic_cast<NodeBase *>(consumer));
+            SPDLOG_INFO("dispatch {} from {} to {}", proto.protoName(),
+                        nodebase == nullptr ? "unknow" : nodebase->name(),
+                        dynamic_cast<NodeBase *>(consumer)->name());
             co_await consumer->handle_event(proto);
         }
         co_return;
@@ -337,6 +358,11 @@ namespace mks::base
     auto NodeManager::get_nodes() const -> const std::list<NodeData> &
     {
         return _nodeList;
+    }
+
+    auto NodeManager::get_events() -> EventBase &
+    {
+        return _events;
     }
 
 } // namespace mks::base

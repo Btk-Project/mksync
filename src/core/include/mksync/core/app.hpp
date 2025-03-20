@@ -72,6 +72,11 @@ namespace mks::base
             -> std::function<bool(std::unique_ptr<Command>)> override;
         auto command_uninstaller(NodeBase *module) -> void override;
 
+        [[nodiscard("coroutine function")]]
+        auto push_event(NekoProto::IProto &&event) -> ::ilias::Task<::ilias::Error> override;
+        [[nodiscard("coroutine function")]]
+        auto push_event(NekoProto::IProto &&event, NodeBase *node)
+            -> ::ilias::Task<::ilias::Error> override;
         // status
         [[nodiscard("coroutine function")]]
         auto log_handle(const CommandInvoker::ArgsType    &args,

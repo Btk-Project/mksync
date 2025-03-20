@@ -1,5 +1,4 @@
 #include "mksync/core/controller.hpp"
-#include "mksync/proto/proto.hpp"
 #include "mksync/proto/config_proto.hpp"
 
 #include "mksync/core/server_controller.hpp"
@@ -423,32 +422,33 @@ namespace mks::base
         }
     }
 
-    auto ServerController::set_current_screen(std::string_view screen) -> bool
+    auto ServerController::set_current_screen(std::string_view screen) -> Task<bool>
     {
         if (screen == _currentScreen.name) {
-            return false;
+            co_return false;
         }
         // 切换屏幕
         if (auto item = _screenNameTable.find(screen); item != _screenNameTable.end()) {
-            _self->pust_event(
+            co_await _app->push_event(
                 FocusScreenChanged::emplaceProto(item->second->second.name, item->second->first,
-                                                 _currentScreen.name, _currentScreen.peer));
+                                                 _currentScreen.name, _currentScreen.peer),
+                _self);
             _currentScreen.name = item->second->second.name;
             _currentScreen.peer = item->second->first;
             SPDLOG_INFO("switch to screen {}", screen);
         }
         else {
             SPDLOG_ERROR("screen {} not found.", screen);
-            return false;
+            co_return false;
         }
         if (auto item = std::find_if(_vscreenConfig.begin(), _vscreenConfig.end(),
                                      [screen](auto &item) { return item.name == screen; });
             item != _vscreenConfig.end()) {
             _currentScreen.config = std::addressof(*item);
-            return true;
+            co_return true;
         }
         SPDLOG_CRITICAL("near screen {} config not found.", screen);
-        return false;
+        co_return false;
     }
 
     auto ServerController::handle_event(const ClientConnected &event) -> ::ilias::Task<void>
@@ -563,9 +563,11 @@ namespace mks::base
             }
         }
         // 构建用于发送到客户端的鼠标移动事件
-        _self->pust_event(MouseMotionEventConversion::emplaceProto(
-            (float)_currentScreen.posX / _currentScreen.config->width,
-            (float)_currentScreen.posY / _currentScreen.config->height, true, event.timestamp));
+        co_await _app->push_event(MouseMotionEventConversion::emplaceProto(
+                                      (float)_currentScreen.posX / _currentScreen.config->width,
+                                      (float)_currentScreen.posY / _currentScreen.config->height,
+                                      true, event.timestamp),
+                                  _self);
         co_return;
     }
 

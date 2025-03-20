@@ -26,7 +26,8 @@ namespace mks::base
         if (auto ret = co_await _app->node_manager().setup_node(_senderNode); ret != 0) {
             SPDLOG_ERROR("setup {} node failed.", _senderNode);
         }
-        _self->pust_event(SenderControl::emplaceProto(SenderControl::eStart)); // 直接开启
+        co_await _app->push_event(SenderControl::emplaceProto(SenderControl::eStart),
+                                  _self); // 直接开启
         co_return 0;
     }
 
