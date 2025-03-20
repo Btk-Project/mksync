@@ -57,7 +57,7 @@ namespace mks::base
             requires requires(T va) { detail::from_json_value(rapidjson::Value(), va); }
         T get(std::string_view key, const T &defaultValue) const
         {
-            rapidjson::Value name(key.data(), key.size());
+            rapidjson::Value name(key.data(), (rapidjson::SizeType)key.size());
             auto             item = _document.FindMember(name);
             if (item == _document.MemberEnd()) {
                 SPDLOG_ERROR("config option {} not found", key);

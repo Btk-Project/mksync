@@ -298,7 +298,7 @@ namespace mks::base
         if (ret == 0) {
             node->children.erase(ch);
         }
-        return node->isEndOfWord ? 1 : node->children.size();
+        return node->isEndOfWord ? 1 : (int)node->children.size();
     }
 
     template <typename T>

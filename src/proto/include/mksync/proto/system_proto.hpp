@@ -411,8 +411,28 @@ namespace mks
         float    x;        /**< X coordinate, relative to screen */
         float    y;        /**< Y coordinate, relative to screen */
 
+        static Border check_border(int posX, int posY, int width, int height);
+
         NEKO_SERIALIZER(screenId, border, x, y)
         NEKO_DECLARE_PROTOCOL(BorderEvent, NEKO_NAMESPACE::JsonSerializer)
     };
+
+    inline BorderEvent::Border BorderEvent::check_border(int posX, int posY, int width, int height)
+    {
+        int border = 0;
+        if (posX <= 0) {
+            border |= eLeft;
+        }
+        if (posX >= width) {
+            border |= eRight;
+        }
+        if (posY <= 0) {
+            border |= eTop;
+        }
+        if (posY >= height) {
+            border |= eBottom;
+        }
+        return static_cast<Border>(border);
+    }
 
 } // namespace mks
