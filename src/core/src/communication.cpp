@@ -487,6 +487,9 @@ namespace mks::base
 
     auto MKCommunication::set_current_peer(std::string_view currentPeer) -> void
     {
+        if (currentPeer == "self") {
+            return;
+        }
         auto item = _protoStreamClients.find(currentPeer);
         if (item != _protoStreamClients.end()) {
             _currentPeer = item;
