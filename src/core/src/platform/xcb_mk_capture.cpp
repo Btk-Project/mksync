@@ -12,9 +12,7 @@
 
 namespace mks::base
 {
-    XcbMKCapture::XcbMKCapture(IApp* app) : MKCapture(app), _events(10)
-    {
-    }
+    XcbMKCapture::XcbMKCapture(IApp *app) : MKCapture(app), _events(10) {}
 
     XcbMKCapture::~XcbMKCapture()
     {
@@ -126,6 +124,7 @@ namespace mks::base
 
     auto XcbMKCapture::pointer_proc(void *ev) -> void
     {
+        // TODO: 不要一直发送边缘事件，如果鼠标持续在边缘则忽略边缘事件。
         auto             *event = (xcb_generic_event_t *)ev;
         NekoProto::IProto proto;
         switch (event->response_type & ~0x80) {
@@ -210,7 +209,7 @@ namespace mks::base
                 keyMod |= (uint16_t)KeyMod::eKmodGui;
             }
             proto = KeyboardEvent::emplaceProto(KeyboardState::eKeyDown, keycode, (KeyMod)keyMod,
-                                           buttonEvent->time);
+                                                buttonEvent->time);
         } break;
         case XCB_KEY_RELEASE: {
             xcb_key_press_event_t *buttonEvent = (xcb_key_press_event_t *)event;
@@ -224,7 +223,7 @@ namespace mks::base
             auto keycode = linux_keysym_to_key_code(keysym);
             SPDLOG_INFO("keycode {}", (int)keycode);
             proto = KeyboardEvent::emplaceProto(KeyboardState::eKeyUp, keycode, KeyMod::eKmodNone,
-                                           buttonEvent->time);
+                                                buttonEvent->time);
         } break;
         default:
             SPDLOG_ERROR("unknown event type {}", event->response_type & ~0x80);

@@ -188,14 +188,25 @@ namespace mks::base
     auto NodeManager::producer_loop(Producer *producer) -> ::ilias::Task<void>
     {
         while (true) {
-            auto ret = co_await producer->get_event();
-            if (ret && !(ret.value() == nullptr)) {
+            if (auto ret = co_await producer->get_event(); ret) {
+                if (ret.value() == nullptr) {
+                    SPDLOG_CRITICAL("producer: {}<{}> get event a null proto",
+                                    dynamic_cast<NodeBase *>(producer)->name(),
+                                    (void *)dynamic_cast<NodeBase *>(producer));
+                    break;
+                }
                 co_await dispatch(ret.value(), dynamic_cast<NodeBase *>(producer));
             }
-            else {
+            else if (ret.error() != ::ilias::Error::Canceled) {
                 SPDLOG_ERROR("producer: {}<{}> get event failed! exit producer loop!, {}",
                              dynamic_cast<NodeBase *>(producer)->name(), (void *)producer,
                              ret.has_value() ? "null proto" : ret.error().message());
+                break;
+            }
+            else {
+                SPDLOG_INFO("producer: {}<{}> get event canceled! exit producer loop!",
+                            dynamic_cast<NodeBase *>(producer)->name(),
+                            (void *)dynamic_cast<NodeBase *>(producer));
                 break;
             }
         }

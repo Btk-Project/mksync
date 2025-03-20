@@ -39,7 +39,7 @@ namespace mks::base
 
     auto WinMKCapture::teardown() -> ::ilias::Task<int>
     {
-        notify();
+        _syncEvent.set();
         UnhookWindowsHookEx(_mosueHook);
         co_return co_await MKCapture::teardown();
     }
@@ -75,8 +75,7 @@ namespace mks::base
                 co_return Unexpected<Error>(ret.error());
             }
         }
-        NekoProto::IProto proto;
-        if (_events.pop(proto)) {
+        if (NekoProto::IProto proto; _events.pop(proto)) {
             co_return proto;
         }
         else {
@@ -84,8 +83,9 @@ namespace mks::base
         }
     }
 
-    auto WinMKCapture::notify() -> void
+    auto WinMKCapture::push_event(NekoProto::IProto &&event) -> void
     {
+        _events.push(std::forward<NekoProto::IProto>(event));
         _syncEvent.set();
     }
 
@@ -105,11 +105,9 @@ namespace mks::base
 
     LRESULT WinMKCapture::_mouse_proc(int ncode, WPARAM wp, LPARAM lp)
     {
-        auto             *hookStruct = reinterpret_cast<MSLLHOOKSTRUCT *>(lp);
-        NekoProto::IProto proto;
+        auto *hookStruct = reinterpret_cast<MSLLHOOKSTRUCT *>(lp);
         if (!_isStartCapture) {
             if (wp == WM_MOUSEMOVE) {
-                uint32_t border = 0;
                 if (_isInBorder) {
                     if (hookStruct->pt.x > 10 && hookStruct->pt.x < _screenWidth - 10 &&
                         hookStruct->pt.y > 10 && hookStruct->pt.y < _screenHeight - 10) {
@@ -117,113 +115,95 @@ namespace mks::base
                     }
                 }
                 else {
-                    if (hookStruct->pt.x <= 0) {
-                        border |= (uint32_t)BorderEvent::eLeft;
-                    }
-                    if (hookStruct->pt.x >= _screenWidth) {
-                        border |= (uint32_t)BorderEvent::eRight;
-                    }
-                    if (hookStruct->pt.y <= 0) {
-                        border |= (uint32_t)BorderEvent::eTop;
-                    }
-                    if (hookStruct->pt.y >= _screenHeight) {
-                        border |= (uint32_t)BorderEvent::eBottom;
+                    BorderEvent::Border border = BorderEvent::check_border(
+                        hookStruct->pt.x, hookStruct->pt.y, _screenWidth, _screenHeight);
+                    if ((int)border != 0) {
+                        SPDLOG_INFO("Mouse Border: {}, x {}, y {}", (int)border, hookStruct->pt.x,
+                                    hookStruct->pt.y);
+                        _isInBorder = true;
+                        push_event(mks::BorderEvent::emplaceProto(
+                            0U, (uint32_t)border, (float)hookStruct->pt.x / _screenWidth,
+                            (float)hookStruct->pt.y / _screenHeight));
                     }
                 }
-                if (border != 0) {
-                    SPDLOG_INFO("Mouse Border: {}, x {}, y {}", border, hookStruct->pt.x,
-                                hookStruct->pt.y);
-                    _isInBorder = true;
-                    proto       = mks::BorderEvent::emplaceProto(0U, border,
-                                                                 (float)hookStruct->pt.x / _screenWidth,
-                                                                 (float)hookStruct->pt.y / _screenHeight);
-                }
-                _posX = hookStruct->pt.x;
-                _posY = hookStruct->pt.y;
             }
         }
         else {
             switch (wp) {
             case WM_LBUTTONDOWN:
-                proto = mks::MouseButtonEvent::emplaceProto(mks::MouseButtonState::eButtonDown,
-                                                            mks::MouseButton::eButtonLeft,
-                                                            (uint8_t)1, (uint64_t)hookStruct->time);
+                push_event(mks::MouseButtonEvent::emplaceProto(
+                    mks::MouseButtonState::eButtonDown, mks::MouseButton::eButtonLeft, (uint8_t)1,
+                    (uint64_t)hookStruct->time));
                 SPDLOG_INFO("Left Mouse Button Down");
                 break;
             case WM_LBUTTONUP:
-                proto = mks::MouseButtonEvent::emplaceProto(mks::MouseButtonState::eButtonUp,
-                                                            mks::MouseButton::eButtonLeft,
-                                                            (uint8_t)1, (uint64_t)hookStruct->time);
+                push_event(mks::MouseButtonEvent::emplaceProto(
+                    mks::MouseButtonState::eButtonUp, mks::MouseButton::eButtonLeft, (uint8_t)1,
+                    (uint64_t)hookStruct->time));
                 SPDLOG_INFO("Left Mouse Button Up");
                 break;
             case WM_LBUTTONDBLCLK:
-                proto = mks::MouseButtonEvent::emplaceProto(mks::MouseButtonState::eClick,
-                                                            mks::MouseButton::eButtonLeft,
-                                                            (uint8_t)2, (uint64_t)hookStruct->time);
+                push_event(mks::MouseButtonEvent::emplaceProto(
+                    mks::MouseButtonState::eClick, mks::MouseButton::eButtonLeft, (uint8_t)2,
+                    (uint64_t)hookStruct->time));
                 SPDLOG_INFO("Left Mouse Button Double Click");
                 break;
             case WM_RBUTTONDOWN:
-                proto = mks::MouseButtonEvent::emplaceProto(mks::MouseButtonState::eButtonDown,
-                                                            mks::MouseButton::eButtonRight,
-                                                            (uint8_t)1, (uint64_t)hookStruct->time);
+                push_event(mks::MouseButtonEvent::emplaceProto(
+                    mks::MouseButtonState::eButtonDown, mks::MouseButton::eButtonRight, (uint8_t)1,
+                    (uint64_t)hookStruct->time));
                 SPDLOG_INFO("Right Mouse Button Down");
                 break;
             case WM_RBUTTONUP:
-                proto = mks::MouseButtonEvent::emplaceProto(mks::MouseButtonState::eButtonUp,
-                                                            mks::MouseButton::eButtonRight,
-                                                            (uint8_t)1, (uint64_t)hookStruct->time);
+                push_event(mks::MouseButtonEvent::emplaceProto(
+                    mks::MouseButtonState::eButtonUp, mks::MouseButton::eButtonRight, (uint8_t)1,
+                    (uint64_t)hookStruct->time));
                 SPDLOG_INFO("Right Mouse Button Up");
                 break;
             case WM_RBUTTONDBLCLK:
-                proto = mks::MouseButtonEvent::emplaceProto(mks::MouseButtonState::eClick,
-                                                            mks::MouseButton::eButtonRight,
-                                                            (uint8_t)2, (uint64_t)hookStruct->time);
+                push_event(mks::MouseButtonEvent::emplaceProto(
+                    mks::MouseButtonState::eClick, mks::MouseButton::eButtonRight, (uint8_t)2,
+                    (uint64_t)hookStruct->time));
                 SPDLOG_INFO("Right Mouse Button Double Click");
                 break;
             case WM_MBUTTONDOWN:
-                proto = mks::MouseButtonEvent::emplaceProto(mks::MouseButtonState::eButtonDown,
-                                                            mks::MouseButton::eButtonMiddle,
-                                                            (uint8_t)1, (uint64_t)hookStruct->time);
+                push_event(mks::MouseButtonEvent::emplaceProto(
+                    mks::MouseButtonState::eButtonDown, mks::MouseButton::eButtonMiddle, (uint8_t)1,
+                    (uint64_t)hookStruct->time));
                 SPDLOG_INFO("Middle Mouse Button Down");
                 break;
             case WM_MBUTTONUP:
-                proto = mks::MouseButtonEvent::emplaceProto(mks::MouseButtonState::eButtonUp,
-                                                            mks::MouseButton::eButtonMiddle,
-                                                            (uint8_t)1, (uint64_t)hookStruct->time);
+                push_event(mks::MouseButtonEvent::emplaceProto(
+                    mks::MouseButtonState::eButtonUp, mks::MouseButton::eButtonMiddle, (uint8_t)1,
+                    (uint64_t)hookStruct->time));
                 SPDLOG_INFO("Middle Mouse Button Up");
                 break;
             case WM_MBUTTONDBLCLK:
-                proto = mks::MouseButtonEvent::emplaceProto(mks::MouseButtonState::eClick,
-                                                            mks::MouseButton::eButtonMiddle,
-                                                            (uint8_t)2, (uint64_t)hookStruct->time);
+                push_event(mks::MouseButtonEvent::emplaceProto(
+                    mks::MouseButtonState::eClick, mks::MouseButton::eButtonMiddle, (uint8_t)2,
+                    (uint64_t)hookStruct->time));
                 SPDLOG_INFO("Middle Mouse Button Double Click");
                 break;
             case WM_MOUSEMOVE:
-                _posX += hookStruct->pt.x;
-                _posY += hookStruct->pt.y;
-                proto = mks::MouseMotionEvent::emplaceProto((float)_posX / _screenWidth,
-                                                            (float)_posY / _screenHeight, true,
-                                                            (uint64_t)hookStruct->time);
+                push_event(mks::MouseMotionEvent::emplaceProto(
+                    (float)hookStruct->pt.x / _screenWidth, (float)hookStruct->pt.y / _screenHeight,
+                    !_isStartCapture, (uint64_t)hookStruct->time));
                 SPDLOG_INFO("Mouse Move X: {} Y: {}", hookStruct->pt.x, hookStruct->pt.y);
                 break;
             case WM_MOUSEWHEEL:
-                proto = mks::MouseWheelEvent::emplaceProto(
+                push_event(mks::MouseWheelEvent::emplaceProto(
                     (float)(GET_WHEEL_DELTA_WPARAM(hookStruct->mouseData) / WHEEL_DELTA), 0.F,
-                    (uint64_t)hookStruct->time);
+                    (uint64_t)hookStruct->time));
                 SPDLOG_INFO("Mouse Wheel {}", GET_WHEEL_DELTA_WPARAM(hookStruct->mouseData));
                 break;
             case WM_MOUSEHWHEEL:
-                proto = mks::MouseWheelEvent::emplaceProto(
+                push_event(mks::MouseWheelEvent::emplaceProto(
                     0.F, (float)(GET_WHEEL_DELTA_WPARAM(hookStruct->mouseData) / WHEEL_DELTA),
-                    (uint64_t)hookStruct->time);
+                    (uint64_t)hookStruct->time));
                 SPDLOG_INFO("Mouse HWheel {}", GET_WHEEL_DELTA_WPARAM(hookStruct->mouseData));
             default:
                 break;
             }
-        }
-        if (proto != nullptr) {
-            _events.push(std::move(proto));
-            _syncEvent.set();
         }
         return (!_isStartCapture || ncode < 0) ? CallNextHookEx(nullptr, ncode, wp, lp) : 1;
     }
@@ -289,10 +269,9 @@ namespace mks::base
             keymod = mks::KeyMod::eKmodScroll;
         }
 
-        _events.emplace(mks::KeyboardEvent::emplaceProto(
+        push_event(mks::KeyboardEvent::emplaceProto(
             (wp == WM_KEYDOWN) ? mks::KeyboardState::eKeyDown : mks::KeyboardState::eKeyUp, keycode,
             keymod, (uint64_t)hookStruct->time));
-        _syncEvent.set();
         return (!_isStartCapture || ncode < 0) ? CallNextHookEx(nullptr, ncode, wp, lp) : 1;
     }
 } // namespace mks::base

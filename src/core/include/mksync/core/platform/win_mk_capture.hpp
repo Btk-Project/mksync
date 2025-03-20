@@ -31,8 +31,7 @@ namespace mks::base
         ///> 获取一个事件，如果没有就等待
         [[nodiscard("coroutine function")]]
         auto get_event() -> ::ilias::IoTask<NekoProto::IProto> override;
-        ///> 唤起正在等待事件的协程并弹出一个事件，如果事件队列为空则会弹出一个空事件。
-        auto notify() -> void;
+        auto push_event(NekoProto::IProto &&event) -> void;
 
         [[nodiscard("coroutine function")]]
         auto start_capture() -> ::ilias::Task<int> override;
@@ -48,8 +47,6 @@ namespace mks::base
         int   _screenWidth    = 0;
         int   _screenHeight   = 0;
         bool  _isStartCapture = false;
-        int   _posX           = 0;
-        int   _posY           = 0;
         bool  _isInBorder     = false;
 
         RingBuffer<NekoProto::IProto> _events;

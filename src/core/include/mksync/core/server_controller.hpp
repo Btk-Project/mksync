@@ -35,7 +35,7 @@ namespace mks::base
         auto show_virtual_screen_positions() -> void;
         ///> 从配置中删除屏幕
         auto remove_virtual_screen(std::string_view screen) -> void;
-        auto set_current_screen(std::string_view screen) -> void;
+        auto set_current_screen(std::string_view screen) -> bool;
 
     public:
         [[nodiscard("coroutine function")]]
@@ -63,7 +63,10 @@ namespace mks::base
             std::string          peer;
             std::string          name;
             VirtualScreenConfig *config;
-        } _currentScreen = {"", "", nullptr};
+            int                  posX;
+            int                  posY;
+            bool                 isInBorder;
+        } _currentScreen = {"", "", nullptr, 0, 0, false};
         std::map<std::string, std::map<std::string, VirtualScreenInfo, std::less<>>::iterator,
                  std::less<>>
             _screenNameTable; // screen_name -> vscreeninfo

@@ -165,7 +165,7 @@ namespace mks::base
 
     void VScreenCmd::parser_options(const std::vector<const char *> &args)
     {
-        auto retsult = _options.parse(args.size(), args.data());
+        auto retsult = _options.parse((int)args.size(), args.data());
         if (retsult.count("src") != 0U) {
             _srcScreen = retsult["src"].as<std::string>();
         }
@@ -236,8 +236,12 @@ namespace mks::base
         _vscreenConfig  = settings.get(screen_settings_config_name, screen_settings_default_value);
         auto selfScreen = _app->get_screen_info();
         _virtualScreens.insert(std::make_pair("self", selfScreen));
-        _currentScreen.name = selfScreen.name;
-        _currentScreen.peer = "self";
+        _currentScreen.name       = selfScreen.name;
+        _currentScreen.peer       = "self";
+        _currentScreen.isInBorder = false;
+        _currentScreen.config     = nullptr;
+        _currentScreen.posX       = 0;
+        _currentScreen.posY       = 0;
         if (auto item = std::find_if(_vscreenConfig.begin(), _vscreenConfig.end(),
                                      [](auto &item) { return item.name == "self"; });
             item != _vscreenConfig.end()) {
@@ -291,7 +295,7 @@ namespace mks::base
         if (auto item = _eventHandlers.find(event.type()); item != _eventHandlers.end()) {
             co_return co_await item->second(this, event);
         }
-        SPDLOG_ERROR("ServerController unhandle event {}!", event.protoName());
+        SPDLOG_WARN("ServerController unhandle event {}!", event.protoName());
         co_return;
     }
 
@@ -359,15 +363,28 @@ namespace mks::base
                 .name   = dstVs.name,
                 .width  = (int)dstVs.width,
                 .height = (int)dstVs.height,
-                .left   = "",
-                .top    = "",
-                .right  = "",
-                .bottom = "",
+                .left   = direction == VScreenCmd::eRight ? std::string(srcScreen) : "",
+                .top    = direction == VScreenCmd::eBottom ? std::string(srcScreen) : "",
+                .right  = direction == VScreenCmd::eLeft ? std::string(srcScreen) : "",
+                .bottom = direction == VScreenCmd::eTop ? std::string(srcScreen) : "",
             });
         }
         else {
             item->width  = (int)dstVs.width;
             item->height = (int)dstVs.height;
+            switch (direction) {
+            case VScreenCmd::eLeft:
+                item->right = srcScreen;
+                break;
+            case VScreenCmd::eRight:
+                item->left = srcScreen;
+                break;
+            case VScreenCmd::eTop:
+                item->bottom = srcScreen;
+                break;
+            case VScreenCmd::eBottom:
+                item->top = srcScreen;
+            }
         }
     }
     ///> 展示当前配置
@@ -406,10 +423,10 @@ namespace mks::base
         }
     }
 
-    auto ServerController::set_current_screen(std::string_view screen) -> void
+    auto ServerController::set_current_screen(std::string_view screen) -> bool
     {
         if (screen == _currentScreen.name) {
-            return;
+            return false;
         }
         // 切换屏幕
         if (auto item = _screenNameTable.find(screen); item != _screenNameTable.end()) {
@@ -422,16 +439,16 @@ namespace mks::base
         }
         else {
             SPDLOG_ERROR("screen {} not found.", screen);
-            return;
+            return false;
         }
         if (auto item = std::find_if(_vscreenConfig.begin(), _vscreenConfig.end(),
                                      [screen](auto &item) { return item.name == screen; });
             item != _vscreenConfig.end()) {
             _currentScreen.config = std::addressof(*item);
+            return true;
         }
-        else {
-            SPDLOG_CRITICAL("near screen {} config not found.", screen);
-        }
+        SPDLOG_CRITICAL("near screen {} config not found.", screen);
+        return false;
     }
 
     auto ServerController::handle_event(const ClientConnected &event) -> ::ilias::Task<void>
@@ -484,14 +501,71 @@ namespace mks::base
         else {
             co_return;
         }
-        set_current_screen(nextScreen);
+        if (set_current_screen(nextScreen)) {
+            _currentScreen.isInBorder = true; // 标记防止马上就被识别成在屏幕边界。
+            ILIAS_ASSERT(_currentScreen.config != nullptr);
+            switch (event.border) { // 计算从上一个屏幕边界出去的鼠标应该从下一块屏幕的何处进入。
+            case BorderEvent::eLeft:
+                _currentScreen.posX = _currentScreen.config->width;
+                _currentScreen.posY = (int)(event.y * _currentScreen.config->height);
+                break;
+            case BorderEvent::eRight:
+                _currentScreen.posX = 0;
+                _currentScreen.posY = (int)(event.y * _currentScreen.config->height);
+                break;
+            case BorderEvent::eTop:
+                _currentScreen.posX = (int)(event.x * _currentScreen.config->width);
+                _currentScreen.posY = _currentScreen.config->height;
+                break;
+            case BorderEvent::eBottom:
+                _currentScreen.posX = (int)(event.x * _currentScreen.config->width);
+                _currentScreen.posY = 0;
+                break;
+            }
+        }
         co_return;
     }
 
     auto ServerController::handle_event(const MouseMotionEvent &event) -> ::ilias::Task<void>
     {
+        if (_currentScreen.config == nullptr || _currentScreen.peer == "self") {
+            SPDLOG_ERROR("current screen config is null or is self!!!");
+            co_return;
+        }
         // 将鼠标位置转换到当前屏幕的位置上。并输出MouseMotionEventConversion事件。
-        // TODO: 对鼠标进行处理。
+        _currentScreen.posX = (int)((event.isAbsolute ? _currentScreen.posX : 0) +
+                                    (event.x * _currentScreen.config->width));
+        _currentScreen.posY = (int)((event.isAbsolute ? _currentScreen.posY : 0) +
+                                    (event.y * _currentScreen.config->height));
+        if (_currentScreen.isInBorder) {
+            if (_currentScreen.posX > 10 &&
+                _currentScreen.posX < _currentScreen.config->width - 10 &&
+                _currentScreen.posY > 10 &&
+                _currentScreen.posY < _currentScreen.config->height - 10) {
+                _currentScreen.isInBorder = false;
+            }
+        }
+        else { // 移动到了屏幕边界，立刻跳出当前屏幕到下一个屏幕。
+            BorderEvent::Border border = BorderEvent::check_border(
+                _currentScreen.posX, _currentScreen.posY, _currentScreen.config->width,
+                _currentScreen.config->height);
+            if (border != 0) {
+                SPDLOG_INFO("Mouse Border: {}, x {}, y {}", (int)border, _currentScreen.posX,
+                            _currentScreen.posY);
+                _currentScreen.isInBorder = true;
+                auto oldScreen            = _currentScreen.name;
+                co_await handle_event(mks::BorderEvent::emplaceProto(
+                    0U, (uint32_t)border, (float)_currentScreen.posX / _currentScreen.config->width,
+                    (float)_currentScreen.posY / _currentScreen.config->height));
+                if (oldScreen != _currentScreen.name) {
+                    co_return; // 跳转到了新的屏幕，不再继续处理当前的鼠标移动事件。
+                }
+            }
+        }
+        // 构建用于发送到客户端的鼠标移动事件
+        _self->pust_event(MouseMotionEventConversion::emplaceProto(
+            (float)_currentScreen.posX / _currentScreen.config->width,
+            (float)_currentScreen.posY / _currentScreen.config->height, true, event.timestamp));
         co_return;
     }
 
