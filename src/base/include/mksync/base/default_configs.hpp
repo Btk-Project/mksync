@@ -21,7 +21,8 @@
     MKS_BASE_CONFIG(log_level, std::string, "warn", "Log level for print to console.")             \
     MKS_BASE_CONFIG(log_file, std::string, "", "Save log in this file if it set.")                 \
     MKS_BASE_CONFIG(module_list, std::vector<std::string>, {}, "Module list to load.")             \
-    MKS_BASE_CONFIG(screen_settings, std::vector<VirtualScreenConfig>, {}, "Screen's settings.")
+    MKS_BASE_CONFIG(screen_settings, std::vector<VirtualScreenConfig>, {}, "Screen's settings.")   \
+    MKS_BASE_CONFIG(server_ipaddress, std::string, "0.0.0.0:8577", "sever ip")
 
 namespace mks::base
 {

@@ -15,6 +15,7 @@
 
 namespace mks::base
 {
+    class MKSender;
     class MKS_CORE_API ServerController final : public ControllerImp {
     public:
         ServerController(Controller *self, IApp *app);
@@ -52,9 +53,10 @@ namespace mks::base
         auto _register_event_handler() -> void;
 
     private:
-        std::string_view                 _captureNode;
-        std::vector<VirtualScreenConfig> _vscreenConfig;
-        std::vector<int>                 _subscribes;
+        std::string_view                                _captureNode;
+        std::vector<VirtualScreenConfig>                _vscreenConfig;
+        std::vector<int>                                _subscribes;
+        std::unique_ptr<NodeBase, void (*)(NodeBase *)> _sender;
         std::unordered_map<int,
                            ::ilias::Task<void> (*)(ServerController *, const NekoProto::IProto &)>
                                                               _eventHandlers;

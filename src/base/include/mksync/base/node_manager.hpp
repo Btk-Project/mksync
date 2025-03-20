@@ -90,5 +90,6 @@ namespace mks::base
         ::ilias::TaskScope                                                   _taskScope;
         std::vector<std::unique_ptr<NodeDll>>                                _dlls;
         std::unordered_map<std::string_view, ilias::TaskScope::WaitHandle<>> _cancelHandleMap;
+        bool                                                                 _isInProcess = false;
     };
 } // namespace mks::base

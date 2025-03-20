@@ -48,8 +48,9 @@ namespace mks::base
     auto XcbMKSender::start_sender() -> ::ilias::Task<int>
     {
         if (!_xcbConnect) {
-            _xcbConnect = std::make_unique<XcbConnect>(_app->get_io_context());
-            auto ret    = co_await _xcbConnect->connect(nullptr);
+            _xcbConnect         = std::make_unique<XcbConnect>(_app->get_io_context());
+            const auto *display = getenv("DISPLAY");
+            auto        ret = co_await _xcbConnect->connect(display == nullptr ? ":0" : display);
             if (!ret) {
                 SPDLOG_ERROR("Failed to connect to X server!");
                 co_return -1;
@@ -82,7 +83,7 @@ namespace mks::base
         if (!_isStart || !_xcbConnect) {
             return;
         }
-        //TODO: 相对移动
+        // TODO: 相对移动
         SPDLOG_INFO("Mouse motion event: x={}, y={}", event.x * _screenWidth,
                     event.y * _screenHeight);
         _xcbConnect->fake_mouse_move(event.x * _screenWidth, event.y * _screenHeight);

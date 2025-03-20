@@ -5,6 +5,7 @@
 
 #include "mksync/proto/proto.hpp"
 #include "mksync/core/app.hpp"
+#include "mksync/base/default_configs.hpp"
 
 namespace mks::base
 {
@@ -42,7 +43,7 @@ namespace mks::base
     protected:
         IApp            *_app        = nullptr;
         MKCommunication *_self       = nullptr;
-        IPEndpoint       _ipendpoint = {"0.0.0.0:12345"};
+        IPEndpoint       _ipendpoint = {};
         Operation        _operation  = eNone;
         cxxopts::Options _options;
     };
@@ -177,12 +178,16 @@ namespace mks::base
             ret.pop_back();
             ret.pop_back();
         }
+        _ipendpoint = IPEndpoint(
+            _app->settings().get(server_ipaddress_config_name, server_ipaddress_default_value));
         _options.custom_help(
             fmt::format("{}{}{}{} <start/stop/restart> [options...], e.g. server start",
                         this->name(), ret.empty() ? "" : "(", ret, ret.empty() ? "" : ")"));
-        _options.add_options()("a,address", "server address",
-                               cxxopts::value<std::string>()->default_value("0.0.0.0"), "[ip]")(
-            "p,port", "server port", cxxopts::value<uint16_t>()->default_value("12345"), "[int]");
+        _options.add_options()(
+            "a,address", "server address",
+            cxxopts::value<std::string>()->default_value(_ipendpoint.address().toString()), "[ip]")(
+            "p,port", "server port",
+            cxxopts::value<uint16_t>()->default_value(std::to_string(_ipendpoint.port())), "[int]");
         _options.allow_unrecognised_options();
     }
 
@@ -210,6 +215,7 @@ namespace mks::base
             SPDLOG_ERROR("Unknown server operation");
             break;
         }
+        _app->settings().set(server_ipaddress_config_name, _ipendpoint.toString());
         co_return;
     }
 
@@ -288,11 +294,11 @@ namespace mks::base
         default:
             SPDLOG_ERROR("Unknown server operation");
         }
-        std::string address = "0.0.0.0";
+        std::string address = _ipendpoint.address().toString();
         if (!control->ip.empty()) {
             address = control->ip;
         }
-        uint16_t port = 12345;
+        uint16_t port = _ipendpoint.port();
         if (control->port != 0) {
             port = control->port;
         }
@@ -375,6 +381,7 @@ namespace mks::base
             SPDLOG_ERROR("Unknown server operation");
             break;
         }
+        _app->settings().set(server_ipaddress_config_name, _ipendpoint.toString());
         co_return;
     }
 
@@ -405,11 +412,11 @@ namespace mks::base
         default:
             SPDLOG_ERROR("Unknown server operation");
         }
-        std::string address = "0.0.0.0";
+        std::string address = _ipendpoint.address().toString();
         if (!control->ip.empty()) {
             address = control->ip;
         }
-        uint16_t port = 12345;
+        uint16_t port = _ipendpoint.port();
         if (control->port != 0) {
             port = control->port;
         }
@@ -487,15 +494,14 @@ namespace mks::base
 
     auto MKCommunication::set_current_peer(std::string_view currentPeer) -> void
     {
-        if (currentPeer == "self") {
-            return;
-        }
         auto item = _protoStreamClients.find(currentPeer);
         if (item != _protoStreamClients.end()) {
             _currentPeer = item;
         }
         else {
-            SPDLOG_WARN("peer {} not found", currentPeer);
+            if (currentPeer != "self") {
+                SPDLOG_WARN("peer {} not found", currentPeer);
+            }
             _currentPeer = _protoStreamClients.end();
         }
     }
@@ -561,7 +567,6 @@ namespace mks::base
             co_return;
         }
 
-        SPDLOG_INFO("send {} to {}", event.protoName(), _currentPeer->first);
         if (auto ret = co_await _currentPeer->second.send(event, _flags); !ret) {
             SPDLOG_ERROR("send event failed {}", ret.error().message());
             if (ret.error() == Error::ConnectionReset || ret.error() == Error::ChannelBroken) {
@@ -609,14 +614,15 @@ namespace mks::base
         }
         TcpListener server;
         if (auto ret = co_await TcpListener::make(endpoint.family()); !ret) {
-            SPDLOG_ERROR("TcpListener::make failed {}", ret.error().message());
+            SPDLOG_ERROR("TcpListener make failed {}", ret.error().message());
             co_return -1;
         }
         else {
             server = std::move(ret.value());
         }
         if (auto res = server.bind(endpoint); !res) {
-            SPDLOG_ERROR("TcpListener::bind failed {}", res.error().message());
+            SPDLOG_ERROR("TcpListener bind {} failed {}", endpoint.toString(),
+                         res.error().message());
             server.close();
             co_return -1;
         }
@@ -706,7 +712,6 @@ namespace mks::base
             // 仅当为客户端时才可以挂起等待事件，考虑功能后续可能会支持服务端挂起所有客户，但目前这样做消息会混。
             if (auto ret = co_await client.recv(_flags); ret) {
                 // 获得消息生成一个事件。
-                SPDLOG_INFO("recv {} from {}", ret.value().protoName(), _currentPeer->first);
                 co_await _app->push_event(std::move(ret.value()));
             }
             else {
@@ -794,7 +799,8 @@ namespace mks::base
         else {
             SPDLOG_INFO("recv screen info from {} {}:({}x{} {})", peer, proto->name, proto->width,
                         proto->height, proto->screenId);
-            auto clientConnected = ClientConnected::emplaceProto(name, std::move(*proto));
+            auto clientConnected =
+                ClientConnected::emplaceProto(std::string(peer), std::move(*proto));
             co_await _app->push_event(std::move(clientConnected));
             co_return 0;
         }
@@ -819,14 +825,15 @@ namespace mks::base
         }
         TcpClient tcpClient;
         if (auto ret = co_await TcpClient::make(endpoint.family()); !ret) {
-            SPDLOG_ERROR("TcpClient::make failed {}", ret.error().message());
+            SPDLOG_ERROR("TcpClient make failed {}", ret.error().message());
             co_return -1;
         }
         else {
             tcpClient = std::move(ret.value());
         }
         if (auto res = co_await tcpClient.connect(endpoint); !res) {
-            SPDLOG_ERROR("TcpClient::connect failed {}", res.error().message());
+            SPDLOG_ERROR("TcpClient connect {} failed {}", endpoint.toString(),
+                         res.error().message());
             co_return -1;
         }
         auto client = NekoProto::ProtoStreamClient<>(_protofactory, std::move(tcpClient));
