@@ -46,7 +46,7 @@ namespace mks::base
      * 负责主要业务逻辑的实现。
      * 对于服务端来说， 负责处理客户端的请求。
      */
-    class MKS_CORE_API Controller final : public NodeBase, public Consumer, public Producer {
+    class MKS_CORE_API Controller final : public NodeBase, public Consumer {
     public:
         Controller(IApp *app);
         ~Controller();
@@ -62,9 +62,6 @@ namespace mks::base
         ///> 处理一个事件，需要订阅。
         [[nodiscard("coroutine function")]]
         auto handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void> override;
-        [[nodiscard("coroutine function")]]
-        auto get_event() -> ::ilias::IoTask<NekoProto::IProto> override;
-        auto pust_event(NekoProto::IProto &&event) -> void;
 
         [[nodiscard("coroutine function")]]
         auto handle_event(const AppStatusChanged &event) -> ::ilias::Task<void>;

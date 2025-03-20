@@ -35,7 +35,7 @@ namespace mks::base
         auto show_virtual_screen_positions() -> void;
         ///> 从配置中删除屏幕
         auto remove_virtual_screen(std::string_view screen) -> void;
-        auto set_current_screen(std::string_view screen) -> bool;
+        auto set_current_screen(std::string_view screen) -> ::ilias::Task<bool>;
 
     public:
         [[nodiscard("coroutine function")]]

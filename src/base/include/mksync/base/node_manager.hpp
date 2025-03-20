@@ -21,6 +21,7 @@
 
 #include "mksync/base/base_library.h"
 #include "mksync/base/nodebase.hpp"
+#include "mksync/base/event_base.hpp"
 
 namespace mks::base
 {
@@ -54,6 +55,8 @@ namespace mks::base
         auto dispatch(const NekoProto::IProto &proto, NodeBase *nodebase) -> ::ilias::Task<void>;
         [[nodiscard("coroutine function")]]
         auto producer_loop(Producer *producer) -> ::ilias::Task<void>;
+        [[nodiscard("coroutine function")]]
+        auto events_loop() -> ::ilias::Task<void>;
 
         auto subscribe(int type, Consumer *consumer) -> void;
         auto subscribe(std::vector<int> types, Consumer *consumer) -> void;
@@ -76,9 +79,11 @@ namespace mks::base
         auto get_nodes() -> std::list<NodeData> &;
         auto get_nodes() const -> const std::list<NodeData> &;
         auto get_node(std::string_view name) -> NodeBase *;
+        auto get_events() -> EventBase &;
 
     private:
         IApp                                                                *_app;
+        EventBase                                                            _events;
         std::list<NodeData>                                                  _nodeList;
         std::map<int, std::set<Consumer *>>                                  _consumerMap;
         std::unordered_map<std::string_view, std::list<NodeData>::iterator>  _nodeMap;

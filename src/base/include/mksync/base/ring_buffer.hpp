@@ -35,7 +35,10 @@ namespace mks::base
         ///> 弹出一个队首的事件
         auto pop(T &event) -> bool;
         ///> 返回存在多少事件
-        auto size() -> std::size_t;
+        auto size() const -> std::size_t;
+        auto empty() const -> bool;
+        auto clear() -> void;
+        auto capacity() const -> std::size_t;
 
     private:
         std::unique_ptr<T[]> _buffer   = nullptr;
@@ -99,8 +102,33 @@ namespace mks::base
     }
 
     template <typename T>
-    auto RingBuffer<T>::size() -> std::size_t
+    auto RingBuffer<T>::size() const -> std::size_t
     {
         return (_head - _tail + _capacity) % _capacity;
     }
+
+    template <typename T>
+    auto RingBuffer<T>::empty() const -> bool
+    {
+        return _head == _tail;
+    }
+
+    template <typename T>
+    auto RingBuffer<T>::clear() -> void
+    {
+        for (int i = _head; i < ((_tail > _head) ? _tail : _capacity); ++i) {
+            _buffer[i] = T{};
+        }
+        for (int i = 0; i < ((_tail >= _head) ? 0 : _tail); ++i) {
+            _buffer[i] = T{};
+        }
+        _head = _tail;
+    }
+
+    template <typename T>
+    auto RingBuffer<T>::capacity() const -> std::size_t
+    {
+        return _capacity - 1;
+    }
+
 } // namespace mks::base

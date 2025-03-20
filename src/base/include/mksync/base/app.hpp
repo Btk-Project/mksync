@@ -53,6 +53,10 @@ namespace mks::base
             -> std::function<bool(std::unique_ptr<Command>)>       = 0;
         virtual auto command_uninstaller(NodeBase *module) -> void = 0;
 
+        virtual auto push_event(NekoProto::IProto &&event) -> ::ilias::Task<::ilias::Error> = 0;
+        virtual auto push_event(NekoProto::IProto &&event, NodeBase *node)
+            -> ::ilias::Task<::ilias::Error> = 0;
+
         // main loop
         [[nodiscard("coroutine function")]]
         virtual auto exec(int argc = 0, const char *const *argv = nullptr) -> ilias::Task<void> = 0;

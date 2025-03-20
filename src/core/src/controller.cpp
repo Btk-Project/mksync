@@ -76,30 +76,6 @@ namespace mks::base
         co_return;
     }
 
-    auto Controller::get_event() -> ::ilias::IoTask<NekoProto::IProto>
-    {
-        if (_events.size() == 0) {
-            _syncEvent.clear();
-            auto ret = co_await _syncEvent;
-            if (!ret) {
-                co_return Unexpected<Error>(ret.error());
-            }
-        }
-        NekoProto::IProto proto;
-        if (_events.pop(proto)) {
-            co_return proto;
-        }
-        else {
-            co_return Unexpected<Error>(Error::Unknown);
-        }
-    }
-
-    auto Controller::pust_event(NekoProto::IProto &&event) -> void
-    {
-        _events.emplace(std::forward<NekoProto::IProto>(event));
-        _syncEvent.set();
-    }
-
     auto Controller::make(App &app) -> std::unique_ptr<Controller, void (*)(NodeBase *)>
     {
         return std::unique_ptr<Controller, void (*)(NodeBase *)>(new Controller(&app),
