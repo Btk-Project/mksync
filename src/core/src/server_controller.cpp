@@ -34,7 +34,7 @@ namespace mks::base
     public:
         VScreenCmd(ServerController *controller);
         ~VScreenCmd() override = default;
-        auto execute() -> Task<void> override;
+        auto execute() -> Task<std::string> override;
         auto help() const -> std::string override;
         auto name() const -> std::string_view override;
         auto alias_names() const -> std::vector<std::string_view> override;
@@ -78,36 +78,36 @@ namespace mks::base
         _options.allow_unrecognised_options();
     }
 
-    auto VScreenCmd::execute() -> Task<void>
+    auto VScreenCmd::execute() -> Task<std::string>
     {
         switch (_operation) {
         case eSetScreen:
             if (_srcScreen.empty() || _dstScreen.empty() || _direction == eUnknown) {
                 SPDLOG_ERROR(
                     "please specify the src, dst and direction to set the screen position");
-                break;
+                co_return "please specify the src, dst and direction to set the screen position";
             }
             _controller->set_virtual_screen_positions(_srcScreen, _dstScreen, _direction);
             break;
         case eRemoveScreen:
             if (_srcScreen.empty()) {
                 SPDLOG_ERROR("please specify the src to remove the screen");
+                co_return "please specify the src to remove the screen";
                 break;
             }
             _controller->remove_virtual_screen(_srcScreen);
             break;
         case eShowConfigs:
-            _controller->show_virtual_screen_positions();
-            break;
+            co_return _controller->show_virtual_screen_positions();
         default:
             SPDLOG_ERROR("unknown operation");
-            break;
+            co_return "unknown operation";
         }
         _dstScreen = "";
         _srcScreen = "";
         _direction = eUnknown;
         _operation = eNone;
-        co_return;
+        co_return "";
     }
 
     auto VScreenCmd::help() const -> std::string
@@ -400,26 +400,26 @@ namespace mks::base
         }
     }
     ///> 展示当前配置
-    auto ServerController::show_virtual_screen_positions() -> void
+    auto ServerController::show_virtual_screen_positions() -> std::string
     {
-        fprintf(stdout, "---------- virtual screens -----------\n");
+        std::string result;
+        result = fmt::format("---------- virtual screens -----------\n");
         for (const auto &screen : _virtualScreens) {
-            fprintf(stdout, "%s\n",
-                    fmt::format("screen {}({}) : {}x{}", screen.second.name, screen.second.screenId,
-                                screen.second.width, screen.second.height)
-                        .c_str());
+            result +=
+                fmt::format("screen {}({}) : {}x{}\n", screen.second.name, screen.second.screenId,
+                            screen.second.width, screen.second.height);
         }
-        fprintf(stdout, "---------- screens config ----------\n");
+        result += "---------- screens config ----------\n";
         for (const auto &item : _vscreenConfig) {
-            fprintf(stdout, "%s\n",
-                    fmt::format("screen {} : {}x{}\n    left: {}\n    top: {}\n    right: {}\n  "
-                                "  bottom: {}",
-                                item.name, item.width, item.height, item.left, item.top, item.right,
-                                item.bottom)
-                        .c_str());
+            result += fmt::format("screen {} : {}x{}\n    left: {}\n    top: {}\n    right: {}\n  "
+                                  "  bottom: {}\n",
+                                  item.name, item.width, item.height, item.left, item.top,
+                                  item.right, item.bottom);
         }
-        fprintf(stdout, "---------------------------------------\n");
+        result += "---------------------------------------\n";
+        fprintf(stdout, "%s", result.c_str());
         fflush(stdout);
+        return result;
     }
     ///> 从配置中删除屏幕
     auto ServerController::remove_virtual_screen(std::string_view screen) -> void

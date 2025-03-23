@@ -78,11 +78,11 @@ namespace mks::base
         // 将删除其对应模块的所有命令。
         auto remove_cmd(std::string_view cmd) -> void;
         [[nodiscard("coroutine function")]]
-        auto execute(std::span<char> cmdline) -> ::ilias::Task<void>;
+        auto execute(std::span<char> cmdline) -> ::ilias::Task<std::string>;
         [[nodiscard("coroutine function")]]
-        auto execute(const NekoProto::IProto &proto) -> ::ilias::Task<void>;
+        auto execute(const NekoProto::IProto &proto) -> ::ilias::Task<std::string>;
         [[nodiscard("coroutine function")]]
-        auto execute(const std::vector<const char *> &cmdline) -> ::ilias::Task<void>;
+        auto execute(const std::vector<const char *> &cmdline) -> ::ilias::Task<std::string>;
         [[nodiscard("coroutine function")]]
         auto show_help(const ArgsType &args, const OptionsType &options)
             -> ::ilias::Task<std::string>;
@@ -105,7 +105,7 @@ namespace mks::base
     public:
         CommonCommand(CommandInvoker::CommandsData &&data);
         [[nodiscard("coroutine function")]]
-        auto execute() -> ::ilias::Task<void> override;
+        auto execute() -> ::ilias::Task<std::string> override;
 
         auto help() const -> std::string override;
         auto name() const -> std::string_view override;
