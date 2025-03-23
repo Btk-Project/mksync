@@ -192,7 +192,7 @@ namespace mks::base::detail
     bool from_json_value(const rapidjson::Value &value, T &result)
     {
         if (value.IsString()) {
-            result = value.GetString();
+            result = T(value.GetString(), value.GetStringLength());
             return true;
         }
         return false;

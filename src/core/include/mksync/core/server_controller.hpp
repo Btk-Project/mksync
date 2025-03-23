@@ -33,7 +33,7 @@ namespace mks::base
         auto set_virtual_screen_positions(std::string_view srcScreen, std::string_view dstScreen,
                                           int direction) -> void;
         ///> 展示当前配置
-        auto show_virtual_screen_positions() -> void;
+        auto show_virtual_screen_positions() -> std::string;
         ///> 从配置中删除屏幕
         auto remove_virtual_screen(std::string_view screen) -> void;
         auto set_current_screen(std::string_view screen) -> ::ilias::Task<bool>;

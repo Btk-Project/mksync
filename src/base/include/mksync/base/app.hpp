@@ -23,6 +23,7 @@
 #include "mksync/proto/system_proto.hpp"
 #include "mksync/base/communication.hpp"
 #include "mksync/base/command.hpp"
+#include "mksync/base/command_invoker.hpp"
 
 namespace mks::base
 {
@@ -46,6 +47,7 @@ namespace mks::base
         virtual auto settings() -> Settings &                       = 0;
         virtual auto node_manager() -> NodeManager &                = 0;
         virtual auto communication() -> ICommunication *            = 0;
+        virtual auto command_invoker() -> CommandInvoker &          = 0;
         virtual auto command_installer(NodeBase *module)
             -> std::function<bool(std::unique_ptr<Command>)>       = 0;
         virtual auto command_uninstaller(NodeBase *module) -> void = 0;

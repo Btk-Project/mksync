@@ -110,13 +110,9 @@ namespace mks::base
         _option.allow_unrecognised_options();
     }
 
-    auto CommonCommand::execute() -> Task<void>
+    auto CommonCommand::execute() -> Task<std::string>
     {
-        if (auto ret = co_await _data.callback(_args, _options); !ret.empty()) {
-            SPDLOG_ERROR("{} failed with args:({}) options:({}) -- error : {}", name(),
-                         detail::to_string(_args), detail::to_string(_options), ret);
-        }
-        co_return;
+        co_return co_await _data.callback(_args, _options);
     }
 
     auto CommonCommand::help() const -> std::string
@@ -291,7 +287,8 @@ namespace mks::base
     [[nodiscard("coroutine function")]]
     auto CommandInvoker::handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void>
     {
-        co_return co_await execute(event);
+        co_await execute(event);
+        co_return;
     }
 
     auto CommandInvoker::remove_cmd(NodeBase *module) -> void
@@ -322,15 +319,15 @@ namespace mks::base
         _modules.erase(itemRange.first, itemRange.second);
     }
 
-    auto CommandInvoker::execute(std::span<char> cmd) -> Task<void>
+    auto CommandInvoker::execute(std::span<char> cmd) -> Task<std::string>
     {
         co_return co_await execute(_split(cmd));
     }
 
-    auto CommandInvoker::execute(const std::vector<const char *> &cmdline) -> Task<void>
+    auto CommandInvoker::execute(const std::vector<const char *> &cmdline) -> Task<std::string>
     {
         if (cmdline.empty()) {
-            co_return;
+            co_return "no command";
         }
         const auto *cmd  = cmdline.front();
         auto        item = _trie.search(cmd);
@@ -339,14 +336,14 @@ namespace mks::base
             co_return co_await (*(*item))->execute();
         }
         SPDLOG_ERROR("command \"{}\" not found", cmd);
-        co_return;
+        co_return "command not found";
     }
 
-    auto CommandInvoker::execute(const NekoProto::IProto &proto) -> Task<void>
+    auto CommandInvoker::execute(const NekoProto::IProto &proto) -> Task<std::string>
     {
         if (proto == nullptr) {
             SPDLOG_ERROR("command invoker execute a null proto!");
-            co_return;
+            co_return "proto is empty";
         }
         int  type = proto.type();
         auto item = _protoCommandsTable.find(type);
@@ -355,21 +352,24 @@ namespace mks::base
             (*commandItem)->set_options(proto);
             co_return co_await (*commandItem)->execute();
         }
-        co_return;
+        co_return "command not found";
     }
 
     auto CommandInvoker::show_version([[maybe_unused]] const ArgsType    &args,
                                       [[maybe_unused]] const OptionsType &options)
         -> Task<std::string>
     {
-        fprintf(stdout, "%s %s\n", IApp::app_name(), IApp::app_version());
-        co_return "";
+        auto result = fmt::format("{} {}", IApp::app_name(), IApp::app_version());
+        fprintf(stdout, "%s\n", result.c_str());
+        fflush(stdout);
+        co_return result;
     }
 
     auto CommandInvoker::show_help([[maybe_unused]] const ArgsType    &args,
                                    [[maybe_unused]] const OptionsType &options) -> Task<std::string>
     {
-        fprintf(stdout, "Usage: $%s [command] [args] [options]\n", IApp::app_name());
+        std::string usage =
+            fmt::format("Usage: ${} [command] [args] [options]\n", IApp::app_name());
         std::string module;
         for (auto item = _modules.begin(); item != _modules.end(); ++item) {
             if (!args.empty() &&
@@ -384,15 +384,16 @@ namespace mks::base
             }
             if (module != item->first) {
                 module = item->first;
-                fprintf(stdout, "%s:\n", module.c_str());
+                usage += fmt::format("{}:\n", module);
             }
             const auto &command = (*item->second);
             auto        help    = command->help();
-            fprintf(stdout, "%s%s", help.c_str(),
-                    ((help.size() > 2 && help[help.size() - 2] != '\n') ? "\n" : ""));
+            usage += fmt::format("{}{}", help,
+                                 ((help.size() > 2 && help[help.size() - 2] != '\n') ? "\n" : ""));
         }
+        fprintf(stdout, "%s", usage.c_str());
         ::fflush(stdout);
-        co_return "";
+        co_return usage;
     }
 
     auto CommandInvoker::_split(std::span<char> str, char ch) -> std::vector<const char *>

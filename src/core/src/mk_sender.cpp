@@ -27,7 +27,7 @@ namespace mks::base
 
     public:
         MKSenderCommand(MKSender *sender);
-        auto execute() -> Task<void> override;
+        auto execute() -> Task<std::string> override;
         auto help() const -> std::string override;
         auto name() const -> std::string_view override;
         auto alias_names() const -> std::vector<std::string_view> override;
@@ -59,11 +59,13 @@ namespace mks::base
         _options.allow_unrecognised_options();
     }
 
-    auto MKSenderCommand::execute() -> Task<void>
+    auto MKSenderCommand::execute() -> Task<std::string>
     {
         switch (_operation) {
         case eStart:
-            co_await _sender->start_sender();
+            if (auto ret = co_await _sender->start_sender(); ret != 0) {
+                co_return fmt::format("Start sender failed, error code: {}", ret);
+            }
             break;
         case eStop:
             co_await _sender->stop_sender();
@@ -72,7 +74,7 @@ namespace mks::base
             SPDLOG_ERROR("Unknown operation");
             break;
         }
-        co_return;
+        co_return "";
     }
 
     void MKSenderCommand::parser_options(const std::vector<const char *> &args)

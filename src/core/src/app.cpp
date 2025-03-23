@@ -7,6 +7,7 @@
 #include "mksync/core/communication.hpp"
 #include "mksync/core/controller.hpp"
 #include "mksync/base/default_configs.hpp"
+#include "mksync/core/remote_controller.hpp"
 
 #ifdef _WIN32
     #include <windows.h>
@@ -98,10 +99,10 @@ namespace mks::base
 
     auto App::get_screen_info() const -> VirtualScreenInfo
     {
-        std::string screenName =
-            _settings.get<std::string>(screen_name_config_name, screen_name_default_value);
-        int screenWidth  = 0;
-        int screenHeight = 0;
+        std::string screenName   = _settings.get<std::string>(screen_name_config_name,
+                                                              std::string(screen_name_default_value));
+        int         screenWidth  = 0;
+        int         screenHeight = 0;
 #ifdef _WIN32
         HWND hd      = GetDesktopWindow();
         int  zoom    = GetDpiForWindow(hd); // 96 is the default DPI
@@ -131,11 +132,16 @@ namespace mks::base
         }
 #endif
         return VirtualScreenInfo{
-            .name      = screenName,
+            .name      = std::string(screenName),
             .screenId  = 0,
             .width     = (uint32_t)screenWidth,
             .height    = (uint32_t)screenHeight,
             .timestamp = (uint64_t)std::chrono::system_clock::now().time_since_epoch().count()};
+    }
+
+    auto App::command_invoker() -> CommandInvoker &
+    {
+        return _commandInvoker;
     }
 
     auto App::command_installer(NodeBase *module) -> std::function<bool(std::unique_ptr<Command>)>
@@ -257,8 +263,8 @@ namespace mks::base
             co_await _commandInvoker.execute(std::vector<const char *>(argv + 1, argv + argc));
         }
         // 加载 modules: ["file1.dll", "file2.dll"]
-        auto moduleList = _settings.get<std::vector<std::string>>(module_list_config_name,
-                                                                  module_list_default_value);
+        auto moduleList = _settings.get<std::vector<std::string_view>>(module_list_config_name,
+                                                                       module_list_default_value);
         for (const auto &moduleFile : moduleList) {
             _nodeManager.load_node(moduleFile);
         }
@@ -269,6 +275,7 @@ namespace mks::base
         _communication     = communication.get(); // 保存指针
         _nodeManager.add_node(std::move(communication));
         _nodeManager.add_node(Controller::make(*this));
+        _nodeManager.add_node({new RemoteController(this), [](NodeBase *ptr) { delete ptr; }});
 
         // start all node
         co_await _nodeManager.setup_node();

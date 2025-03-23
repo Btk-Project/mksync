@@ -31,7 +31,7 @@ namespace mks::base
         ServerCommand(IApp *app, MKCommunication *self, const char *name = "server");
         virtual ~ServerCommand() = default;
 
-        auto execute() -> Task<void> override;
+        auto execute() -> Task<std::string> override;
         auto help() const -> std::string override;
         auto name() const -> std::string_view override;
         auto alias_names() const -> std::vector<std::string_view> override;
@@ -52,7 +52,7 @@ namespace mks::base
     public:
         ClientCommand(IApp *app, MKCommunication *self);
 
-        auto execute() -> Task<void> override;
+        auto execute() -> Task<std::string> override;
         auto name() const -> std::string_view override;
         auto alias_names() const -> std::vector<std::string_view> override;
         void set_options(const NekoProto::IProto &proto) override;
@@ -191,7 +191,7 @@ namespace mks::base
         _options.allow_unrecognised_options();
     }
 
-    auto ServerCommand::execute() -> Task<void>
+    auto ServerCommand::execute() -> Task<std::string>
     {
         switch (_operation) {
         case eStart:
@@ -199,6 +199,9 @@ namespace mks::base
                 co_await _app->push_event(AppStatusChanged::emplaceProto(AppStatusChanged::eStarted,
                                                                          AppStatusChanged::eServer),
                                           _self);
+            }
+            else {
+                co_return std::format("Failed to start server, error code: {}", ret);
             }
             break;
         case eStop:
@@ -209,14 +212,16 @@ namespace mks::base
             break;
         case eRestart:
             co_await _self->close();
-            co_await _self->listen(_ipendpoint);
+            if (auto ret = co_await _self->listen(_ipendpoint); ret != 0) {
+                co_return std::format("Failed to restart server, error code: {}", ret);
+            }
             break;
         default:
             SPDLOG_ERROR("Unknown server operation");
-            break;
+            co_return "Unknown server operation";
         }
         _app->settings().set(server_ipaddress_config_name, _ipendpoint.toString());
-        co_return;
+        co_return "";
     }
 
     auto ServerCommand::help() const -> std::string
@@ -358,7 +363,7 @@ namespace mks::base
                         this->name(), ret.empty() ? "" : "(", ret, ret.empty() ? "" : ")"));
     }
 
-    auto ClientCommand::execute() -> Task<void>
+    auto ClientCommand::execute() -> Task<std::string>
     {
         switch (_operation) {
         case eStart:
@@ -366,6 +371,9 @@ namespace mks::base
                 co_await _app->push_event(AppStatusChanged::emplaceProto(AppStatusChanged::eStarted,
                                                                          AppStatusChanged::eClient),
                                           _self);
+            }
+            else {
+                co_return "Failed to connect to server";
             }
             break;
         case eStop:
@@ -375,14 +383,16 @@ namespace mks::base
             break;
         case eRestart:
             co_await _self->close();
-            co_await _self->connect(_ipendpoint);
+            if (auto ret = co_await _self->connect(_ipendpoint); ret != 0) {
+                co_return "Failed to connect to server";
+            }
             break;
         default:
             SPDLOG_ERROR("Unknown server operation");
-            break;
+            co_return "Unknown server operation";
         }
         _app->settings().set(server_ipaddress_config_name, _ipendpoint.toString());
-        co_return;
+        co_return "";
     }
 
     auto ClientCommand::name() const -> std::string_view

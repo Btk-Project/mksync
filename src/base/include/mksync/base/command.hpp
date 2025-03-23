@@ -53,7 +53,7 @@ namespace mks::base
         virtual ~Command() = default;
 
         /// @brief 执行命令
-        virtual auto execute() -> ilias::Task<void> = 0;
+        virtual auto execute() -> ilias::Task<std::string> = 0;
 
         /// @brief 获取命令帮助信息, 完整的命令说明
         virtual auto help() const -> std::string = 0;
