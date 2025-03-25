@@ -1,0 +1,8 @@
+<RCC>
+  <qresource prefix="icons">
+    <file>widget/layout.png</file>
+    <file>widget/minimize.png</file>
+    <file>widget/background.png</file>
+    <file>widget/close.png</file>
+  </qresource>
+</RCC>

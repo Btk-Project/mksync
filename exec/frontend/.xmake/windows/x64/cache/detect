@@ -1,0 +1,9 @@
+{
+    find_program = {
+        ["cl.exe"] = [[D:\ProgramFiles\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.42.34433\bin\HostX64\x64\cl.exe]],
+        nim = false
+    },
+    find_programver = {
+        ["D:\\ProgramFiles\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.42.34433\\bin\\HostX64\\x64\\cl.exe"] = "19.42.34435"
+    }
+}
