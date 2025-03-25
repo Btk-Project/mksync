@@ -1,0 +1,5 @@
+{
+    cmdlines = {
+        [[xmake lua D:\ProgramFiles\xmake\modules\private\utils\statistics.lua --project=.]]
+    }
+}
