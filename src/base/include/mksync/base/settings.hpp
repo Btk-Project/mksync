@@ -75,6 +75,7 @@ namespace mks::base
         bool save(std::string_view file);
         bool load();
         bool load(std::string_view file);
+        auto get_file() const { return _file; }
 
     private:
         std::filesystem::path _file;

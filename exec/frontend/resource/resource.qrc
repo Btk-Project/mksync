@@ -1,5 +1,13 @@
 <RCC>
   <qresource prefix="icons">
+    <file>widget/exit_maximize.png</file>
+    <file>widget/fit_view.png</file>
+    <file>widget/maximize.png</file>
+    <file>widget/zoom_in.png</file>
+    <file>widget/zoom_out.png</file>
+    <file>widget/location.png</file>
+    <file>widget/pushpin.png</file>
+    <file>widget/v_drag_point.png</file>
     <file>widget/layout.png</file>
     <file>widget/minimize.png</file>
     <file>widget/background.png</file>

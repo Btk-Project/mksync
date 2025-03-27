@@ -22,8 +22,8 @@ namespace mks
      * 服务端收集鼠标事件，并转换成对应的逻辑屏幕上的坐标。
      */
     struct MouseMotionEventConversion {
-        float    x;          /**< X coordinate, relative to screen */
-        float    y;          /**< Y coordinate, relative to screen */
+        int32_t  x;          /**< X coordinate, relative to screen */
+        int32_t  y;          /**< Y coordinate, relative to screen */
         bool     isAbsolute; /**< Whether the coordinates are absolute */
         uint64_t timestamp;  /**< system event time */
 

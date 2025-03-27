@@ -41,28 +41,40 @@
       <property name="minimumSize">
        <size>
         <width>0</width>
-        <height>60</height>
+        <height>30</height>
        </size>
       </property>
       <property name="styleSheet">
        <string notr="true">QWidget#title {
 	border-top-left-radius: 10;
-	border: 1px solid #6A7384;
-	background-color: #6A7384;
-	border-left-color: #0078D4;
-	border-right-color: #0078D4;
-	border-top-color: #0078D4;
+	border: 1px solid #FFFFFF;
+	background-color: #FFFFFF;
+	border-left-color: #79747E;
+	border-right-color: #79747E;
+	border-top-color: #79747E;
 }
 QPushButton {
 	background-color: transparent;
 }
 
 QPushButton:hover {
-	border: 1px solid #7A8394;
-	background-color: #7A8394;
+	border: 1px solid #322F354C;
+	background-color: #322F354C;
 }</string>
       </property>
       <layout class="QHBoxLayout" name="horizontalLayout_2">
+       <property name="leftMargin">
+        <number>10</number>
+       </property>
+       <property name="topMargin">
+        <number>0</number>
+       </property>
+       <property name="rightMargin">
+        <number>10</number>
+       </property>
+       <property name="bottomMargin">
+        <number>0</number>
+       </property>
        <item>
         <widget class="QLabel" name="label">
          <property name="text">
@@ -132,11 +144,11 @@ QPushButton:hover {
       </property>
       <property name="styleSheet">
        <string notr="true">QWidget#control {
-	background-color: #F5F5F5;
-	border: 1px solid #F5F5F5;
-	border-left-color: #0078D4;
-	border-bottom-color: #0078D4;
-	border-right-color: #0078D4;
+	background-color: #F7F2FA;
+	border: 1px solid #F7F2FA;
+	border-left-color: #79747E;
+	border-bottom-color: #79747E;
+	border-right-color: #79747E;
 	border-bottom-right-radius: 10;
 	border-bottom-left-radius: 10;
 }</string>
@@ -176,50 +188,51 @@ QPushButton:hover {
          </property>
          <property name="styleSheet">
           <string notr="true">QWidget#tab_bar {
-	background-color: #6A7384;
+	background-color: #FFFFFF;
 	border-bottom-left-radius: 10;
-	border: 1px solid #6A7384;
-	border-left-color: #0078D4;
-	border-bottom-color: #0078D4;
+	border: 1px solid #FFFFFF;
+	border-left-color: #79747E;
+	border-bottom-color: #79747E;
 }
 QRadioButton {
 	height: 30px;
-	border: 1px solid #F2F2F2;
-	background-color: #F2F2F2;
+	margin-left: 4px;
+	border: 1px solid #FFFFFF;
+	background-color: #FFFFFF;
 	border-bottom-left-radius: 15;
 	border-top-left-radius: 15;
-	border-bottom-color: #F2F2F2;
-	border-top-color: #F2F2F2;
-	border-left-color: #F2F2F2;
+	border-bottom-color: #FFFFFF;
+	border-top-color: #FFFFFF;
+	border-left-color: #FFFFFF;
 }
 
 QRadioButton::hover {
 	height: 30px;
-	border: 1px solid #F2F2F2;
-	background-color: #F2F2F2;
+	border: 1px solid #F7F2FA;
+	background-color: #F7F2FA;
 	border-bottom-left-radius: 15;
 	border-top-left-radius: 15;
-	border-bottom-color: #0078D4;
-	border-top-color: #0078D4;
-	border-left-color: #0078D4;
+	border-bottom-color: #F7F2FA;
+	border-top-color: #F7F2FA;
+	border-left-color: #F7F2FA;
 }
 
 QRadioButton::checked {
-	border: 1px solid #0078D4;
-	background-color: #0078D4;
+	border: 1px solid #F7F2FA;
+	background-color: #F7F2FA;
 	border-bottom-left-radius: 15;
 	border-top-left-radius: 15;
-	border-bottom-color: #0078D4;
-	border-top-color: #0078D4;
-	border-left-color: #0078D4;
+	border-bottom-color: #F7F2FA;
+	border-top-color: #F7F2FA;
+	border-left-color: #F7F2FA;
 	padding-left: 5px;
 	padding-top: 1px;
 }
 
 QRadioButton::indicator {
-    width: 12px;
-    height: 0px;
-}</string>
+    width: 1px;
+    height: 1px;
+}F</string>
          </property>
          <layout class="QVBoxLayout" name="verticalLayout_2">
           <property name="spacing">
@@ -315,12 +328,10 @@ QRadioButton::indicator {
 	background-color: transparent;
 	border-bottom-right-radius: 10;
 }
-QStackedWidget {
-	border: 1px solid #0078D4;
-}</string>
+</string>
          </property>
          <property name="currentIndex">
-          <number>0</number>
+          <number>1</number>
          </property>
          <widget class="QWidget" name="client_page">
           <property name="styleSheet">
@@ -356,6 +367,59 @@ QLineEdit:disabled {
     background-color: #EEEEEE; /* 浅灰色背景 */
     color: #A0A0A0; /* 更浅的灰色文字 */
     border: 1px solid #DADADA; /* 更浅的灰色边框 */
+}
+/* 默认状态 */
+QSpinBox {
+    background-color: #FFFFFF; /* 白色背景 */
+    color: #333333; /* 深灰色文字 */
+    border: 1px solid #BDBDBD; /* 浅灰色边框 */
+    border-radius: 5px; /* 圆角 */
+    padding: 3px 6px; /* 内边距 */
+    font-size: 12px; /* 字体大小 */
+	text-align: center; /* 文本居中对齐 */
+}
+
+/* 悬停状态 */
+QSpinBox:hover {
+    border: 1px solid #2196F3; /* 蓝色边框 */
+    background-color: #F5F5F5; /* 稍浅的背景 */
+}
+
+/* 聚焦状态 */
+QSpinBox:focus {
+    border: 2px solid #2196F3; /* 更粗的蓝色边框 */
+    background-color: #FFFFFF; /* 白色背景 */
+    padding: 2px 5px; /* 微调内边距以适应更粗的边框 */
+}
+
+/* 禁用状态 */
+QSpinBox:disabled {
+    background-color: #EEEEEE; /* 浅灰色背景 */
+    color: #A0A0A0; /* 更浅的灰色文字 */
+    border: 1px solid #DADADA; /* 更浅的灰色边框 */
+}
+QSpinBox::up-button {
+    subcontrol-origin: border;
+    subcontrol-position: top right; /* position at the top right corner */
+
+    width: 0px; /* 16 + 2*1px border-width = 15px padding + 3px parent border */
+    border-width: 0px;
+}
+QSpinBox::up-arrow {
+    width: 1px;
+    height: 1px;
+}
+QSpinBox::down-button {
+    subcontrol-origin: border;
+    subcontrol-position: bottom right; /* position at bottom right corner */
+
+    width: 0px;
+    border-width: 0px;
+    border-top-width: 0;
+}
+QSpinBox::down-arrow {
+    width: 1px;
+    height: 1px;
 }</string>
           </property>
           <layout class="QVBoxLayout" name="verticalLayout_5">
@@ -369,7 +433,7 @@ QLineEdit:disabled {
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="ip_edit_2">
+              <widget class="QLineEdit" name="client_ip_edit">
                <property name="sizePolicy">
                 <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
                  <horstretch>0</horstretch>
@@ -395,21 +459,18 @@ QLineEdit:disabled {
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="port_edit_2">
-               <property name="sizePolicy">
-                <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-                 <horstretch>0</horstretch>
-                 <verstretch>0</verstretch>
-                </sizepolicy>
-               </property>
-               <property name="maximumSize">
+              <widget class="QSpinBox" name="client_port_edit">
+               <property name="minimumSize">
                 <size>
                  <width>55</width>
-                 <height>16777215</height>
+                 <height>0</height>
                 </size>
                </property>
-               <property name="text">
-                <string>12345</string>
+               <property name="maximum">
+                <number>65535</number>
+               </property>
+               <property name="value">
+                <number>12345</number>
                </property>
               </widget>
              </item>
@@ -574,6 +635,59 @@ QLineEdit:disabled {
     background-color: #EEEEEE; /* 浅灰色背景 */
     color: #A0A0A0; /* 更浅的灰色文字 */
     border: 1px solid #DADADA; /* 更浅的灰色边框 */
+}
+/* 默认状态 */
+QSpinBox {
+    background-color: #FFFFFF; /* 白色背景 */
+    color: #333333; /* 深灰色文字 */
+    border: 1px solid #BDBDBD; /* 浅灰色边框 */
+    border-radius: 5px; /* 圆角 */
+    padding: 3px 6px; /* 内边距 */
+	text-align: center; /* 文本居中对齐 */
+}
+
+/* 悬停状态 */
+QSpinBox:hover {
+    border: 1px solid #2196F3; /* 蓝色边框 */
+    background-color: #F5F5F5; /* 稍浅的背景 */
+}
+
+/* 聚焦状态 */
+QSpinBox:focus {
+    border: 2px solid #2196F3; /* 更粗的蓝色边框 */
+    background-color: #FFFFFF; /* 白色背景 */
+    padding: 2px 5px; /* 微调内边距以适应更粗的边框 */
+}
+
+/* 禁用状态 */
+QSpinBox:disabled {
+    background-color: #EEEEEE; /* 浅灰色背景 */
+    color: #A0A0A0; /* 更浅的灰色文字 */
+    border: 1px solid #DADADA; /* 更浅的灰色边框 */
+}
+
+QSpinBox::up-button {
+    subcontrol-origin: border;
+    subcontrol-position: top right; /* position at the top right corner */
+
+    width: 0px; /* 16 + 2*1px border-width = 15px padding + 3px parent border */
+    border-width: 0px;
+}
+QSpinBox::up-arrow {
+    width: 1px;
+    height: 1px;
+}
+QSpinBox::down-button {
+    subcontrol-origin: border;
+    subcontrol-position: bottom right; /* position at bottom right corner */
+
+    width: 0px;
+    border-width: 0px;
+    border-top-width: 0;
+}
+QSpinBox::down-arrow {
+    width: 1px;
+    height: 1px;
 }</string>
           </property>
           <layout class="QVBoxLayout" name="verticalLayout_3">
@@ -587,7 +701,7 @@ QLineEdit:disabled {
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="ip_edit">
+              <widget class="QLineEdit" name="server_ip_edit">
                <property name="sizePolicy">
                 <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
                  <horstretch>0</horstretch>
@@ -613,21 +727,18 @@ QLineEdit:disabled {
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="port_edit">
-               <property name="sizePolicy">
-                <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-                 <horstretch>0</horstretch>
-                 <verstretch>0</verstretch>
-                </sizepolicy>
-               </property>
-               <property name="maximumSize">
+              <widget class="QSpinBox" name="server_port_edit">
+               <property name="minimumSize">
                 <size>
                  <width>55</width>
-                 <height>16777215</height>
+                 <height>0</height>
                 </size>
                </property>
-               <property name="text">
-                <string>12345</string>
+               <property name="maximum">
+                <number>65535</number>
+               </property>
+               <property name="value">
+                <number>12345</number>
                </property>
               </widget>
              </item>
@@ -654,9 +765,143 @@ QLineEdit:disabled {
                <verstretch>0</verstretch>
               </sizepolicy>
              </property>
+             <property name="styleSheet">
+              <string notr="true">QScrollBar:vertical {
+	border: none;
+	background: #E8DEF8; /* 浅灰色背景 */
+	width: 12px; /* 滑动条宽度 */
+	margin: 0px 0px 0px 0px;
+}
+
+QScrollBar::handle:vertical {
+	background: #625B71; /* Material Design 紫色 */
+	min-height: 20px;
+	border-radius: 4px;
+}
+
+QScrollBar::handle:vertical:hover {
+	background: #3700b3; /* 悬停时颜色变深 */
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+	height: 0px; /* 隐藏上下箭头 */
+}
+
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+	background: none;
+}
+
+QScrollBar:horizontal {
+	border: none;
+	background: #E8DEF8; /* 浅灰色背景 */
+	height: 12px; /* 滑动条宽度 */
+	margin: 0px 0px 0px 0px;
+}
+
+QScrollBar::handle:horizontal {
+	background: #625B71; /* Material Design 紫色 */
+	min-width: 20px;
+	border-radius: 4px;
+}
+
+QScrollBar::handle:horizontal:hover {
+	background: #3700b3; /* 悬停时颜色变深 */
+}
+
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+	height: 0px; /* 隐藏上下箭头 */
+}
+
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+	background: none;
+}</string>
+             </property>
              <layout class="QVBoxLayout" name="verticalLayout_6">
+              <property name="spacing">
+               <number>0</number>
+              </property>
+              <property name="leftMargin">
+               <number>5</number>
+              </property>
+              <property name="topMargin">
+               <number>5</number>
+              </property>
+              <property name="rightMargin">
+               <number>5</number>
+              </property>
+              <property name="bottomMargin">
+               <number>5</number>
+              </property>
               <item>
-               <widget class="QGraphicsView" name="graphicsView"/>
+               <widget class="ScreenEditView" name="graphicsView">
+                <property name="styleSheet">
+                 <string notr="true">QGraphicsView {
+	background-color: #ECE6F0;
+	border-radius: 0px; /* 圆角 */
+}</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="ScreenListView" name="listWidget">
+                <property name="minimumSize">
+                 <size>
+                  <width>0</width>
+                  <height>60</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>16777215</width>
+                  <height>60</height>
+                 </size>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true"> /* 整体 QListWidget 样式 */
+QListWidget {
+	background-color: #ECE6F0; /* 背景颜色 */
+	border: 1px solid #ECE6F0; /* 边框 */
+	font-family: &quot;Roboto&quot;; /* 字体 */
+	font-size: 14px; /* 字体大小 */
+	color: #212121; /* 文字颜色 */
+	outline: none; /* 去掉焦点边框 */
+	border-top: 3px solid #FFFFFF; /* 底部分割线 */
+	border-bottom-right-radius: 0px;
+}
+
+/* 每个 item 的默认样式 */
+QListWidget::item {
+	height: 36px; /* 高度 */
+	padding: 0 16px; /* 内边距 */
+	background-color: #6750A4; /* 背景颜色 */
+	border-bottom: 1px solid #e0e0e0; /* 底部分割线 */
+	border-radius: 4px;
+}
+
+/* 悬停时的样式 */
+QListWidget::item:hover {
+	background-color: #eeeeee; /* 悬停时背景颜色 */
+}
+
+/* 选中时的样式 */
+QListWidget::item:selected {
+	background-color: #6200ea; /* 选中时背景颜色 */
+	color: white; /* 选中时文字颜色 */
+	border-radius: 4px; /* 圆角 */
+}
+
+/* 禁用时的样式 */
+QListWidget::item:disabled {
+	color: #bdbdbd; /* 禁用时文字颜色 */
+}</string>
+                </property>
+                <property name="dragDropMode">
+                 <enum>QAbstractItemView::DragDrop</enum>
+                </property>
+                <property name="flow">
+                 <enum>QListView::LeftToRight</enum>
+                </property>
+               </widget>
               </item>
              </layout>
             </widget>
@@ -767,8 +1012,388 @@ QPushButton:disabled {
           <property name="styleSheet">
            <string notr="true">QWidget {
 	background-color: transparent;
-}</string>
+}
+/* 默认状态 */
+QLineEdit {
+    background-color: #FFFFFF; /* 白色背景 */
+    color: #333333; /* 深灰色文字 */
+    border: 1px solid #BDBDBD; /* 浅灰色边框 */
+    border-radius: 5px; /* 圆角 */
+    padding: 3px 6px; /* 内边距 */
+    font-size: 12px; /* 字体大小 */
+	text-align: center; /* 文本居中对齐 */
+}
+
+/* 悬停状态 */
+QLineEdit:hover {
+    border: 1px solid #2196F3; /* 蓝色边框 */
+    background-color: #F5F5F5; /* 稍浅的背景 */
+}
+
+/* 聚焦状态 */
+QLineEdit:focus {
+    border: 2px solid #2196F3; /* 更粗的蓝色边框 */
+    background-color: #FFFFFF; /* 白色背景 */
+    padding: 2px 5px; /* 微调内边距以适应更粗的边框 */
+}
+
+/* 禁用状态 */
+QLineEdit:disabled {
+    background-color: #EEEEEE; /* 浅灰色背景 */
+    color: #A0A0A0; /* 更浅的灰色文字 */
+    border: 1px solid #DADADA; /* 更浅的灰色边框 */
+}
+
+/* 默认状态 */
+QSpinBox {
+    background-color: #FFFFFF; /* 白色背景 */
+    color: #333333; /* 深灰色文字 */
+    border: 1px solid #BDBDBD; /* 浅灰色边框 */
+    border-radius: 5px; /* 圆角 */
+    padding: 3px 6px; /* 内边距 */
+    font-size: 12px; /* 字体大小 */
+	text-align: center; /* 文本居中对齐 */
+}
+
+/* 悬停状态 */
+QSpinBox:hover {
+    border: 1px solid #2196F3; /* 蓝色边框 */
+    background-color: #F5F5F5; /* 稍浅的背景 */
+}
+
+/* 聚焦状态 */
+QSpinBox:focus {
+    border: 2px solid #2196F3; /* 更粗的蓝色边框 */
+    background-color: #FFFFFF; /* 白色背景 */
+    padding: 2px 5px; /* 微调内边距以适应更粗的边框 */
+}
+
+/* 禁用状态 */
+QSpinBox:disabled {
+    background-color: #EEEEEE; /* 浅灰色背景 */
+    color: #A0A0A0; /* 更浅的灰色文字 */
+    border: 1px solid #DADADA; /* 更浅的灰色边框 */
+}
+QSpinBox::up-button {
+    subcontrol-origin: border;
+    subcontrol-position: top right; /* position at the top right corner */
+
+    width: 0px; /* 16 + 2*1px border-width = 15px padding + 3px parent border */
+    border-width: 0px;
+}
+QSpinBox::up-arrow {
+    width: 1px;
+    height: 1px;
+}
+QSpinBox::down-button {
+    subcontrol-origin: border;
+    subcontrol-position: bottom right; /* position at bottom right corner */
+
+    width: 0px;
+    border-width: 0px;
+    border-top-width: 0;
+}
+QSpinBox::down-arrow {
+    width: 1px;
+    height: 1px;
+}
+
+/* 默认状态 */
+QComboBox {
+    background-color: #FFFFFF; /* 白色背景 */
+    color: #333333; /* 深灰色文字 */
+    border: 1px solid #BDBDBD; /* 浅灰色边框 */
+    border-radius: 5px; /* 圆角 */
+    padding: 3px 6px; /* 内边距 */
+    font-size: 12px; /* 字体大小 */
+	text-align: center; /* 文本居中对齐 */
+}
+
+/* 悬停状态 */
+QComboBox:hover {
+    border: 1px solid #2196F3; /* 蓝色边框 */
+    background-color: #F5F5F5; /* 稍浅的背景 */
+}
+
+/* 聚焦状态 */
+QComboBox:focus {
+    border: 2px solid #2196F3; /* 更粗的蓝色边框 */
+    background-color: #FFFFFF; /* 白色背景 */
+    padding: 2px 5px; /* 微调内边距以适应更粗的边框 */
+}
+
+/* 禁用状态 */
+QComboBox:disabled {
+    background-color: #EEEEEE; /* 浅灰色背景 */
+    color: #A0A0A0; /* 更浅的灰色文字 */
+    border: 1px solid #DADADA; /* 更浅的灰色边框 */
+}
+
+QComboBox::drop-down {
+subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 15px;
+
+    border-left-width: 1px;
+    border-left-color: darkgray;
+    border-left-style: solid; /* just a single line */
+    border-top-right-radius: 3px; /* same radius as the QComboBox */
+    border-bottom-right-radius: 3px;
+}
+
+/* 默认状态 */
+QTextEdit {
+    background-color: #FFFFFF; /* 白色背景 */
+    color: #333333; /* 深灰色文字 */
+    border: 1px solid #BDBDBD; /* 浅灰色边框 */
+    border-radius: 5px; /* 圆角 */
+    padding: 3px 6px; /* 内边距 */
+    font-size: 12px; /* 字体大小 */
+	text-align: center; /* 文本居中对齐 */
+}
+
+/* 悬停状态 */
+QTextEdit:hover {
+    border: 1px solid #2196F3; /* 蓝色边框 */
+    background-color: #F5F5F5; /* 稍浅的背景 */
+}
+
+/* 聚焦状态 */
+QTextEdit:focus {
+    border: 2px solid #2196F3; /* 更粗的蓝色边框 */
+    background-color: #FFFFFF; /* 白色背景 */
+    padding: 2px 5px; /* 微调内边距以适应更粗的边框 */
+}
+
+/* 禁用状态 */
+QTextEdit:disabled {
+    background-color: #EEEEEE; /* 浅灰色背景 */
+    color: #A0A0A0; /* 更浅的灰色文字 */
+    border: 1px solid #DADADA; /* 更浅的灰色边框 */
+}
+
+QScrollBar:vertical {
+	border: none;
+	background: #e0e0e0; /* 浅灰色背景 */
+	width: 12px; /* 滑动条宽度 */
+	margin: 0px 0px 0px 0px;
+}
+
+QScrollBar::handle:vertical {
+	background: #6200ea; /* Material Design 紫色 */
+	min-height: 20px;
+	border-radius: 4px;
+}
+
+QScrollBar::handle:vertical:hover {
+	background: #3700b3; /* 悬停时颜色变深 */
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+	height: 0px; /* 隐藏上下箭头 */
+}
+
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+	background: none;
+}
+</string>
           </property>
+          <layout class="QVBoxLayout" name="verticalLayout_7">
+           <item>
+            <layout class="QFormLayout" name="formLayout">
+             <property name="topMargin">
+              <number>0</number>
+             </property>
+             <item row="0" column="0">
+              <widget class="QLabel" name="label_7">
+               <property name="text">
+                <string>config_file: </string>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="1">
+              <widget class="QLineEdit" name="config_file_edit"/>
+             </item>
+             <item row="1" column="0">
+              <widget class="QLabel" name="label_8">
+               <property name="text">
+                <string>screen name: </string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="1">
+              <widget class="QLineEdit" name="screen_name_edit"/>
+             </item>
+             <item row="2" column="0">
+              <widget class="QLabel" name="label_9">
+               <property name="text">
+                <string>max log records:</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="1">
+              <widget class="QSpinBox" name="max_log_records_edit">
+               <property name="minimumSize">
+                <size>
+                 <width>100</width>
+                 <height>0</height>
+                </size>
+               </property>
+               <property name="maximum">
+                <number>1000000000</number>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="0">
+              <widget class="QLabel" name="label_10">
+               <property name="text">
+                <string>log level:</string>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="1">
+              <widget class="QComboBox" name="log_level_edit">
+               <property name="currentText">
+                <string>warn</string>
+               </property>
+               <item>
+                <property name="text">
+                 <string>trace</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>debug</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>info</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>warn</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>err</string>
+                </property>
+               </item>
+               <item>
+                <property name="text">
+                 <string>critical</string>
+                </property>
+               </item>
+              </widget>
+             </item>
+             <item row="4" column="0">
+              <widget class="QLabel" name="label_11">
+               <property name="text">
+                <string>module list</string>
+               </property>
+              </widget>
+             </item>
+             <item row="4" column="1">
+              <widget class="QTextEdit" name="module_list_edit"/>
+             </item>
+             <item row="5" column="0">
+              <widget class="QLabel" name="label_12">
+               <property name="text">
+                <string>remote: </string>
+               </property>
+              </widget>
+             </item>
+             <item row="5" column="1">
+              <widget class="QLineEdit" name="remote_address_edit">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="text">
+                <string>tcp:127.0.0.1:8578</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <spacer name="verticalSpacer_2">
+             <property name="orientation">
+              <enum>Qt::Vertical</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>20</width>
+               <height>40</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="horizontalLayout_9">
+             <property name="topMargin">
+              <number>0</number>
+             </property>
+             <item>
+              <spacer name="horizontalSpacer_6">
+               <property name="orientation">
+                <enum>Qt::Horizontal</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>40</width>
+                 <height>20</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+             <item>
+              <widget class="QPushButton" name="setting_config_button">
+               <property name="styleSheet">
+                <string notr="true">/* 默认状态 */
+QPushButton {
+    background-color: #2196F3; /* 蓝色背景 */
+    color: white; /* 白色文字 */
+    border: none; /* 无边框 */
+    padding: 10px 20px; /* 内边距 */
+    border-radius: 5px; /* 圆角 */
+    font-size: 14px; /* 字体大小 */
+}
+
+/* 悬停状态 */
+QPushButton:hover {
+    background-color: #1E88E5; /* 稍深的蓝色 */
+    color: white;
+    border: 1px solid #1976D2; /* 添加边框以突出显示 */
+}
+
+/* 按下状态 */
+QPushButton:pressed {
+    background-color: #1565C0; /* 更深的蓝色 */
+    color: white;
+    padding-left: 22px; /* 微调内边距，模拟按下的视觉效果 */
+    padding-top: 12px;
+}
+
+/* 禁用状态 */
+QPushButton:disabled {
+    background-color: #BDBDBD; /* 灰色背景 */
+    color: #616161; /* 深灰色文字 */
+    border: none;
+}</string>
+               </property>
+               <property name="text">
+                <string>save</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+          </layout>
          </widget>
          <widget class="QWidget" name="help_page">
           <property name="styleSheet">
@@ -862,6 +1487,18 @@ QPushButton:disabled {
   </widget>
  </widget>
  <layoutdefault spacing="6" margin="11"/>
+ <customwidgets>
+  <customwidget>
+   <class>ScreenEditView</class>
+   <extends>QGraphicsView</extends>
+   <header>screen_edit_view.hpp</header>
+  </customwidget>
+  <customwidget>
+   <class>ScreenListView</class>
+   <extends>QListWidget</extends>
+   <header>screen_list_view.hpp</header>
+  </customwidget>
+ </customwidgets>
  <resources>
   <include location="../resource/resource.qrc"/>
  </resources>

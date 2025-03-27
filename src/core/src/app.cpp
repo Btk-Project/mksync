@@ -263,8 +263,7 @@ namespace mks::base
             co_await _commandInvoker.execute(std::vector<const char *>(argv + 1, argv + argc));
         }
         // 加载 modules: ["file1.dll", "file2.dll"]
-        auto moduleList = _settings.get<std::vector<std::string_view>>(module_list_config_name,
-                                                                       module_list_default_value);
+        auto moduleList = _settings.get(module_list_config_name, module_list_default_value);
         for (const auto &moduleFile : moduleList) {
             _nodeManager.load_node(moduleFile);
         }

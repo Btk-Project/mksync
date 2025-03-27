@@ -121,9 +121,9 @@ namespace mks::base
                         SPDLOG_INFO("Mouse Border: {}, x {}, y {}", (int)border, hookStruct->pt.x,
                                     hookStruct->pt.y);
                         _isInBorder = true;
-                        push_event(mks::BorderEvent::emplaceProto(
-                            0U, (uint32_t)border, (float)hookStruct->pt.x / _screenWidth,
-                            (float)hookStruct->pt.y / _screenHeight));
+                        push_event(mks::BorderEvent::emplaceProto(0U, (uint32_t)border,
+                                                                  (int32_t)hookStruct->pt.x,
+                                                                  (int32_t)hookStruct->pt.y));
                     }
                 }
             }
@@ -186,8 +186,8 @@ namespace mks::base
                 break;
             case WM_MOUSEMOVE:
                 push_event(mks::MouseMotionEvent::emplaceProto(
-                    (float)hookStruct->pt.x / _screenWidth, (float)hookStruct->pt.y / _screenHeight,
-                    !_isStartCapture, (uint64_t)hookStruct->time));
+                    (int32_t)hookStruct->pt.x, (int32_t)hookStruct->pt.y, !_isStartCapture,
+                    (uint64_t)hookStruct->time));
                 SPDLOG_INFO("Mouse Move X: {} Y: {}", hookStruct->pt.x, hookStruct->pt.y);
                 break;
             case WM_MOUSEWHEEL:

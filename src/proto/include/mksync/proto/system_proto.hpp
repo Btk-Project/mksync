@@ -353,8 +353,8 @@ namespace mks
     };
 
     struct MouseMotionEvent {
-        float    x;          /**< X coordinate, relative to screen */
-        float    y;          /**< Y coordinate, relative to screen */
+        int32_t  x;          /**< X coordinate, relative to screen */
+        int32_t  y;          /**< Y coordinate, relative to screen */
         bool     isAbsolute; /**< is the point is absolute */
         uint64_t timestamp;  /**< system event time */
 
@@ -408,8 +408,8 @@ namespace mks
         };
         uint32_t screenId; /**< screen id */
         uint32_t border;   /**< border */
-        float    x;        /**< X coordinate, relative to screen */
-        float    y;        /**< Y coordinate, relative to screen */
+        int32_t  x;        /**< X coordinate, relative to screen */
+        int32_t  y;        /**< Y coordinate, relative to screen */
 
         static Border check_border(int posX, int posY, int width, int height);
 

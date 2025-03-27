@@ -84,9 +84,8 @@ namespace mks::base
             return;
         }
         // TODO: 相对移动
-        SPDLOG_INFO("Mouse motion event: x={}, y={}", event.x * _screenWidth,
-                    event.y * _screenHeight);
-        _xcbConnect->fake_mouse_move(event.x * _screenWidth, event.y * _screenHeight);
+        SPDLOG_INFO("Mouse motion event: x={}, y={}", event.x, event.y);
+        _xcbConnect->fake_mouse_move(event.x, event.y);
     }
 
     void XcbMKSender::_send_button_event(const mks::MouseButtonEvent &event) const

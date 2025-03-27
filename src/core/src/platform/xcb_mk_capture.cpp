@@ -163,9 +163,8 @@ namespace mks::base
         case XCB_MOTION_NOTIFY: {
             xcb_motion_notify_event_t *motionEvent = (xcb_motion_notify_event_t *)event;
             proto                                  = mks::MouseMotionEvent::emplaceProto(
-                (float)(motionEvent->event_x - (_screenWidth / 2)) / _screenWidth,
-                (float)(motionEvent->event_y - (_screenHeight / 2)) / _screenHeight, false,
-                motionEvent->time);
+                (int32_t)(motionEvent->event_x - (_screenWidth / 2)),
+                (int32_t)(motionEvent->event_y - (_screenHeight / 2)), false, motionEvent->time);
             _xcbConnect->fake_mouse_move(_screenWidth / 2, _screenWidth / 2);
             SPDLOG_INFO("mouse move to ({}, {})", motionEvent->event_x, motionEvent->event_y);
             break;
@@ -264,9 +263,8 @@ namespace mks::base
                 }
                 if (border != 0) {
                     SPDLOG_INFO("on border event type x:{} y:{}", pos.first, pos.second);
-                    auto proto =
-                        BorderEvent::emplaceProto(0U, border, (float)pos.first / _screenWidth,
-                                                  (float)pos.second / _screenHeight);
+                    auto proto = BorderEvent::emplaceProto(0U, border, (int32_t)pos.first,
+                                                           (int32_t)pos.second);
                     _events.push(std::move(proto));
                     _syncEvent.set();
                 }

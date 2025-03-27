@@ -5,6 +5,7 @@
 #include "mksync/core/mk_capture.hpp"
 #include "mksync/base/default_configs.hpp"
 #include "mksync/core/mk_sender.hpp"
+#include "mksync/core/math_types.hpp"
 
 namespace mks::base
 {
@@ -261,12 +262,10 @@ namespace mks::base
         else {
             _currentScreen.config = std::addressof(*_vscreenConfig.emplace(
                 _vscreenConfig.end(), VirtualScreenConfig{.name   = selfScreen.name,
+                                                          .posX   = 0,
+                                                          .posY   = 0,
                                                           .width  = (int)selfScreen.width,
-                                                          .height = (int)selfScreen.height,
-                                                          .left   = "",
-                                                          .top    = "",
-                                                          .right  = "",
-                                                          .bottom = ""}));
+                                                          .height = (int)selfScreen.height}));
         }
         _app->node_manager().subscribe(_subscribes, _self);
         _app->communication()->subscribes({
@@ -334,69 +333,53 @@ namespace mks::base
             SPDLOG_ERROR("screen {} not found.", dstScreen);
             return;
         }
-
+        VirtualScreenConfig *dstConfig = nullptr;
+        if (auto item =
+                std::find_if(_vscreenConfig.begin(), _vscreenConfig.end(),
+                             [dstScreen](const auto &sct) { return dstScreen == sct.name; });
+            item != _vscreenConfig.end()) {
+            dstConfig = std::addressof(*item);
+        }
+        else {
+            SPDLOG_ERROR("screen {} not found in config.", dstScreen);
+            return;
+        }
+        VirtualScreenConfig *srcConfig = nullptr;
         if (auto item =
                 std::find_if(_vscreenConfig.begin(), _vscreenConfig.end(),
                              [srcScreen](const auto &sct) { return srcScreen == sct.name; });
             item != _vscreenConfig.end()) {
             item->width  = (int)srcVs.width;
             item->height = (int)srcVs.height;
-            switch (direction) {
-            case VScreenCmd::eLeft:
-                item->left = dstScreen;
-                break;
-            case VScreenCmd::eRight:
-                item->right = dstScreen;
-                break;
-            case VScreenCmd::eTop:
-                item->top = dstScreen;
-                break;
-            case VScreenCmd::eBottom:
-                item->bottom = dstScreen;
-                break;
-            }
+            srcConfig    = std::addressof(*item);
         }
         else {
             _vscreenConfig.emplace_back(VirtualScreenConfig{
                 .name   = srcVs.name,
+                .posX   = 0,
+                .posY   = 0,
                 .width  = (int)srcVs.width,
                 .height = (int)srcVs.height,
-                .left   = direction == VScreenCmd::eLeft ? std::string(dstScreen) : "",
-                .top    = direction == VScreenCmd::eTop ? std::string(dstScreen) : "",
-                .right  = direction == VScreenCmd::eRight ? std::string(dstScreen) : "",
-                .bottom = direction == VScreenCmd::eBottom ? std::string(dstScreen) : "",
             });
+            srcConfig = std::addressof(_vscreenConfig.back());
         }
-        if (auto item =
-                std::find_if(_vscreenConfig.begin(), _vscreenConfig.end(),
-                             [dstScreen](const auto &sct) { return dstScreen == sct.name; });
-            item == _vscreenConfig.end()) {
-            _vscreenConfig.emplace_back(VirtualScreenConfig{
-                .name   = dstVs.name,
-                .width  = (int)dstVs.width,
-                .height = (int)dstVs.height,
-                .left   = direction == VScreenCmd::eRight ? std::string(srcScreen) : "",
-                .top    = direction == VScreenCmd::eBottom ? std::string(srcScreen) : "",
-                .right  = direction == VScreenCmd::eLeft ? std::string(srcScreen) : "",
-                .bottom = direction == VScreenCmd::eTop ? std::string(srcScreen) : "",
-            });
-        }
-        else {
-            item->width  = (int)dstVs.width;
-            item->height = (int)dstVs.height;
-            switch (direction) {
-            case VScreenCmd::eLeft:
-                item->right = srcScreen;
-                break;
-            case VScreenCmd::eRight:
-                item->left = srcScreen;
-                break;
-            case VScreenCmd::eTop:
-                item->bottom = srcScreen;
-                break;
-            case VScreenCmd::eBottom:
-                item->top = srcScreen;
-            }
+        switch (direction) {
+        case VScreenCmd::eLeft:
+            srcConfig->posX = dstConfig->posX - srcConfig->width;
+            srcConfig->posY = dstConfig->posY;
+            break;
+        case VScreenCmd::eRight:
+            srcConfig->posX = dstConfig->posX + dstConfig->width;
+            srcConfig->posY = dstConfig->posY;
+            break;
+        case VScreenCmd::eTop:
+            srcConfig->posX = dstConfig->posX;
+            srcConfig->posY = dstConfig->posY - srcConfig->height;
+            break;
+        case VScreenCmd::eBottom:
+            srcConfig->posX = dstConfig->posX;
+            srcConfig->posY = dstConfig->posY + dstConfig->height;
+            break;
         }
     }
     ///> 展示当前配置
@@ -411,10 +394,8 @@ namespace mks::base
         }
         result += "---------- screens config ----------\n";
         for (const auto &item : _vscreenConfig) {
-            result += fmt::format("screen {} : {}x{}\n    left: {}\n    top: {}\n    right: {}\n  "
-                                  "  bottom: {}\n",
-                                  item.name, item.width, item.height, item.left, item.top,
-                                  item.right, item.bottom);
+            result += fmt::format("screen {} : {}x{} - {}x{}\n", item.name, item.posX, item.posY,
+                                  item.width, item.height);
         }
         result += "---------------------------------------\n";
         fprintf(stdout, "%s", result.c_str());
@@ -428,20 +409,6 @@ namespace mks::base
         _vscreenConfig.erase(
             std::remove_if(_vscreenConfig.begin(), _vscreenConfig.end(),
                            [screen](const auto &sct) { return screen == sct.name; }));
-        for (auto &item : _vscreenConfig) {
-            if (item.left == screen) {
-                item.left = "";
-            }
-            if (item.top == screen) {
-                item.top = "";
-            }
-            if (item.right == screen) {
-                item.right = "";
-            }
-            if (item.bottom == screen) {
-                item.bottom = "";
-            }
-        }
     }
 
     auto ServerController::set_current_screen(std::string_view screen) -> Task<bool>
@@ -515,21 +482,32 @@ namespace mks::base
             SPDLOG_ERROR("current screen config is null!!!");
             co_return;
         }
-        std::string_view nextScreen;
-        if (event.border == BorderEvent::eLeft && !_currentScreen.config->left.empty()) {
-            nextScreen = _currentScreen.config->left;
+        Point pt(event.x, event.y);
+        if (event.border == BorderEvent::eLeft) {
+            pt.x = _currentScreen.config->posX - 1;
         }
-        else if (event.border == BorderEvent::eRight && !_currentScreen.config->right.empty()) {
-            nextScreen = _currentScreen.config->right;
+        else if (event.border == BorderEvent::eRight) {
+            pt.x = _currentScreen.config->posX + _currentScreen.config->width + 1;
         }
-        else if (event.border == BorderEvent::eTop && !_currentScreen.config->top.empty()) {
-            nextScreen = _currentScreen.config->top;
+        else if (event.border == BorderEvent::eTop) {
+            pt.y = _currentScreen.config->posY - 1;
         }
-        else if (event.border == BorderEvent::eBottom && !_currentScreen.config->bottom.empty()) {
-            nextScreen = _currentScreen.config->bottom;
+        else if (event.border == BorderEvent::eBottom) {
+            pt.y = _currentScreen.config->posY + _currentScreen.config->height + 1;
         }
         else {
             co_return;
+        }
+        std::string_view nextScreen;
+        for (const auto &screen : _vscreenConfig) {
+            if (screen.name == _currentScreen.name) {
+                continue;
+            }
+            if (Rect rect = Rect(screen.posX, screen.posY, screen.width, screen.height);
+                rect.contains(pt)) {
+                nextScreen = screen.name;
+                break;
+            }
         }
         if (co_await set_current_screen(nextScreen)) {
             _currentScreen.isInBorder = true; // 标记防止马上就被识别成在屏幕边界。
@@ -555,8 +533,7 @@ namespace mks::base
             if (_currentScreen.peer == "self") {
                 co_await dynamic_cast<Consumer *>(_sender.get())
                     ->handle_event(MouseMotionEventConversion::emplaceProto(
-                        (float)_currentScreen.posX / _currentScreen.config->width,
-                        (float)_currentScreen.posY / _currentScreen.config->height, true, 0U));
+                        _currentScreen.posX, _currentScreen.posY, true, 0U));
             }
         }
         co_return;
@@ -569,12 +546,12 @@ namespace mks::base
             co_return;
         }
         // 将鼠标位置转换到当前屏幕的位置上。并输出MouseMotionEventConversion事件。
-        _currentScreen.posX = std::clamp((int)((event.isAbsolute ? 0 : _currentScreen.posX) +
-                                               (event.x * _vscreenConfig[0].width)),
-                                         0, _currentScreen.config->width);
-        _currentScreen.posY = std::clamp((int)((event.isAbsolute ? 0 : _currentScreen.posY) +
-                                               (event.y * _vscreenConfig[0].height)),
-                                         0, _currentScreen.config->height);
+        _currentScreen.posX =
+            std::clamp((int)((event.isAbsolute ? 0 : _currentScreen.posX) + event.x), 0,
+                       _currentScreen.config->width);
+        _currentScreen.posY =
+            std::clamp((int)((event.isAbsolute ? 0 : _currentScreen.posY) + event.y), 0,
+                       _currentScreen.config->height);
         if (_currentScreen.isInBorder) {
             if (_currentScreen.posX > 10 &&
                 _currentScreen.posX < _currentScreen.config->width - 10 &&
@@ -593,8 +570,7 @@ namespace mks::base
                 _currentScreen.isInBorder = true;
                 auto oldScreen            = _currentScreen.name;
                 co_await handle_event(mks::BorderEvent::emplaceProto(
-                    0U, (uint32_t)border, (float)_currentScreen.posX / _currentScreen.config->width,
-                    (float)_currentScreen.posY / _currentScreen.config->height));
+                    0U, (uint32_t)border, _currentScreen.posX, _currentScreen.posY));
                 if (oldScreen != _currentScreen.name) {
                     co_return; // 跳转到了新的屏幕，不再继续处理当前的鼠标移动事件。
                 }
@@ -602,10 +578,9 @@ namespace mks::base
         }
         // 构建用于发送到客户端的鼠标移动事件
         SPDLOG_INFO("MouseMotionEvent: x {}, y {}", _currentScreen.posX, _currentScreen.posY);
-        co_await _app->push_event(MouseMotionEventConversion::emplaceProto(
-                                      (float)_currentScreen.posX / _currentScreen.config->width,
-                                      (float)_currentScreen.posY / _currentScreen.config->height,
-                                      true, event.timestamp),
+        co_await _app->push_event(MouseMotionEventConversion::emplaceProto(_currentScreen.posX,
+                                                                           _currentScreen.posY,
+                                                                           true, event.timestamp),
                                   _self);
         co_return;
     }
