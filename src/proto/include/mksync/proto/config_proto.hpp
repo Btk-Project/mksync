@@ -19,18 +19,16 @@ namespace mks
 {
     /**
      * @brief Virtual screen configuration
-     * 
+     *
      */
     struct VirtualScreenConfig {
         std::string name;
+        int32_t     posX;
+        int32_t     posY;
         int32_t     width;
         int32_t     height;
-        std::string left;
-        std::string top;
-        std::string right;
-        std::string bottom;
 
-        NEKO_SERIALIZER(name, width, height, left, top, right, bottom)
+        NEKO_SERIALIZER(name, posX, posY, width, height)
         NEKO_DECLARE_PROTOCOL(VirtualScreenConfig, NEKO_NAMESPACE::JsonSerializer)
     };
 } // namespace mks

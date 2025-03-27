@@ -65,8 +65,8 @@ namespace mks::base
             std::string          peer;
             std::string          name;
             VirtualScreenConfig *config;
-            int                  posX;
-            int                  posY;
+            int32_t              posX;
+            int32_t              posY;
             bool                 isInBorder;
         } _currentScreen = {"", "", nullptr, 0, 0, false};
         std::map<std::string, std::map<std::string, VirtualScreenInfo, std::less<>>::iterator,

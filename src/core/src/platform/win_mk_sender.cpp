@@ -58,9 +58,9 @@ namespace mks::base
         }
         INPUT input = {};
         memset(&input, 0, sizeof(INPUT));
-        input.type         = INPUT_MOUSE;
-        input.mi.dx        = (LONG)(event.isAbsolute ? (event.x * 65535) : event.x * _screenWidth);
-        input.mi.dy        = (LONG)(event.isAbsolute ? (event.y * 65535) : event.y * _screenHeight);
+        input.type  = INPUT_MOUSE;
+        input.mi.dx = (LONG)(event.isAbsolute ? ((float)event.x / _screenWidth * 65535) : event.x);
+        input.mi.dy = (LONG)(event.isAbsolute ? ((float)event.y / _screenHeight * 65535) : event.y);
         input.mi.mouseData = 0;
         input.mi.dwFlags =
             (event.isAbsolute ? (MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_MOVE) : MOUSEEVENTF_MOVE);
