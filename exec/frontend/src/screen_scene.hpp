@@ -27,6 +27,9 @@ public:
                         const std::vector<mks::VirtualScreenConfig> &configs) -> void;
     auto get_self_item() -> GraphicsScreenItem *;
 
+Q_SIGNALS:
+    void remove_screen(mks::VirtualScreenConfig screen);
+
 protected:
     void drawBackground(QPainter *painter, const QRectF &rect) override;
     void dragEnterEvent(QGraphicsSceneDragDropEvent *event) override;

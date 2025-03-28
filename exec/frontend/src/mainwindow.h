@@ -32,6 +32,7 @@ public:
     void mouseReleaseEvent(QMouseEvent *event) override;
     bool nativeEvent(const QByteArray &eventType, void *message, qintptr *result) override;
     void showEvent(QShowEvent *event) override;
+    void changeEvent(QEvent *event) override;
 
 public Q_SLOTS:
     void server_config();
@@ -49,6 +50,7 @@ private:
     QPoint              _resizeStartPos;
     QSize               _resizeStartSize;
     ScreenScene         _scene;
+    bool                _isFull;
     mks::base::Settings _settings;
     Ui::MainWindow     *_ui;
     QButtonGroup       *_buttonGroup;

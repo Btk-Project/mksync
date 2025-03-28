@@ -47,19 +47,16 @@
       <property name="styleSheet">
        <string notr="true">QWidget#title {
 	border-top-left-radius: 10;
-	border: 1px solid #FFFFFF;
-	background-color: #FFFFFF;
-	border-left-color: #79747E;
-	border-right-color: #79747E;
-	border-top-color: #79747E;
+	border: 1px solid #302c54;
+	background-color: #302c54;
 }
 QPushButton {
 	background-color: transparent;
 }
 
 QPushButton:hover {
-	border: 1px solid #322F354C;
-	background-color: #322F354C;
+	border: 1px solid #3a3866;
+	background-color: #3a3866;
 }</string>
       </property>
       <layout class="QHBoxLayout" name="horizontalLayout_2">
@@ -77,6 +74,11 @@ QPushButton:hover {
        </property>
        <item>
         <widget class="QLabel" name="label">
+         <property name="styleSheet">
+          <string notr="true">QLabel {
+	color: #FFFFFF;
+}</string>
+         </property>
          <property name="text">
           <string>MKSync</string>
          </property>
@@ -144,11 +146,7 @@ QPushButton:hover {
       </property>
       <property name="styleSheet">
        <string notr="true">QWidget#control {
-	background-color: #F7F2FA;
-	border: 1px solid #F7F2FA;
-	border-left-color: #79747E;
-	border-bottom-color: #79747E;
-	border-right-color: #79747E;
+	background-color: #faf4fd;
 	border-bottom-right-radius: 10;
 	border-bottom-left-radius: 10;
 }</string>
@@ -179,7 +177,7 @@ QPushButton:hover {
          </property>
          <property name="minimumSize">
           <size>
-           <width>68</width>
+           <width>80</width>
            <height>0</height>
           </size>
          </property>
@@ -188,55 +186,36 @@ QPushButton:hover {
          </property>
          <property name="styleSheet">
           <string notr="true">QWidget#tab_bar {
-	background-color: #FFFFFF;
+	background-color: #3a3866;
 	border-bottom-left-radius: 10;
-	border: 1px solid #FFFFFF;
-	border-left-color: #79747E;
-	border-bottom-color: #79747E;
 }
 QRadioButton {
-	height: 30px;
-	margin-left: 4px;
-	border: 1px solid #FFFFFF;
-	background-color: #FFFFFF;
-	border-bottom-left-radius: 15;
-	border-top-left-radius: 15;
-	border-bottom-color: #FFFFFF;
-	border-top-color: #FFFFFF;
-	border-left-color: #FFFFFF;
+	height: 40px;
+	padding-left: 4px;
+	background-color: #3a3866;
+	color: #FFFFFF;
 }
 
 QRadioButton::hover {
-	height: 30px;
-	border: 1px solid #F7F2FA;
-	background-color: #F7F2FA;
-	border-bottom-left-radius: 15;
-	border-top-left-radius: 15;
-	border-bottom-color: #F7F2FA;
-	border-top-color: #F7F2FA;
-	border-left-color: #F7F2FA;
+	border: 1px solid #2e2a52;
+	background-color: #2e2a52;
 }
 
 QRadioButton::checked {
-	border: 1px solid #F7F2FA;
-	background-color: #F7F2FA;
-	border-bottom-left-radius: 15;
-	border-top-left-radius: 15;
-	border-bottom-color: #F7F2FA;
-	border-top-color: #F7F2FA;
-	border-left-color: #F7F2FA;
-	padding-left: 5px;
-	padding-top: 1px;
+	border: 1px solid #2e2a52;
+	background-color: #2e2a52;
 }
 
 QRadioButton::indicator {
     width: 1px;
     height: 1px;
-}F</string>
+	color: #3a3866;
+	background-color: #3a3866;
+}</string>
          </property>
          <layout class="QVBoxLayout" name="verticalLayout_2">
           <property name="spacing">
-           <number>3</number>
+           <number>0</number>
           </property>
           <property name="leftMargin">
            <number>0</number>
@@ -420,6 +399,37 @@ QSpinBox::down-button {
 QSpinBox::down-arrow {
     width: 1px;
     height: 1px;
+}
+/* 默认状态 */
+QPushButton {
+    background-color: #288ff2; /* 蓝色背景 */
+    color: white; /* 白色文字 */
+    border: none; /* 无边框 */
+    padding: 10px 20px; /* 内边距 */
+    border-radius: 5px; /* 圆角 */
+    font-size: 14px; /* 字体大小 */
+}
+
+/* 悬停状态 */
+QPushButton:hover {
+    background-color: #1E88E5; /* 稍深的蓝色 */
+    color: white;
+    border: 1px solid #1976D2; /* 添加边框以突出显示 */
+}
+
+/* 按下状态 */
+QPushButton:pressed {
+    background-color: #1565C0; /* 更深的蓝色 */
+    color: white;
+    padding-left: 22px; /* 微调内边距，模拟按下的视觉效果 */
+    padding-top: 12px;
+}
+
+/* 禁用状态 */
+QPushButton:disabled {
+    background-color: #BDBDBD; /* 灰色背景 */
+    color: #616161; /* 深灰色文字 */
+    border: none;
 }</string>
           </property>
           <layout class="QVBoxLayout" name="verticalLayout_5">
@@ -519,39 +529,6 @@ QSpinBox::down-arrow {
              </item>
              <item>
               <widget class="QPushButton" name="client_config_button">
-               <property name="styleSheet">
-                <string notr="true">/* 默认状态 */
-QPushButton {
-    background-color: #2196F3; /* 蓝色背景 */
-    color: white; /* 白色文字 */
-    border: none; /* 无边框 */
-    padding: 10px 20px; /* 内边距 */
-    border-radius: 5px; /* 圆角 */
-    font-size: 14px; /* 字体大小 */
-}
-
-/* 悬停状态 */
-QPushButton:hover {
-    background-color: #1E88E5; /* 稍深的蓝色 */
-    color: white;
-    border: 1px solid #1976D2; /* 添加边框以突出显示 */
-}
-
-/* 按下状态 */
-QPushButton:pressed {
-    background-color: #1565C0; /* 更深的蓝色 */
-    color: white;
-    padding-left: 22px; /* 微调内边距，模拟按下的视觉效果 */
-    padding-top: 12px;
-}
-
-/* 禁用状态 */
-QPushButton:disabled {
-    background-color: #BDBDBD; /* 灰色背景 */
-    color: #616161; /* 深灰色文字 */
-    border: none;
-}</string>
-               </property>
                <property name="text">
                 <string>save</string>
                </property>
@@ -559,39 +536,6 @@ QPushButton:disabled {
              </item>
              <item>
               <widget class="QPushButton" name="client_start_button">
-               <property name="styleSheet">
-                <string notr="true">/* 默认状态 */
-QPushButton {
-    background-color: #2196F3; /* 蓝色背景 */
-    color: white; /* 白色文字 */
-    border: none; /* 无边框 */
-    padding: 10px 20px; /* 内边距 */
-    border-radius: 5px; /* 圆角 */
-    font-size: 14px; /* 字体大小 */
-}
-
-/* 悬停状态 */
-QPushButton:hover {
-    background-color: #1E88E5; /* 稍深的蓝色 */
-    color: white;
-    border: 1px solid #1976D2; /* 添加边框以突出显示 */
-}
-
-/* 按下状态 */
-QPushButton:pressed {
-    background-color: #1565C0; /* 更深的蓝色 */
-    color: white;
-    padding-left: 22px; /* 微调内边距，模拟按下的视觉效果 */
-    padding-top: 12px;
-}
-
-/* 禁用状态 */
-QPushButton:disabled {
-    background-color: #BDBDBD; /* 灰色背景 */
-    color: #616161; /* 深灰色文字 */
-    border: none;
-}</string>
-               </property>
                <property name="text">
                 <string>start</string>
                </property>
@@ -688,6 +632,37 @@ QSpinBox::down-button {
 QSpinBox::down-arrow {
     width: 1px;
     height: 1px;
+}
+/* 默认状态 */
+QPushButton {
+    background-color: #288ff2; /* 蓝色背景 */
+    color: white; /* 白色文字 */
+    border: none; /* 无边框 */
+    padding: 10px 20px; /* 内边距 */
+    border-radius: 5px; /* 圆角 */
+    font-size: 14px; /* 字体大小 */
+}
+
+/* 悬停状态 */
+QPushButton:hover {
+    background-color: #1E88E5; /* 稍深的蓝色 */
+    color: white;
+    border: 1px solid #1976D2; /* 添加边框以突出显示 */
+}
+
+/* 按下状态 */
+QPushButton:pressed {
+    background-color: #1565C0; /* 更深的蓝色 */
+    color: white;
+    padding-left: 22px; /* 微调内边距，模拟按下的视觉效果 */
+    padding-top: 12px;
+}
+
+/* 禁用状态 */
+QPushButton:disabled {
+    background-color: #BDBDBD; /* 灰色背景 */
+    color: #616161; /* 深灰色文字 */
+    border: none;
 }</string>
           </property>
           <layout class="QVBoxLayout" name="verticalLayout_3">
@@ -836,8 +811,8 @@ QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
                <widget class="ScreenEditView" name="graphicsView">
                 <property name="styleSheet">
                  <string notr="true">QGraphicsView {
-	background-color: #ECE6F0;
-	border-radius: 0px; /* 圆角 */
+	background-color: #f0e8f7;
+	border-radius: 5px; /* 圆角 */
 }</string>
                 </property>
                </widget>
@@ -859,33 +834,32 @@ QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
                 <property name="styleSheet">
                  <string notr="true"> /* 整体 QListWidget 样式 */
 QListWidget {
-	background-color: #ECE6F0; /* 背景颜色 */
-	border: 1px solid #ECE6F0; /* 边框 */
+	background-color: #f0e9f6; /* 背景颜色 */
+	border: 1px solid #f0e9f6; /* 边框 */
 	font-family: &quot;Roboto&quot;; /* 字体 */
 	font-size: 14px; /* 字体大小 */
-	color: #212121; /* 文字颜色 */
+	color: #FFFFFF; /* 文字颜色 */
 	outline: none; /* 去掉焦点边框 */
-	border-top: 3px solid #FFFFFF; /* 底部分割线 */
-	border-bottom-right-radius: 0px;
+	border-top: 3px solid #faf4fd; /* 底部分割线 */
+	border-radius: 5px;
 }
 
 /* 每个 item 的默认样式 */
 QListWidget::item {
 	height: 36px; /* 高度 */
 	padding: 0 16px; /* 内边距 */
-	background-color: #6750A4; /* 背景颜色 */
-	border-bottom: 1px solid #e0e0e0; /* 底部分割线 */
-	border-radius: 4px;
+	background-color: #544597; /* 背景颜色 */
+	border-radius: 5px;
 }
 
 /* 悬停时的样式 */
 QListWidget::item:hover {
-	background-color: #eeeeee; /* 悬停时背景颜色 */
+	background-color: #A3544597; /* 悬停时背景颜色 */
 }
 
 /* 选中时的样式 */
 QListWidget::item:selected {
-	background-color: #6200ea; /* 选中时背景颜色 */
+	background-color: #544597; /* 选中时背景颜色 */
 	color: white; /* 选中时文字颜色 */
 	border-radius: 4px; /* 圆角 */
 }
@@ -926,39 +900,6 @@ QListWidget::item:disabled {
              </item>
              <item>
               <widget class="QPushButton" name="server_config_button">
-               <property name="styleSheet">
-                <string notr="true">/* 默认状态 */
-QPushButton {
-    background-color: #2196F3; /* 蓝色背景 */
-    color: white; /* 白色文字 */
-    border: none; /* 无边框 */
-    padding: 10px 20px; /* 内边距 */
-    border-radius: 5px; /* 圆角 */
-    font-size: 14px; /* 字体大小 */
-}
-
-/* 悬停状态 */
-QPushButton:hover {
-    background-color: #1E88E5; /* 稍深的蓝色 */
-    color: white;
-    border: 1px solid #1976D2; /* 添加边框以突出显示 */
-}
-
-/* 按下状态 */
-QPushButton:pressed {
-    background-color: #1565C0; /* 更深的蓝色 */
-    color: white;
-    padding-left: 22px; /* 微调内边距，模拟按下的视觉效果 */
-    padding-top: 12px;
-}
-
-/* 禁用状态 */
-QPushButton:disabled {
-    background-color: #BDBDBD; /* 灰色背景 */
-    color: #616161; /* 深灰色文字 */
-    border: none;
-}</string>
-               </property>
                <property name="text">
                 <string>save</string>
                </property>
@@ -966,39 +907,6 @@ QPushButton:disabled {
              </item>
              <item>
               <widget class="QPushButton" name="server_start_button">
-               <property name="styleSheet">
-                <string notr="true">/* 默认状态 */
-QPushButton {
-    background-color: #2196F3; /* 蓝色背景 */
-    color: white; /* 白色文字 */
-    border: none; /* 无边框 */
-    padding: 10px 20px; /* 内边距 */
-    border-radius: 5px; /* 圆角 */
-    font-size: 14px; /* 字体大小 */
-}
-
-/* 悬停状态 */
-QPushButton:hover {
-    background-color: #1E88E5; /* 稍深的蓝色 */
-    color: white;
-    border: 1px solid #1976D2; /* 添加边框以突出显示 */
-}
-
-/* 按下状态 */
-QPushButton:pressed {
-    background-color: #1565C0; /* 更深的蓝色 */
-    color: white;
-    padding-left: 22px; /* 微调内边距，模拟按下的视觉效果 */
-    padding-top: 12px;
-}
-
-/* 禁用状态 */
-QPushButton:disabled {
-    background-color: #BDBDBD; /* 灰色背景 */
-    color: #616161; /* 深灰色文字 */
-    border: none;
-}</string>
-               </property>
                <property name="text">
                 <string>start</string>
                </property>
@@ -1254,7 +1162,7 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
              <item row="3" column="1">
               <widget class="QComboBox" name="log_level_edit">
                <property name="currentText">
-                <string>warn</string>
+                <string>trace</string>
                </property>
                <item>
                 <property name="text">
@@ -1356,7 +1264,7 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
                <property name="styleSheet">
                 <string notr="true">/* 默认状态 */
 QPushButton {
-    background-color: #2196F3; /* 蓝色背景 */
+    background-color: #288ff2; /* 蓝色背景 */
     color: white; /* 白色文字 */
     border: none; /* 无边框 */
     padding: 10px 20px; /* 内边距 */

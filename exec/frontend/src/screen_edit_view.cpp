@@ -6,6 +6,23 @@
 
 #include "screen_scene.hpp"
 
+const QString g_buttonStyleTemplate = R"(QPushButton{
+    border:1px solid %1;
+    background-color: %1;
+    border-radius: %2px;
+    width: %3px;
+    height: %3px;
+    border-image: url(%4);
+}
+QPushButton:hover {
+    background-color: %5;
+}
+QPushButton:pressed
+{
+    background-color: %6;
+}
+)";
+
 ScreenEditView::ScreenEditView(QWidget *parent) : QGraphicsView(parent)
 {
     _suspensionWidget = new QWidget(this);
@@ -13,125 +30,82 @@ ScreenEditView::ScreenEditView(QWidget *parent) : QGraphicsView(parent)
     _suspensionWidget->setLayout(layout);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
-    _dragPoint     = new QLabel(this);
-    _refreshButton = new QPushButton(this);
+    _dragPoint = new QLabel(this);
+    _dragPoint->setFixedSize(24, 24);
+    _locationButton = new QPushButton(this);
+    _locationButton->setFixedSize(24, 24);
     _pushpinButton = new QCheckBox(this);
+    _pushpinButton->setFixedSize(24, 24);
     _fitViewButton = new QPushButton(this);
-    _zoomInButton  = new QPushButton(this);
+    _fitViewButton->setFixedSize(24, 24);
+    _zoomInButton = new QPushButton(this);
+    _zoomInButton->setFixedSize(24, 24);
     _zoomOutButton = new QPushButton(this);
+    _zoomOutButton->setFixedSize(24, 24);
 
     _suspensionWidget->setStyleSheet("QWidget{background-color: transparent;}");
 
     layout->addWidget(_dragPoint);
     layout->addWidget(_pushpinButton);
-    layout->addWidget(_refreshButton);
+    layout->addWidget(_locationButton);
     layout->addWidget(_fitViewButton);
     layout->addWidget(_zoomInButton);
     layout->addWidget(_zoomOutButton);
 
     _dragPoint->installEventFilter(this);
-    _dragPoint->setFixedSize(18, 18);
     _dragPoint->setStyleSheet(R"(
 QLabel{
     border:1px solid #30FFFFFF;
     background-color: #30FFFFFF;
     border-radius: 5px;
-    width: 18px;
-    height: 18px;
+    width: 24px;
+    height: 24px;
     border-image: url(:/icons/widget/v_drag_point.png);
 })");
-    _refreshButton->setStyleSheet(
-        R"(QPushButton{
-    border:1px solid #30FFFFFF;
-    background-color: #30FFFFFF;
-    border-radius: 5px;
-    width: 18px;
-    height: 18px;
-    border-image: url(:/icons/widget/location.png);
-}
-QPushButton:hover {
-    background-color: #A3EADDFF;
-}
-QPushButton:pressed
-{
-    background-color: #EADDFF;
-}
-)");
-
-    _fitViewButton->setStyleSheet(
-        R"(QPushButton{
-    border:1px solid #30FFFFFF;
-    background-color: #30FFFFFF;
-    border-radius: 5px;
-    width: 18px;
-    height: 18px;
-    border-image: url(:/icons/widget/fit_view.png);
-}
-QPushButton:hover {
-    background-color: #A3EADDFF;
-}
-QPushButton:pressed
-{
-    background-color: #EADDFF;
-}
-)");
-
-    _zoomInButton->setStyleSheet(
-        R"(QPushButton{
-    border:1px solid #30FFFFFF;
-    background-color: #30FFFFFF;
-    border-radius: 5px;
-    width: 18px;
-    height: 18px;
-    border-image: url(:/icons/widget/zoom_in.png);
-}
-QPushButton:hover {
-    background-color: #A3EADDFF;
-}
-QPushButton:pressed
-{
-    background-color: #EADDFF;
-}
-)");
-
-    _zoomOutButton->setStyleSheet(
-        R"(QPushButton{
-    border:1px solid #30FFFFFF;
-    background-color: #30FFFFFF;
-    border-radius: 5px;
-    width: 18px;
-    height: 18px;
-    border-image: url(:/icons/widget/zoom_out.png);
-}
-QPushButton:hover {
-    background-color: #A3EADDFF;
-}
-QPushButton:pressed
-{
-    background-color: #EADDFF;
-}
-)");
-
+    _locationButton->setStyleSheet(g_buttonStyleTemplate.arg("#30FFFFFF")
+                                       .arg("5")
+                                       .arg(24)
+                                       .arg(":/icons/widget/location.png")
+                                       .arg("#A3EADDFF")
+                                       .arg("#EADDFF"));
+    _fitViewButton->setStyleSheet(g_buttonStyleTemplate.arg("#30FFFFFF")
+                                      .arg("5")
+                                      .arg(24)
+                                      .arg(":/icons/widget/fit_view.png")
+                                      .arg("#A3EADDFF")
+                                      .arg("#EADDFF"));
+    _zoomInButton->setStyleSheet(g_buttonStyleTemplate.arg("#30FFFFFF")
+                                     .arg("5")
+                                     .arg(24)
+                                     .arg(":/icons/widget/zoom_in.png")
+                                     .arg("#A3EADDFF")
+                                     .arg("#EADDFF"));
+    _zoomOutButton->setStyleSheet(g_buttonStyleTemplate.arg("#30FFFFFF")
+                                      .arg("5")
+                                      .arg(24)
+                                      .arg(":/icons/widget/zoom_out.png")
+                                      .arg("#A3EADDFF")
+                                      .arg("#EADDFF"));
     _pushpinButton->setStyleSheet(
         R"(
 QCheckBox::indicator {
-    width: 18px;
-    height: 18px;
+    width: 24px;
+    height: 24px;
 }
 QCheckBox::indicator:unchecked {
     border: 1px solid #30FFFFFF;
     background-color: #30FFFFFF;
     border-radius: 5px;
-    width: 18px;
-    height: 18px;
+    width: 24px;
+    height: 24px;
     border-image: url(:/icons/widget/pushpin.png);
 }
 QCheckBox::indicator:checked {
     border: 1px solid #307D5260;
     background-color: #307D5260;
     border-radius: 5px;
-    width: 18px;
-    height: 18px;
+    width: 24px;
+    height: 24px;
     border-image: url(:/icons/widget/pushpin.png);
 }
 QCheckBox::indicator:checked:hover {
@@ -146,14 +120,14 @@ QCheckBox::indicator:unchecked:hover {
 QCheckBox::indicator:unchecked:pressed{
     background-color: #EADDFF;
 })");
-    connect(_refreshButton, &QPushButton::clicked, this, &ScreenEditView::refresh_button_clicked);
+    connect(_locationButton, &QPushButton::clicked, this, &ScreenEditView::location_button_clicked);
     connect(_pushpinButton, &QCheckBox::clicked, this, &ScreenEditView::pushpin_button_clicked);
     connect(_fitViewButton, &QPushButton::clicked, this, &ScreenEditView::fit_view_to_scene);
     connect(_zoomInButton, &QPushButton::clicked, this, [this]() { zoom_in_out_view(1.1); });
     connect(_zoomOutButton, &QPushButton::clicked, this, [this]() { zoom_in_out_view(0.9); });
 }
 
-void ScreenEditView::refresh_button_clicked()
+void ScreenEditView::location_button_clicked()
 {
     auto *screenScene = dynamic_cast<ScreenScene *>(scene());
     if (screenScene != nullptr) {
@@ -195,6 +169,14 @@ void ScreenEditView::fit_view_to_scene()
     else {
         qWarning() << "Scene is empty, cannot fit view.";
     }
+    auto *mscene = dynamic_cast<ScreenScene *>(scene());
+    if (mscene != nullptr) {
+        for (auto *item : mscene->items()) {
+            if (auto *sitem = dynamic_cast<GraphicsScreenItem *>(item); sitem != nullptr) {
+                sitem->fit_font(transform());
+            }
+        }
+    }
 }
 
 void ScreenEditView::zoom_in_out_view(float scale)
@@ -204,21 +186,25 @@ void ScreenEditView::zoom_in_out_view(float scale)
 
 void ScreenEditView::mousePressEvent(QMouseEvent *event)
 {
+    if (itemAt(event->pos()) != nullptr) {
+        _isItemMoving = true;
+    }
     return QGraphicsView::mousePressEvent(event);
 }
 
 void ScreenEditView::mouseMoveEvent(QMouseEvent *event)
 {
-    _horizontalValue = horizontalScrollBar()->value();
-    _verticalValue   = verticalScrollBar()->value();
     QGraphicsView::mouseMoveEvent(event);
-    if (!_isPushpin) {
+    if (!_isPushpin && _isItemMoving) {
+        _horizontalValue = horizontalScrollBar()->value();
+        _verticalValue   = verticalScrollBar()->value();
         _update_view_area(event->position());
     }
 }
 
 void ScreenEditView::mouseReleaseEvent(QMouseEvent *event)
 {
+    _isItemMoving = false;
     return QGraphicsView::mouseReleaseEvent(event);
 }
 

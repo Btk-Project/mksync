@@ -4,6 +4,7 @@
 #include <QGraphicsRectItem>
 #include <QMimeData>
 #include <QGraphicsSceneDragDropEvent>
+#include <QGraphicsView>
 
 #include "graphics_screen_item.hpp"
 
@@ -83,7 +84,8 @@ void ScreenScene::dropEvent(QGraphicsSceneDragDropEvent *event)
         addItem(item);
         item->setFlag(QGraphicsItem::ItemIsMovable, true);
         item->update_grid_pos(event->scenePos() - QPoint{screenWidth, screenHeight} / 2);
-        item->adsorption_to_grid();                           // 网格吸附
+        item->adsorption_to_grid(); // 网格吸附
+        item->fit_font(views().back()->transform());
         event->setProposedAction(Qt::DropAction::MoveAction); // 设置放置动作
         event->acceptProposedAction();                        // 接受放置事件
     }

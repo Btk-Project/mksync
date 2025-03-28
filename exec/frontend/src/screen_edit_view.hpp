@@ -35,7 +35,7 @@ protected:
     bool eventFilter(QObject *object, QEvent *event) override;
 
 public Q_SLOTS:
-    void refresh_button_clicked();
+    void location_button_clicked();
     void pushpin_button_clicked(bool checked);
     void fit_view_to_scene();
     void zoom_in_out_view(float scale);
@@ -48,10 +48,11 @@ private:
     int _verticalValue   = 0;
 
     bool _isPushpin        = false;
+    bool _isItemMoving     = false;
     bool _isToolMenuMoving = false;
 
     GraphicsScreenItem *_selfItem;
-    QPushButton        *_refreshButton;
+    QPushButton        *_locationButton;
     QCheckBox          *_pushpinButton;
     QWidget            *_suspensionWidget;
     QPushButton        *_fitViewButton;
