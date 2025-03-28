@@ -56,6 +56,19 @@ MainWindow::MainWindow(QWidget *parent)
     _ui->server->setChecked(true);
     _ui->stackedWidget->setCurrentWidget(_ui->server_page);
     _ui->graphicsView->setScene(&_scene);
+
+    connect(&_scene, &ScreenScene::remove_screen, this, [this](mks::VirtualScreenConfig screen) {
+        auto *item = ScreenListView::make_screen_item(QString::fromStdString(screen.name), 0,
+                                                      QSize{screen.width, screen.height});
+        _ui->listWidget->addItem(item);
+    });
+
+#ifndef NDEBUG
+    _ui->listWidget->addItem(ScreenListView::make_screen_item("testScreen0", 0, QSize{1920, 1080}));
+    _ui->listWidget->addItem(ScreenListView::make_screen_item("testScreen1", 0, QSize{1440, 900}));
+    _ui->listWidget->addItem(ScreenListView::make_screen_item("testScreen2", 0, QSize{1280, 720}));
+    _ui->listWidget->addItem(ScreenListView::make_screen_item("testScreen3", 0, QSize{1024, 768}));
+#endif
 }
 
 MainWindow::~MainWindow()
@@ -111,7 +124,28 @@ bool MainWindow::nativeEvent(const QByteArray &eventType, void *message, qintptr
         GetWindowRect((HWND)winId(), &winrect);
         auto posx = GET_X_LPARAM(msg->lParam);
         auto posy = GET_Y_LPARAM(msg->lParam);
-        // 还原Windows系统窗口resize行为
+
+        // 还原windows系统snap assist行为
+        double dpr = this->devicePixelRatioF();
+        QPoint pos = _ui->title->mapFromGlobal(QPoint(posx / dpr, posy / dpr));
+
+        if (_ui->title->rect().contains(pos)) {
+            *result = HTCAPTION;
+        }
+
+        if (_ui->layout_button->geometry().contains(pos)) {
+            *result = 0;
+        }
+
+        if (_ui->minimize_button->geometry().contains(pos)) {
+            *result = 0;
+        }
+
+        if (_ui->close_button->geometry().contains(pos)) {
+            *result = 0;
+        }
+
+        // 还原Windows系统窗口resize行为, 优先级高于标题栏拖拽行为，否则会导致标题栏上无法缩放。
         if (posy < winrect.top + borderWidth) {
             *result = HTTOP;
         }
@@ -135,25 +169,6 @@ bool MainWindow::nativeEvent(const QByteArray &eventType, void *message, qintptr
         }
         if (posy > winrect.bottom - borderWidth && posx > winrect.right - borderWidth) {
             *result = HTBOTTOMRIGHT;
-        }
-        // 还原windows系统snap assist行为
-        double dpr = this->devicePixelRatioF();
-        QPoint pos = _ui->title->mapFromGlobal(QPoint(posx / dpr, posy / dpr));
-
-        if (_ui->title->rect().contains(pos)) {
-            *result = HTCAPTION;
-        }
-
-        if (_ui->layout_button->geometry().contains(pos)) {
-            *result = 0;
-        }
-
-        if (_ui->minimize_button->geometry().contains(pos)) {
-            *result = 0;
-        }
-
-        if (_ui->close_button->geometry().contains(pos)) {
-            *result = 0;
         }
 
         if (*result != 0) {
@@ -230,6 +245,21 @@ void MainWindow::refresh_configs(QString file)
         _settings.get(mks::base::screen_settings_config_name,
                       mks::base::screen_settings_default_value));
     _ui->graphicsView->fit_view_to_scene();
+}
+void MainWindow::changeEvent(QEvent *event)
+{
+    if (event->type() == QEvent::WindowStateChange) {
+        if (isMaximized() || isFullScreen()) {
+            if (!_isFull) {
+                _isFull = true;
+                _ui->centralWidget->setStyleSheet("QWidget {background-color: #302c54;}");
+            }
+        }
+        else if (_isFull) {
+            _isFull = false;
+            _ui->centralWidget->setStyleSheet("QWidget {background-color: transparent;}");
+        }
+    }
 }
 
 void MainWindow::server_config()

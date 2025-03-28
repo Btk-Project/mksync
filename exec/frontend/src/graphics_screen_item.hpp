@@ -10,9 +10,11 @@
  */
 #pragma once
 
-#include <QGraphicsItem>
+#include <QGraphicsObject>
+#include <QFont>
 
-class GraphicsScreenItem : public QGraphicsItem {
+class GraphicsScreenItem : public QGraphicsObject {
+    Q_OBJECT
 public:
     GraphicsScreenItem()  = default;
     ~GraphicsScreenItem() = default;
@@ -33,13 +35,16 @@ public:
     void mouseMoveEvent(QGraphicsSceneMouseEvent *event) override;
     void dragMoveEvent(QGraphicsSceneDragDropEvent *event) override;
 
+    auto          fit_font(const QTransform &transform) -> void;
     void          update_grid_pos(const QPointF &scenePos);
     void          adsorption_to_grid();
-    static QPoint adsorption_to_grid(QGraphicsScene *scene, QGraphicsItem *self, const QPointF &scenePos,
-                                     const QSize &itemSize);
+    static QPoint adsorption_to_grid(QGraphicsScene *scene, QGraphicsItem *self,
+                                     const QPointF &scenePos, const QSize &itemSize);
 
 private:
     QString      _screenName;
+    QString      _showText;
+    QFont        _font;
     int          _screenId;
     QRect        _itemGeometry;
     QPainterPath _path;

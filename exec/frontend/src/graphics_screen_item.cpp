@@ -7,8 +7,11 @@
 #include <QDebug>
 #include <QFontMetrics>
 #include <QFontMetricsF>
+#include <QApplication>
+#include <QFontMetrics>
 
 #include "screen_scene.hpp"
+#include "detail/rect_algorithm.hpp"
 
 GraphicsScreenItem::GraphicsScreenItem(const QString &screenName, const int &screenId,
                                        const QSize &itemSize)
@@ -53,7 +56,7 @@ QRect GraphicsScreenItem::get_item_geometry() const
 QPainterPath GraphicsScreenItem::shape() const
 {
     QPainterPath path;
-    path.addRect(boundingRect());
+    path.addRect(boundingRect().adjusted(1, 1, -1, -1));
     return path;
 }
 
@@ -70,16 +73,22 @@ void GraphicsScreenItem::paint(QPainter                                        *
         return;
     }
     painter->save();
+    // 如果z大于0，表示正在其他状态，画个高亮的框
+    auto rect = boundingRect();
+    painter->setPen(QColor("#EADDFF"));
+    painter->drawRect(rect);
     // 绘制背景的矩形框
-    painter->setBrush(QColor("#6750A4"));
-    painter->setPen(Qt::black);
-    painter->drawRect(boundingRect());
+    if (zValue() > 0) {
+        painter->setBrush(QColor("#6750A4"));
+    }
+    else {
+        painter->setBrush(QColor("#544597"));
+    }
+    painter->drawRect(rect);
     // 绘制屏幕名称
-    auto font = painter->font();
-    font.setPixelSize(std::min(_itemGeometry.width(), _itemGeometry.height()) / 4);
-    painter->setFont(font);
+    painter->setFont(_font);
     painter->setPen(Qt::black);
-    painter->drawText(boundingRect(), Qt::AlignCenter, _screenName);
+    painter->drawText(rect, Qt::AlignCenter, _showText);
     painter->restore();
 }
 
@@ -88,16 +97,33 @@ void GraphicsScreenItem::dragMoveEvent(QGraphicsSceneDragDropEvent *event)
     return QGraphicsItem::dragMoveEvent(event);
 }
 
+auto GraphicsScreenItem::fit_font(const QTransform &transform) -> void
+{
+    setToolTip(_screenName); // 设置提示
+    _font = QApplication::font();
+    _font.setPixelSize(20 / transform.m11());
+    // 计算文本长度，并确定省略部分
+    auto fm        = QFontMetricsF(_font);
+    auto textWidth = fm.horizontalAdvance(_screenName);
+    if (textWidth > _itemGeometry.width()) {
+        _showText = fm.elidedText(_screenName, Qt::ElideRight, _itemGeometry.width());
+    }
+    else {
+        _showText = _screenName;
+    }
+}
+
 void GraphicsScreenItem::mousePressEvent(QGraphicsSceneMouseEvent *event)
 {
+    setZValue(1);
     QGraphicsItem::mousePressEvent(event);
 }
 
 // 鼠标释放时处理网格占用和交换
 void GraphicsScreenItem::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
 {
+    setZValue(0);
     QGraphicsItem::mouseReleaseEvent(event);
-
     // 直接移动到目标位置
     update_grid_pos(pos());
     adsorption_to_grid();
@@ -118,6 +144,20 @@ void GraphicsScreenItem::adsorption_to_grid()
 {
     setPos(_gridPos);
     _itemGeometry.moveTo(_gridPos);
+
+    auto *scene = qobject_cast<ScreenScene *>(this->scene());
+    if (scene != nullptr) {
+        if (scene->collidingItems(this).size() >= 1) {
+            Q_EMIT scene->remove_screen(
+                mks::VirtualScreenConfig{.name   = get_screen_name().toStdString(),
+                                         .posX   = 0,
+                                         .posY   = 0,
+                                         .width  = _itemGeometry.width(),
+                                         .height = _itemGeometry.height()});
+            scene->removeItem(this);
+            this->deleteLater();
+        }
+    }
 }
 
 QPoint GraphicsScreenItem::adsorption_to_grid(QGraphicsScene *scene, QGraphicsItem *self,
@@ -125,10 +165,6 @@ QPoint GraphicsScreenItem::adsorption_to_grid(QGraphicsScene *scene, QGraphicsIt
 {
     auto      gridRect  = QRectF{scenePos, itemSize};
     const int threshold = 300;
-    int       top       = std::numeric_limits<int>::max();
-    int       left      = std::numeric_limits<int>::max();
-    int       bottom    = std::numeric_limits<int>::max();
-    int       right     = std::numeric_limits<int>::max();
     for (auto *item : scene->items()) {
         if (self == item) {
             continue;
@@ -136,50 +172,50 @@ QPoint GraphicsScreenItem::adsorption_to_grid(QGraphicsScene *scene, QGraphicsIt
         auto rect = item->sceneBoundingRect();
         // 检测边侧距离
         // 如果当前的矩形靠近了目标矩形的边界，则自动对齐到目标边界。
-        if (gridRect.bottom() - rect.top() > threshold &&
-            rect.bottom() - gridRect.top() > threshold &&
-            std::abs(rect.left() - gridRect.right()) < threshold) {
-            right = std::abs(rect.left()) < std::abs(right) ? rect.left() : right;
+        QRectF retRect  = gridRect;
+        auto   overlap  = detail::is_rect_overlap(gridRect, rect);
+        int    touching = 0;
+        if (((overlap & 2) != 0) && std::abs(rect.left() - gridRect.right()) < threshold) {
+            retRect.moveRight(rect.left());
+            touching = 1;
         }
-        else if (gridRect.bottom() - rect.top() > threshold &&
-                 rect.bottom() - gridRect.top() > threshold &&
-                 std::abs(rect.right() - gridRect.left()) < threshold) {
-            left = std::abs(rect.right()) < std::abs(left) ? rect.right() : left;
+        else if (((overlap & 2) != 0) && std::abs(rect.right() - gridRect.left()) < threshold) {
+            retRect.moveLeft(rect.right());
+            touching = 1;
         }
-        if (std::abs(rect.top() - gridRect.top()) < threshold) {
-            top = std::abs(rect.top()) < std::abs(top) ? rect.top() : top;
+        else if (((overlap & 1) != 0) && std::abs(rect.top() - gridRect.bottom()) < threshold) {
+            retRect.moveBottom(rect.top());
+            touching = 2;
         }
-        else if (std::abs(rect.bottom() - gridRect.bottom()) < threshold) {
-            bottom = std::abs(rect.bottom()) < std::abs(bottom) ? rect.bottom() : bottom;
+        else if (((overlap & 1) != 0) && std::abs(rect.bottom() - gridRect.top()) < threshold) {
+            retRect.moveTop(rect.bottom());
+            touching = 2;
         }
-        if (gridRect.right() - rect.left() > threshold &&
-            rect.right() - gridRect.left() > threshold &&
-            std::abs(rect.top() - gridRect.bottom()) < threshold) {
-            bottom = std::abs(rect.top()) < std::abs(bottom) ? rect.top() : bottom;
+        auto citems = scene->items(retRect);
+        if ((citems.size() == 1 && citems.back() != self) || citems.size() > 1) {
+            continue;
         }
-        else if (gridRect.right() - rect.left() > threshold &&
-                 rect.right() - gridRect.left() > threshold &&
-                 std::abs(rect.bottom() - gridRect.top()) < threshold) {
-            top = std::abs(rect.bottom()) < std::abs(top) ? rect.bottom() : top;
+        if (touching == 1) {
+            if (std::abs(rect.top() - gridRect.top()) < threshold) {
+                retRect.moveTop(rect.top());
+            }
+            else if (std::abs(rect.bottom() - gridRect.bottom()) < threshold) {
+                retRect.moveBottom(rect.bottom());
+            }
         }
-        if (std::abs(rect.left() - gridRect.left()) < threshold) {
-            left = std::abs(rect.left()) < std::abs(left) ? rect.left() : left;
+        if (touching == 2) {
+            if (std::abs(rect.left() - gridRect.left()) < threshold) {
+                retRect.moveLeft(rect.left());
+            }
+            else if (std::abs(rect.right() - gridRect.right()) < threshold) {
+                retRect.moveRight(rect.right());
+            }
         }
-        else if (std::abs(rect.right() - gridRect.right()) < threshold) {
-            right = std::abs(rect.right()) < std::abs(right) ? rect.right() : right;
+        citems = scene->items(retRect);
+        if ((citems.size() == 1 && citems.back() != self) || citems.size() > 1) {
+            continue;
         }
-    }
-    if (left < std::numeric_limits<int>::max()) {
-        gridRect.moveLeft(left);
-    }
-    if (right < std::numeric_limits<int>::max()) {
-        gridRect.moveRight(right);
-    }
-    if (top < std::numeric_limits<int>::max()) {
-        gridRect.moveTop(top);
-    }
-    if (bottom < std::numeric_limits<int>::max()) {
-        gridRect.moveBottom(bottom);
+        gridRect = retRect;
     }
     return gridRect.topLeft().toPoint();
 }
