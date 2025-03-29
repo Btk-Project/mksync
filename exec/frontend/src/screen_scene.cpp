@@ -7,6 +7,7 @@
 #include <QGraphicsView>
 
 #include "graphics_screen_item.hpp"
+#include "materialtoast.hpp"
 
 ScreenScene::ScreenScene(QObject *parent) : QGraphicsScene(parent) {}
 
@@ -54,6 +55,16 @@ auto ScreenScene::get_self_item() -> GraphicsScreenItem *
     return _selfItem;
 }
 
+auto ScreenScene::contains_screen(const QString &screen) -> bool
+{
+    return std::ranges::any_of(items(), [screen](auto *item) {
+        if (auto *screenItem = dynamic_cast<GraphicsScreenItem *>(item); item != nullptr) {
+            return screenItem->get_screen_name() == screen;
+        }
+        return false;
+    });
+}
+
 void ScreenScene::dragEnterEvent(QGraphicsSceneDragDropEvent *event)
 {
     if (event->mimeData()->hasText()) {
@@ -63,11 +74,7 @@ void ScreenScene::dragEnterEvent(QGraphicsSceneDragDropEvent *event)
 
 void ScreenScene::dragMoveEvent(QGraphicsSceneDragDropEvent *event)
 {
-    auto screenId     = event->mimeData()->data("screenId");
-    auto screenWidth  = event->mimeData()->data("screenWidth");
-    auto screenHeight = event->mimeData()->data("screenHeight");
-    if (event->mimeData()->hasText() && !screenId.isEmpty() && !screenWidth.isEmpty() &&
-        !screenHeight.isEmpty()) {
+    if (event->mimeData()->hasText()) {
         event->acceptProposedAction(); // 允许拖动
     }
 }
@@ -75,7 +82,12 @@ void ScreenScene::dragMoveEvent(QGraphicsSceneDragDropEvent *event)
 void ScreenScene::dropEvent(QGraphicsSceneDragDropEvent *event)
 {
     QString text = event->mimeData()->text();
-    if (!text.isEmpty()) {
+    if (contains_screen(text)) {
+        event->setProposedAction(Qt::DropAction::IgnoreAction); // 忽略放置事件
+        MaterialToast::show(nullptr, "屏幕已存在");
+        event->acceptProposedAction();
+    }
+    else if (!text.isEmpty()) {
         auto                screenId     = event->mimeData()->data("screenId").toInt();
         auto                screenWidth  = event->mimeData()->data("screenWidth").toInt();
         auto                screenHeight = event->mimeData()->data("screenHeight").toInt();

@@ -35,6 +35,7 @@ public:
     void mouseMoveEvent(QGraphicsSceneMouseEvent *event) override;
     void dragMoveEvent(QGraphicsSceneDragDropEvent *event) override;
 
+    auto          update_reachable(bool isReachable) -> void;
     auto          fit_font(const QTransform &transform) -> void;
     void          update_grid_pos(const QPointF &scenePos);
     void          adsorption_to_grid();
@@ -46,7 +47,8 @@ private:
     QString      _showText;
     QFont        _font;
     int          _screenId;
-    QRect        _itemGeometry;
+    QSize        _itemSize;
     QPainterPath _path;
     QPoint       _gridPos;
+    bool         _isReachable = true;
 };

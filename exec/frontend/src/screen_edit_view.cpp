@@ -186,7 +186,7 @@ void ScreenEditView::zoom_in_out_view(float scale)
 
 void ScreenEditView::mousePressEvent(QMouseEvent *event)
 {
-    if (itemAt(event->pos()) != nullptr) {
+    if (auto *item = itemAt(event->pos()); item != nullptr && item != _selfItem) {
         _isItemMoving = true;
     }
     return QGraphicsView::mousePressEvent(event);
@@ -206,6 +206,23 @@ void ScreenEditView::mouseReleaseEvent(QMouseEvent *event)
 {
     _isItemMoving = false;
     return QGraphicsView::mouseReleaseEvent(event);
+}
+
+void ScreenEditView::wheelEvent(QWheelEvent *event)
+{
+    if ((event->modifiers() & Qt::ControlModifier) != 0) {
+        setResizeAnchor(QGraphicsView::AnchorUnderMouse);
+        if (event->angleDelta().y() > 0) {
+            zoom_in_out_view(1.1);
+        }
+        else {
+            zoom_in_out_view(0.9);
+        }
+        setResizeAnchor(QGraphicsView::AnchorViewCenter);
+    }
+    else {
+        QGraphicsView::wheelEvent(event);
+    }
 }
 
 void ScreenEditView::dragEnterEvent(QDragEnterEvent *event)
