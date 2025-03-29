@@ -26,6 +26,7 @@ public:
     auto config_screens(const std::string                           &self,
                         const std::vector<mks::VirtualScreenConfig> &configs) -> void;
     auto get_self_item() -> GraphicsScreenItem *;
+    auto contains_screen(const QString &screen) -> bool;
 
 Q_SIGNALS:
     void remove_screen(mks::VirtualScreenConfig screen);
