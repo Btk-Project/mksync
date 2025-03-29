@@ -164,12 +164,7 @@ void GraphicsScreenItem::adsorption_to_grid()
     auto *scene = qobject_cast<ScreenScene *>(this->scene());
     if (scene != nullptr) {
         if (scene->collidingItems(this).size() >= 1) {
-            Q_EMIT scene->remove_screen(
-                mks::VirtualScreenConfig{.name   = get_screen_name().toStdString(),
-                                         .posX   = 0,
-                                         .posY   = 0,
-                                         .width  = _itemSize.width(),
-                                         .height = _itemSize.height()});
+            Q_EMIT scene->remove_screen(get_screen_name(), _itemSize);
             scene->removeItem(this);
             this->deleteLater();
         }
@@ -217,6 +212,9 @@ QPoint GraphicsScreenItem::adsorption_to_grid(QGraphicsScene *scene, QGraphicsIt
             retRect.moveTop(rect.bottom());
             qDebug() << "touching top" << rect << ": mvoe rectRect to" << retRect;
             touching = 2;
+        }
+        if (touching == 0) {
+            continue;
         }
         auto citems = scene->items(retRect);
         if ((citems.size() == 1 && citems.back() != self) || citems.size() > 1) {

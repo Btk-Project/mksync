@@ -25,9 +25,8 @@ public:
 public:
     ScreenListView(QWidget *parent = nullptr);
 
-    static QListWidgetItem *make_screen_item(const QString &name, int screenId, int width,
-                                             int height);
-    static QListWidgetItem *make_screen_item(const QString &name, int screenId, QSize screenSize);
+    static QListWidgetItem *make_screen_item(const QString &name, int width, int height);
+    static QListWidgetItem *make_screen_item(const QString &name, QSize screenSize);
 
     void startDrag(Qt::DropActions supportedActions) override;
 };

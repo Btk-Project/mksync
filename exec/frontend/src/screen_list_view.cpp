@@ -8,17 +8,14 @@
 
 ScreenListView::ScreenListView(QWidget *parent) : QListWidget(parent) {}
 
-QListWidgetItem *ScreenListView::make_screen_item(const QString &name, int screenId, int width,
-                                                  int height)
+QListWidgetItem *ScreenListView::make_screen_item(const QString &name, int width, int height)
 {
-    return make_screen_item(name, screenId, {width, height});
+    return make_screen_item(name, {width, height});
 }
 
-QListWidgetItem *ScreenListView::make_screen_item(const QString &name, int screenId,
-                                                  QSize screenSize)
+QListWidgetItem *ScreenListView::make_screen_item(const QString &name, QSize screenSize)
 {
     auto *item = new QListWidgetItem(name);
-    item->setData(ScreenListViewRole::eScreenIdRole, screenId);
     item->setData(ScreenListViewRole::eScreenWidthRole, screenSize.width());
     item->setData(ScreenListViewRole::eScreenHeightRole, screenSize.height());
 

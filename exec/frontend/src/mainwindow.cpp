@@ -7,6 +7,10 @@
 #include <QDebug>
 #include <QScrollBar>
 #include <QButtonGroup>
+#include <QFile>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QJsonDocument>
 
 #ifdef _WIN32
     #include <Windows.h>
@@ -15,11 +19,11 @@
 #endif
 
 #include "graphics_screen_item.hpp"
-#include "mksync/base/default_configs.hpp"
+#include "materialtoast.hpp"
 
 MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent), _settings("./config.json"), _ui(new Ui::MainWindow),
-      _buttonGroup(new QButtonGroup(this))
+    : QMainWindow(parent), _settingFile(QApplication::applicationDirPath() + "/config.json"),
+      _ui(new Ui::MainWindow), _buttonGroup(new QButtonGroup(this))
 {
     _ui->setupUi(this);
     // 设置无边框窗口
@@ -57,17 +61,16 @@ MainWindow::MainWindow(QWidget *parent)
     _ui->stackedWidget->setCurrentWidget(_ui->server_page);
     _ui->graphicsView->setScene(&_scene);
 
-    connect(&_scene, &ScreenScene::remove_screen, this, [this](mks::VirtualScreenConfig screen) {
-        auto *item = ScreenListView::make_screen_item(QString::fromStdString(screen.name), 0,
-                                                      QSize{screen.width, screen.height});
+    connect(&_scene, &ScreenScene::remove_screen, this, [this](QString screen, QSize size) {
+        auto *item = ScreenListView::make_screen_item(screen, size);
         _ui->listWidget->addItem(item);
     });
 
 #ifndef NDEBUG
-    _ui->listWidget->addItem(ScreenListView::make_screen_item("testScreen0", 0, QSize{1920, 1080}));
-    _ui->listWidget->addItem(ScreenListView::make_screen_item("testScreen1", 0, QSize{1440, 900}));
-    _ui->listWidget->addItem(ScreenListView::make_screen_item("testScreen2", 0, QSize{1280, 720}));
-    _ui->listWidget->addItem(ScreenListView::make_screen_item("testScreen3", 0, QSize{1024, 768}));
+    _ui->listWidget->addItem(ScreenListView::make_screen_item("testScreen0", QSize{1920, 1080}));
+    _ui->listWidget->addItem(ScreenListView::make_screen_item("testScreen1", QSize{1440, 900}));
+    _ui->listWidget->addItem(ScreenListView::make_screen_item("testScreen2", QSize{1280, 720}));
+    _ui->listWidget->addItem(ScreenListView::make_screen_item("testScreen3", QSize{1024, 768}));
 #endif
 }
 
@@ -197,53 +200,76 @@ void MainWindow::button_clicked(QAbstractButton *button)
         _ui->stackedWidget->setCurrentWidget(_ui->help_page);
     }
 }
+void MainWindow::_load_configs(const QString &file)
+{
+    if (!file.isEmpty()) {
+        QFile infile(file);
+        if (!infile.open(QIODevice::ReadOnly)) {
+            MaterialToast::show(this, infile.errorString());
+            return;
+        }
+        QJsonParseError error;
+        auto            parser = QJsonDocument::fromJson(infile.readAll(), &error);
+        if (error.error == QJsonParseError::NoError && !parser.isEmpty()) {
+            _settingFile = file;
+            _settings    = parser.object();
+        }
+        else {
+            MaterialToast::show(
+                this, error.error == QJsonParseError::NoError ? "空配置" : error.errorString());
+        }
+    }
+    else {
+        QFile infile(_settingFile);
+        if (!infile.open(QIODevice::ReadOnly)) {
+            MaterialToast::show(this, infile.errorString());
+            return;
+        }
+        QJsonParseError error;
+        auto            parser = QJsonDocument::fromJson(infile.readAll(), &error);
+        if (error.error == QJsonParseError::NoError && !parser.isEmpty()) {
+            _settings = parser.object();
+        }
+        else {
+            MaterialToast::show(
+                this, error.error == QJsonParseError::NoError ? "空配置" : error.errorString());
+        }
+    }
+}
 
 void MainWindow::refresh_configs(QString file)
 {
-    if (!file.isEmpty()) {
-        _settings.load(file.toStdString());
-    }
-    else {
-        _settings.load();
-    }
+    _load_configs(file);
+    _ui->config_file_edit->setText(_settingFile);
+    _ui->screen_name_edit->setText(_settings["screen_name"].toString(QLatin1String("unknow")));
 
-    _ui->config_file_edit->setText(QString::fromStdString(_settings.get_file().string()));
-    _ui->screen_name_edit->setText(QString::fromStdString(
-        _settings.get(mks::base::screen_name_config_name, mks::base::screen_name_default_value)));
+    _ui->max_log_records_edit->setValue(_settings["max_log_records"].toInt(1000));
 
-    _ui->max_log_records_edit->setValue(_settings.get<int>(
-        mks::base::max_log_records_config_name, mks::base::max_log_records_default_value));
+    _ui->log_level_edit->setCurrentText(_settings["log_level"].toString(QLatin1String("warn")));
 
-    _ui->log_level_edit->setCurrentText(QString::fromStdString(
-        _settings.get(mks::base::log_level_config_name, mks::base::log_level_default_value)));
-
-    auto moduleList =
-        _settings.get(mks::base::module_list_config_name, mks::base::module_list_default_value);
+    auto        moduleList = _settings["module_list"].toArray();
     QStringList moduleListQStr;
-    for (auto &module : moduleList) {
-        moduleListQStr << QString::fromStdString(module);
+    for (auto module : moduleList) {
+        moduleListQStr << module.toString();
     }
     _ui->module_list_edit->setPlainText(moduleListQStr.join("\n"));
+    auto remoteAddress =
+        _settings["remote_controller"].toString(QLatin1String("tcp:127.0.0.1:8578"));
+    _ui->remote_address_edit->setText(remoteAddress);
 
-    auto remoteAddress = _settings.get(mks::base::remote_controller_config_name,
-                                       mks::base::remote_controller_default_value);
-    _ui->remote_address_edit->setText(QString::fromStdString(remoteAddress));
+    auto serverIpaddress = _settings["server_ipaddress"].toString(QLatin1String("0.0.0.0:857"));
 
-    auto serverIpaddress = _settings.get(mks::base::server_ipaddress_config_name,
-                                         mks::base::server_ipaddress_default_value);
-    auto serverIp        = serverIpaddress.substr(0, serverIpaddress.find_last_of(":"));
-    auto serverPort      = serverIpaddress.substr(serverIpaddress.find_last_of(":") + 1);
+    auto serverIp   = serverIpaddress.mid(0, serverIpaddress.lastIndexOf(':'));
+    auto serverPort = serverIpaddress.mid(serverIpaddress.lastIndexOf(':') + 1);
 
-    _ui->server_ip_edit->setText(QString::fromStdString(serverIp));
-    _ui->server_port_edit->setValue(std::stoi(serverPort));
+    _ui->server_ip_edit->setText(serverIp);
+    _ui->server_port_edit->setValue(serverPort.toInt(0));
 
     _ui->client_ip_edit->setText(_ui->server_ip_edit->text());
     _ui->client_port_edit->setValue(_ui->server_port_edit->value());
 
-    _scene.config_screens(
-        _settings.get(mks::base::screen_name_config_name, mks::base::screen_name_default_value),
-        _settings.get(mks::base::screen_settings_config_name,
-                      mks::base::screen_settings_default_value));
+    _scene.config_screens(_settings["screen_name"].toString(QLatin1String("unknow")),
+                          _settings["screen_settings"].toArray());
     _ui->graphicsView->fit_view_to_scene();
 }
 void MainWindow::changeEvent(QEvent *event)
@@ -264,20 +290,36 @@ void MainWindow::changeEvent(QEvent *event)
 
 void MainWindow::server_config()
 {
-    auto configs = _scene.get_screen_configs();
-    _settings.set(mks::base::screen_settings_config_name, configs);
-    auto ip   = _ui->server_ip_edit->text().toStdString();
-    auto port = _ui->server_port_edit->text().toStdString();
-    _settings.set(mks::base::server_ipaddress_config_name, ip + ":" + port);
-    _settings.save();
+    auto configs                 = _scene.get_screen_configs();
+    _settings["screen_settings"] = configs;
+    auto ip                      = _ui->server_ip_edit->text();
+    auto port                    = _ui->server_port_edit->text();
+    if (ip.contains(':')) {
+        ip = "[" + ip + "]";
+    }
+    _settings["server_ipaddress"] = ip + ":" + port;
+    QFile file(_settingFile);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QJsonDocument modifiedDoc(_settings); // 用修改后的 QJsonObject 创建新文档
+        file.write(modifiedDoc.toJson());
+        file.close();
+    }
 }
 
 void MainWindow::client_config()
 {
-    auto ip   = _ui->client_ip_edit->text().toStdString();
-    auto port = _ui->client_port_edit->text().toStdString();
-    _settings.set(mks::base::server_ipaddress_config_name, ip + ":" + port);
-    _settings.save();
+    auto ip   = _ui->client_ip_edit->text();
+    auto port = _ui->client_port_edit->text();
+    if (ip.contains(':')) {
+        ip = "[" + ip + "]";
+    }
+    _settings["server_ipaddress"] = ip + ":" + port;
+    QFile file(_settingFile);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QJsonDocument modifiedDoc(_settings); // 用修改后的 QJsonObject 创建新文档
+        file.write(modifiedDoc.toJson());
+        file.close();
+    }
 }
 
 void MainWindow::server_start()
@@ -292,30 +334,35 @@ void MainWindow::client_start()
 
 void MainWindow::setting_config()
 {
-    auto configFile = _ui->config_file_edit->text().toStdString();
-    if (_settings.get_file() != std::filesystem::path(configFile)) {
-        _settings.load(configFile);
+    auto configFile = _ui->config_file_edit->text();
+    if (_settingFile != configFile) {
+        _load_configs(configFile);
     }
 
-    auto screenName = _ui->screen_name_edit->text().toStdString();
-    _settings.set(mks::base::screen_name_config_name, screenName);
+    auto screenName          = _ui->screen_name_edit->text();
+    _settings["screen_name"] = screenName;
 
-    auto maxLogRecords = _ui->max_log_records_edit->value();
-    _settings.set(mks::base::max_log_records_config_name, maxLogRecords);
+    auto maxLogRecords           = _ui->max_log_records_edit->value();
+    _settings["max_log_records"] = maxLogRecords;
 
-    auto logLevel = _ui->log_level_edit->currentText().toStdString();
-    _settings.set(mks::base::log_level_config_name, logLevel);
+    auto logLevel          = _ui->log_level_edit->currentText();
+    _settings["log_level"] = logLevel;
 
-    std::vector<std::string> moduleList;
+    QJsonArray moduleList;
     for (const auto &module : _ui->module_list_edit->toPlainText().split("\n")) {
         if (!module.isEmpty()) {
-            moduleList.push_back(module.toStdString());
+            moduleList.push_back(module);
         }
     }
-    _settings.set(mks::base::module_list_config_name, moduleList);
+    _settings["module_list"] = moduleList;
 
-    auto remoteAddress = _ui->remote_address_edit->text().toStdString();
-    _settings.set(mks::base::remote_controller_config_name, remoteAddress);
+    auto remoteAddress             = _ui->remote_address_edit->text();
+    _settings["remote_controller"] = remoteAddress;
 
-    _settings.save();
+    QFile file(_settingFile);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QJsonDocument modifiedDoc(_settings); // 用修改后的 QJsonObject 创建新文档
+        file.write(modifiedDoc.toJson());
+        file.close();
+    }
 }

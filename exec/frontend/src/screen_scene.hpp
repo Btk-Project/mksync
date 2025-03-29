@@ -11,8 +11,8 @@
 #pragma once
 
 #include <QGraphicsScene>
+#include <QJsonArray>
 
-#include "mksync/proto/config_proto.hpp"
 #include "graphics_screen_item.hpp"
 
 class ScreenScene : public QGraphicsScene {
@@ -22,14 +22,13 @@ public:
     ScreenScene(const QSize &screenSize, QObject *parent = nullptr);
     ~ScreenScene();
 
-    auto get_screen_configs() const -> std::vector<mks::VirtualScreenConfig>;
-    auto config_screens(const std::string                           &self,
-                        const std::vector<mks::VirtualScreenConfig> &configs) -> void;
+    auto get_screen_configs() const -> QJsonArray;
+    auto config_screens(const QString &self, const QJsonArray &configs) -> void;
     auto get_self_item() -> GraphicsScreenItem *;
     auto contains_screen(const QString &screen) -> bool;
 
 Q_SIGNALS:
-    void remove_screen(mks::VirtualScreenConfig screen);
+    void remove_screen(QString screen, QSize size);
 
 protected:
     void drawBackground(QPainter *painter, const QRectF &rect) override;
