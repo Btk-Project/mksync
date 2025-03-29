@@ -13,6 +13,7 @@
 #include "mksync/core/core_library.h"
 #include "mksync/base/nodebase.hpp"
 #include "mksync/base/node_manager.hpp"
+#include "mksync/base/detail/setting_serializer_help.hpp"
 #include "mksync/base/settings.hpp"
 #include "mksync/proto/proto.hpp"
 #include "mksync/proto/config_proto.hpp"

@@ -9,8 +9,8 @@ target("main")
     add_files("src/*.cpp")
     set_targetdir("$(bindir)")
     add_rules("target.clean", "target.autoname")
-    add_packages("neko-proto", "spdlog")
-    add_deps("base")
+    add_packages("spdlog")
+    add_includedirs("../../src/base/include")
     if is_plat("windows") then 
         add_links("dwmapi")
     end

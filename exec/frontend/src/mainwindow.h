@@ -10,10 +10,10 @@
 #include <QGraphicsProxyWidget>
 #include <QGraphicsGridLayout>
 #include <QPushButton>
+#include <QJsonObject>
 
 #include "screen_scene.hpp"
 #include "graphics_screen_item.hpp"
-#include "mksync/base/settings.hpp"
 
 namespace Ui
 {
@@ -44,16 +44,20 @@ public Q_SLOTS:
     void refresh_configs(QString file = "");
 
 private:
-    bool                _dragging;
-    bool                _resizing;
-    QPoint              _dragStartPos;
-    QPoint              _resizeStartPos;
-    QSize               _resizeStartSize;
-    ScreenScene         _scene;
-    bool                _isFull;
-    mks::base::Settings _settings;
-    Ui::MainWindow     *_ui;
-    QButtonGroup       *_buttonGroup;
+    void _load_configs(const QString &file);
+
+private:
+    bool            _dragging;
+    bool            _resizing;
+    QPoint          _dragStartPos;
+    QPoint          _resizeStartPos;
+    QSize           _resizeStartSize;
+    ScreenScene     _scene;
+    bool            _isFull;
+    QString         _settingFile;
+    QJsonObject     _settings;
+    Ui::MainWindow *_ui;
+    QButtonGroup   *_buttonGroup;
 };
 
 #endif // MAINWINDOW_H

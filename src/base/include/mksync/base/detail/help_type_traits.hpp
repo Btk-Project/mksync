@@ -21,42 +21,24 @@
 namespace mks::base::detail
 {
     template <typename T>
-    struct is_variant : std::false_type {};
+    struct IsVariant : std::false_type {};
 
     template <typename... Types>
-    struct is_variant<std::variant<Types...>> : std::true_type {};
+    struct IsVariant<std::variant<Types...>> : std::true_type {};
 
     template <typename T>
-    constexpr bool is_variant_v = is_variant<std::remove_cvref_t<T>>::value;
+    constexpr bool IsVariantV = IsVariant<std::remove_cvref_t<T>>::value;
 
     template <typename Allocator>
-    rapidjson::Value to_json_value(bool value, Allocator &allocator)
+    rapidjson::Value to_json_value(bool value, [[maybe_unused]] Allocator &allocator)
     {
         return value ? rapidjson::Value(rapidjson::kTrueType)
                      : rapidjson::Value(rapidjson::kFalseType);
     }
 
     template <typename T, typename Allocator>
-        requires requires(NekoProto::JsonSerializer::OutputSerializer out, T val) {
-            { val.serialize(out) } -> std::same_as<bool>;
-        }
-    rapidjson::Value to_json_value(const T &value, Allocator &allocator)
-    {
-        std::vector<char> buffer;
-        if (NekoProto::JsonSerializer::OutputSerializer out(buffer); out(value)) {
-            rapidjson::Document doc(&allocator);
-            doc.Parse(buffer.data(), buffer.size());
-            if (doc.HasParseError()) {
-                return rapidjson::Value(rapidjson::kNullType);
-            }
-            return rapidjson::Value(doc.GetObj());
-        }
-        return rapidjson::Value(rapidjson::kNullType);
-    }
-
-    template <typename T, typename Allocator>
         requires(std::is_arithmetic_v<T> && !std::is_same_v<T, bool>)
-    rapidjson::Value to_json_value(const T &value, Allocator &allocator)
+    rapidjson::Value to_json_value(const T &value, [[maybe_unused]] Allocator &allocator)
     {
         rapidjson::Value val(rapidjson::kNumberType);
         if constexpr (std::is_signed_v<T> && sizeof(T) < sizeof(int64_t)) {
@@ -208,22 +190,6 @@ namespace mks::base::detail
             return true;
         }
         return false;
-    }
-
-    template <typename T>
-        requires requires(NekoProto::JsonSerializer::InputSerializer out, T val) {
-            { val.serialize(out) } -> std::same_as<bool>;
-        }
-    bool from_json_value(const rapidjson::Value &value, T &result)
-    {
-        if (!value.IsObject()) {
-            return false;
-        }
-        rapidjson::StringBuffer                    strbuf;
-        rapidjson::Writer<rapidjson::StringBuffer> writer(strbuf);
-        value.Accept(writer);
-        NekoProto::JsonSerializer::InputSerializer out(strbuf.GetString(), strbuf.GetSize());
-        return out(result);
     }
 
     template <typename T>

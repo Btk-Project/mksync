@@ -3,6 +3,7 @@
 #include <array>
 #include <set>
 
+#include "mksync/base/detail/setting_serializer_help.hpp"
 #include "mksync/base/settings.hpp"
 #include "mksync/proto/config_proto.hpp"
 
@@ -16,12 +17,10 @@ TEST(Settings, Default)
 {
     mks::VirtualScreenConfig vsconfig{
         .name   = "test",
+        .posX   = 124,
+        .posY   = 223,
         .width  = 1920,
         .height = 1080,
-        .left   = "",
-        .top    = "",
-        .right  = "",
-        .bottom = "",
     };
     mks::base::Settings settings("./config.json");
     settings.set("appname", "mksync");
@@ -83,10 +82,8 @@ TEST(Settings, Load)
     EXPECT_EQ(vsconfigs[0].name, "test");
     EXPECT_EQ(vsconfigs[0].width, 1920);
     EXPECT_EQ(vsconfigs[0].height, 1080);
-    EXPECT_EQ(vsconfigs[0].left, "");
-    EXPECT_EQ(vsconfigs[0].top, "");
-    EXPECT_EQ(vsconfigs[0].right, "");
-    EXPECT_EQ(vsconfigs[0].bottom, "");
+    EXPECT_EQ(vsconfigs[0].posX, 124);
+    EXPECT_EQ(vsconfigs[0].posY, 223);
 }
 
 int main(int argc, char **argv)

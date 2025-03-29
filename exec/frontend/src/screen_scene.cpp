@@ -5,6 +5,7 @@
 #include <QMimeData>
 #include <QGraphicsSceneDragDropEvent>
 #include <QGraphicsView>
+#include <QJsonObject>
 
 #include "graphics_screen_item.hpp"
 #include "materialtoast.hpp"
@@ -18,35 +19,38 @@ void ScreenScene::drawBackground(QPainter *painter, const QRectF &rect)
     QGraphicsScene::drawBackground(painter, rect);
 }
 
-auto ScreenScene::get_screen_configs() const -> std::vector<mks::VirtualScreenConfig>
+auto ScreenScene::get_screen_configs() const -> QJsonArray
 {
-    std::vector<mks::VirtualScreenConfig> results;
+    QJsonArray array;
     for (auto *item : items()) {
         if (auto *screenItem = dynamic_cast<GraphicsScreenItem *>(item); item != nullptr) {
-            auto geometry = screenItem->get_item_geometry();
-            auto name     = screenItem->get_screen_name();
-            results.emplace_back(mks::VirtualScreenConfig{.name   = name.toStdString(),
-                                                          .posX   = geometry.x(),
-                                                          .posY   = geometry.y(),
-                                                          .width  = geometry.width(),
-                                                          .height = geometry.height()});
+            QJsonObject object;
+            auto        geometry = screenItem->get_item_geometry();
+            auto        name     = screenItem->get_screen_name();
+            object["name"]       = name;
+            object["posX"]       = geometry.x();
+            object["posY"]       = geometry.y();
+            object["width"]      = geometry.width();
+            object["height"]     = geometry.height();
+            array.append(object);
         }
     }
-    return results;
+    return array;
 }
 
-auto ScreenScene::config_screens(const std::string                           &self,
-                                 const std::vector<mks::VirtualScreenConfig> &configs) -> void
+auto ScreenScene::config_screens(const QString &self, const QJsonArray &configs) -> void
 {
     for (const auto &config : configs) {
-        auto *item = new GraphicsScreenItem(QString::fromStdString(config.name), 0,
-                                            {config.width, config.height});
+        assert(config.isObject());
+        auto  cf   = config.toObject();
+        auto  name = cf["name"].toString();
+        auto *item = new GraphicsScreenItem(name, 0, {cf["width"].toInt(), cf["height"].toInt()});
         addItem(item);
-        if (self == config.name) {
+        if (self == name) {
             _selfItem = item;
         }
-        item->setFlag(QGraphicsItem::ItemIsMovable, self != config.name);
-        item->setPos(config.posX, config.posY);
+        item->setFlag(QGraphicsItem::ItemIsMovable, self != name);
+        item->setPos(cf["posX"].toInt(), cf["posY"].toInt());
     }
 }
 
