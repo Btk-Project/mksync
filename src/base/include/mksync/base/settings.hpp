@@ -9,28 +9,28 @@
  *
  */
 #pragma once
+#include <mksync/base/base_library.h>
 
 #include <filesystem>
+
 #include <nekoproto/proto/proto_base.hpp>
 #include <rapidjson/document.h>
 #include <rapidjson/writer.h>
 #include <rapidjson/stringbuffer.h>
 #include <spdlog/spdlog.h>
 
-#include "mksync/base/base_library.h"
 #include "mksync/base/detail/help_type_traits.hpp"
 
-namespace mks::base
-{
-    /**
-     * @brief save settings and load settings
-     *
-     */
-    class MKS_BASE_API Settings {
-    public:
-        Settings();
-        Settings(std::string_view file);
-        ~Settings();
+MKS_BEGIN
+/**
+ * @brief save settings and load settings
+ *
+ */
+class MKS_BASE_API Settings {
+public:
+    Settings();
+    Settings(std::string_view file);
+    ~Settings();
 
     /**
      * @brief 设置指定配置项的值
@@ -124,8 +124,9 @@ namespace mks::base
      */
     auto get_file() const { return _file; }
 
-    private:
-        std::filesystem::path _file;
-        rapidjson::Document   _document;
-    };
-} // namespace mks::base
+private:
+    std::filesystem::path _file;
+    rapidjson::Document   _document;
+};
+
+MKS_END

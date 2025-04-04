@@ -8,6 +8,7 @@
 
 #ifndef _MKSYNC_BASE_LIBRARY_H_
 #define _MKSYNC_BASE_LIBRARY_H_
+#include <mksync/config.h>
 
 #if defined(_WIN32) && defined(MKS_BASE_DLL)
     #if defined(MKS_BASE_EXPORTS)

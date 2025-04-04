@@ -9,6 +9,7 @@
  *
  */
 #pragma once
+#include <mksync/base/base_library.h>
 
 #include <nekoproto/proto/json_serializer.hpp>
 #include <nekoproto/proto/serializer_base.hpp>
@@ -792,7 +793,10 @@ namespace NekoProto
     }
 } // namespace NekoProto
 
-namespace mks::base::detail
+MKS_BEGIN
+MKS_BASE_BEGIN
+
+namespace detail
 {
     template <typename T, typename Allocator>
         requires requires(NekoProto::JsonOutput<Allocator> out, T val) {
@@ -819,4 +823,7 @@ namespace mks::base::detail
         NekoProto::JsonInput in(value);
         return in(result);
     }
-} // namespace mks::base::detail
+} // namespace detail
+
+MKS_BASE_END
+MKS_END

@@ -10,6 +10,7 @@
  */
 
 #pragma once
+#include <mksync/base/base_library.h>
 
 #include <ilias/ilias.hpp>
 #include <ilias/net/tcp.hpp>
@@ -17,7 +18,6 @@
 #include <fmt/format.h>
 #include <cxxopts.hpp>
 
-#include "mksync/base/base_library.h"
 #include "mksync/base/node_manager.hpp"
 #include "mksync/base/settings.hpp"
 #include "mksync/proto/system_proto.hpp"
@@ -25,20 +25,20 @@
 #include "mksync/base/command.hpp"
 #include "mksync/base/command_invoker.hpp"
 
-namespace mks::base
-{
-    /**
-     * @brief Application
-     * - 全局上下文
-     *      - 配置全局共享的选项
-     *      - 注册命令
-     *      - 设置日志
-     *      - 节点管理
-     */
-    class MKS_BASE_API IApp {
-    public:
-        IApp()          = default;
-        virtual ~IApp() = default;
+MKS_BEGIN
+
+/**
+ * @brief Application
+ * - 全局上下文
+ *      - 配置全局共享的选项
+ *      - 注册命令
+ *      - 设置日志
+ *      - 节点管理
+ */
+class MKS_BASE_API IApp {
+public:
+    IApp()          = default;
+    virtual ~IApp() = default;
 
         /**
          * @brief 获取ilias的 i/o context对象
@@ -148,4 +148,4 @@ namespace mks::base
         [[nodiscard("coroutine function")]]
         virtual auto stop() -> ilias::Task<void> = 0;
     };
-} // namespace mks::base
+MKS_END

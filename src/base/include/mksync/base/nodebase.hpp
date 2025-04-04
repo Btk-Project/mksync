@@ -29,81 +29,82 @@
  *
  */
 #pragma once
+#include <mksync/base/base_library.h>
 
 #include <nekoproto/communication/communication_base.hpp>
 
-#include "mksync/base/base_library.h"
+MKS_BEGIN
+MKS_BASE_BEGIN
 
-namespace mks::base
-{
-    class IApp;
-    /**
-     * @brief Node
-     * 节点基类，作为插件的最低要求，必须至少实现该类的接口。
-     * - name
-     * 节点的名字。
-     * - start
-     * 启动节点，协程函数。不可以阻塞。加载节点后会按顺序启动节点。
-     * - stop
-     * 停止节点，协程函数。不可以阻塞。卸载节点时会按顺序停止节点。退出软件时会流程。
-     */
-    class MKS_BASE_API NodeBase {
-    public:
-        enum Result
-        {
-            eError   = -1,
-            eSuccess = 0,
-        };
-
-    public:
-        NodeBase()          = default;
-        virtual ~NodeBase() = default;
-        ///> 启用节点。
-        [[nodiscard("coroutine function")]]
-        virtual auto setup() -> ::ilias::Task<int> = 0;
-        ///> 停用节点。
-        [[nodiscard("coroutine function")]]
-        virtual auto teardown() -> ::ilias::Task<int> = 0;
-        ///> 获取节点名称。
-        virtual auto name() -> const char * = 0;
+class IApp;
+/**
+ * @brief Node
+ * 节点基类，作为插件的最低要求，必须至少实现该类的接口。
+ * - name
+ * 节点的名字。
+ * - start
+ * 启动节点，协程函数。不可以阻塞。加载节点后会按顺序启动节点。
+ * - stop
+ * 停止节点，协程函数。不可以阻塞。卸载节点时会按顺序停止节点。退出软件时会流程。
+ */
+class MKS_BASE_API NodeBase {
+public:
+    enum Result
+    {
+        eError   = -1,
+        eSuccess = 0,
     };
 
-    /**
-     * @brief Consumer
-     * 消费者接口，用于订阅事件，当事件发生时，会调用handle_event。
-     * - get_subscribers
-     * 返回该消费者需要订阅的事件列表，当有事件发生时，会调用handle_event。类型id可以通过ProtoFactory::protoType<TYPE>()获取。
-     * - handle_event
-     * 当有生产者产生订阅的事件时，会调用该函数处理事件。
-     */
-    class MKS_BASE_API Consumer {
-    public:
-        Consumer()          = default;
-        virtual ~Consumer() = default;
-        ///> 订阅的事件集，当有事件发生时，会调用handle_event。需要返回，只在enable时使用。
-        /// 如果需要动态增减，可以使用NodeManager的接口。
-        virtual auto get_subscribes() -> std::vector<int> = 0;
-        ///> 处理一个事件，需要订阅。
-        [[nodiscard("coroutine function")]]
-        virtual auto handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void> = 0;
-    };
+public:
+    NodeBase()          = default;
+    virtual ~NodeBase() = default;
+    ///> 启用节点。
+    [[nodiscard("coroutine function")]]
+    virtual auto setup() -> ::ilias::Task<int> = 0;
+    ///> 停用节点。
+    [[nodiscard("coroutine function")]]
+    virtual auto teardown() -> ::ilias::Task<int> = 0;
+    ///> 获取节点名称。
+    virtual auto name() -> const char * = 0;
+};
 
-    /**
-     * @brief producer
-     * 生产者接口，可以生产任意事件，需要通过协程co_await。
-     * - get_event
-     * 从节点内获取一个事件，如果没有就使用协程等待。只有当需要产出大量事件或者想要自己定义独立的事件缓冲区才实现该接口。
-     */
-    class MKS_BASE_API Producer {
-    public:
-        Producer()          = default;
-        virtual ~Producer() = default;
-        ///> 从节点内获取一个事件，如果没有就等待。
-        [[nodiscard("coroutine function")]]
-        virtual auto get_event() -> ::ilias::IoTask<NekoProto::IProto> = 0;
-    };
+/**
+ * @brief Consumer
+ * 消费者接口，用于订阅事件，当事件发生时，会调用handle_event。
+ * - get_subscribers
+ * 返回该消费者需要订阅的事件列表，当有事件发生时，会调用handle_event。类型id可以通过ProtoFactory::protoType<TYPE>()获取。
+ * - handle_event
+ * 当有生产者产生订阅的事件时，会调用该函数处理事件。
+ */
+class MKS_BASE_API Consumer {
+public:
+    Consumer()          = default;
+    virtual ~Consumer() = default;
+    ///> 订阅的事件集，当有事件发生时，会调用handle_event。需要返回，只在enable时使用。
+    /// 如果需要动态增减，可以使用NodeManager的接口。
+    virtual auto get_subscribes() -> std::vector<int> = 0;
+    ///> 处理一个事件，需要订阅。
+    [[nodiscard("coroutine function")]]
+    virtual auto handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void> = 0;
+};
 
-} // namespace mks::base
+/**
+ * @brief producer
+ * 生产者接口，可以生产任意事件，需要通过协程co_await。
+ * - get_event
+ * 从节点内获取一个事件，如果没有就使用协程等待。只有当需要产出大量事件或者想要自己定义独立的事件缓冲区才实现该接口。
+ */
+class MKS_BASE_API Producer {
+public:
+    Producer()          = default;
+    virtual ~Producer() = default;
+    ///> 从节点内获取一个事件，如果没有就等待。
+    [[nodiscard("coroutine function")]]
+    virtual auto get_event() -> ::ilias::IoTask<NekoProto::IProto> = 0;
+};
+
+MKS_BASE_END
+MKS_END
 
 #define MKS_MAKE_NODE_FUNC_NAME "mks_make_node"
 #define MKS_MAKE_NODE_FUNC                                                                         \

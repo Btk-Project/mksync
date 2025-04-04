@@ -1,73 +1,76 @@
 #include "mksync/base/event_base.hpp"
 
-namespace mks::base
+MKS_BEGIN
+MKS_BASE_BEGIN
+
+EventBase::EventBase(std::size_t size) : _queue(size) {}
+
+EventBase::~EventBase()
 {
-    EventBase::EventBase(std::size_t size) : _queue(size) {}
+    _queue.clear();
+}
 
-    EventBase::~EventBase()
-    {
-        _queue.clear();
-    }
-
-    auto EventBase::try_push(Event &&event) -> bool
-    {
-        ILIAS_ASSERT(event.data != nullptr);
-        if (_queue.size() >= _queue.capacity()) {
-            return false;
-        }
-        _queue.emplace(std::forward<Event>(event));
-        _emptySync.set();
-        return true;
-    }
-
-    auto EventBase::push(Event &&event) -> ilias::Task<::ilias::Error>
-    {
-        ILIAS_ASSERT(event.data != nullptr);
-        while (_queue.size() >= _queue.capacity()) {
-            _fullSync.clear();
-            if (auto ret = co_await _fullSync; !ret) {
-                co_return ret.error();
-            }
-        }
-        _queue.emplace(std::forward<Event>(event));
-        _emptySync.set();
-        co_return ::ilias::Error::Ok;
-    }
-
-    auto EventBase::try_pop(Event &event) -> bool
-    {
-        if (_queue.pop(event)) {
-            _fullSync.set();
-            return true;
-        }
+auto EventBase::try_push(Event &&event) -> bool
+{
+    ILIAS_ASSERT(event.data != nullptr);
+    if (_queue.size() >= _queue.capacity()) {
         return false;
     }
+    _queue.emplace(std::forward<Event>(event));
+    _emptySync.set();
+    return true;
+}
 
-    auto EventBase::pop(Event &event) -> ilias::Task<::ilias::Error>
-    {
-        while (!_queue.pop(event)) {
-            _emptySync.clear();
-            if (auto ret = co_await _emptySync; !ret) {
-                co_return ret.error();
-            }
+auto EventBase::push(Event &&event) -> ilias::Task<::ilias::Error>
+{
+    ILIAS_ASSERT(event.data != nullptr);
+    while (_queue.size() >= _queue.capacity()) {
+        _fullSync.clear();
+        if (auto ret = co_await _fullSync; !ret) {
+            co_return ret.error();
         }
+    }
+    _queue.emplace(std::forward<Event>(event));
+    _emptySync.set();
+    co_return ::ilias::Error::Ok;
+}
+
+auto EventBase::try_pop(Event &event) -> bool
+{
+    if (_queue.pop(event)) {
         _fullSync.set();
-        co_return ilias::Error::Ok;
+        return true;
     }
+    return false;
+}
 
-    void EventBase::clear()
-    {
-        _queue.clear();
-        _fullSync.set();
+auto EventBase::pop(Event &event) -> ilias::Task<::ilias::Error>
+{
+    while (!_queue.pop(event)) {
+        _emptySync.clear();
+        if (auto ret = co_await _emptySync; !ret) {
+            co_return ret.error();
+        }
     }
+    _fullSync.set();
+    co_return ilias::Error::Ok;
+}
 
-    auto EventBase::empty() const -> bool
-    {
-        return _queue.empty();
-    }
+void EventBase::clear()
+{
+    _queue.clear();
+    _fullSync.set();
+}
 
-    auto EventBase::size() const -> std::size_t
-    {
-        return _queue.size();
-    }
-} // namespace mks::base
+auto EventBase::empty() const -> bool
+{
+    return _queue.empty();
+}
+
+auto EventBase::size() const -> std::size_t
+{
+    return _queue.size();
+}
+
+MKS_BASE_END
+MKS_END

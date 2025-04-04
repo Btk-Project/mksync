@@ -9,23 +9,24 @@
  *
  */
 #pragma once
+#include <mksync/base/base_library.h>
 
 #include <string>
 #include <vector>
 #include <functional>
 #include <map>
+
 #include <nekoproto/proto/proto_base.hpp>
 #include <cxxopts.hpp>
 
 #include "mksync/base/trie.hpp"
-#include "mksync/base/base_library.h"
 #include "mksync/base/command.hpp"
 #include "mksync/base/nodebase.hpp"
 
-namespace mks::base
-{
-    class IApp;
-    class NodeBase;
+MKS_BEGIN
+
+class IApp;
+class NodeBase;
 
 /**
  * @brief CommandInvoker
@@ -60,8 +61,8 @@ public:
         std::vector<OptionsData> options;
     };
 
-    public:
-        CommandInvoker(IApp *app);
+public:
+    CommandInvoker(IApp *app);
 
     /**
      * @brief 初始化
@@ -188,24 +189,25 @@ private:
         _modules; // 模块名到命令对象迭代器的映射
 };
 
-    class CommonCommand : public Command {
-    public:
-        CommonCommand(CommandInvoker::CommandsData &&data);
-        [[nodiscard("coroutine function")]]
-        auto execute() -> ::ilias::Task<std::string> override;
+class CommonCommand : public Command {
+public:
+    CommonCommand(CommandInvoker::CommandsData &&data);
+    [[nodiscard("coroutine function")]]
+    auto execute() -> ::ilias::Task<std::string> override;
 
-        auto help() const -> std::string override;
-        auto name() const -> std::string_view override;
-        auto alias_names() const -> std::vector<std::string_view> override;
-        void set_option(std::string_view option, std::string_view value) override;
-        void set_options(const NekoProto::IProto &proto) override;
-        void parser_options(const std::vector<const char *> &args) override;
-        auto need_proto_type() const -> int override;
+    auto help() const -> std::string override;
+    auto name() const -> std::string_view override;
+    auto alias_names() const -> std::vector<std::string_view> override;
+    void set_option(std::string_view option, std::string_view value) override;
+    void set_options(const NekoProto::IProto &proto) override;
+    void parser_options(const std::vector<const char *> &args) override;
+    auto need_proto_type() const -> int override;
 
-    private:
-        CommandInvoker::CommandsData _data    = {};
-        CommandInvoker::ArgsType     _args    = {};
-        CommandInvoker::OptionsType  _options = {};
-        mutable cxxopts::Options     _option;
-    };
-} // namespace mks::base
+private:
+    CommandInvoker::CommandsData _data    = {};
+    CommandInvoker::ArgsType     _args    = {};
+    CommandInvoker::OptionsType  _options = {};
+    mutable cxxopts::Options     _option;
+};
+
+MKS_END

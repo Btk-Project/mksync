@@ -7,9 +7,7 @@
 //
 
 #pragma once
-
-#include "mksync/base/base_library.h"
-#include "mksync/base/osdep.h"
+#include <mksync/base/base_library.h>
 
 #include <string>
 #include <vector>

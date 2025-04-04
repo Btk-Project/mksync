@@ -9,16 +9,21 @@
  *
  */
 #pragma once
+#include <mksync/base/base_library.h>
 
 #include <string>
 #include <type_traits>
 #include <variant>
-#include <rapidjson/document.h>
 #include <vector>
+
+#include <rapidjson/document.h>
 #include <nekoproto/proto/serializer_base.hpp>
 #include <nekoproto/proto/json_serializer.hpp>
 
-namespace mks::base::detail
+MKS_BEGIN
+MKS_BASE_BEGIN
+
+namespace detail
 {
     template <typename T>
     struct IsVariant : std::false_type {};
@@ -207,4 +212,7 @@ namespace mks::base::detail
         }
         return false;
     }
-} // namespace mks::base::detail
+} // namespace detail
+
+MKS_BASE_END
+MKS_END

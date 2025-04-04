@@ -1,10 +1,7 @@
 #include "mksync/base/node_manager.hpp"
 
-#include <spdlog/sinks/callback_sink.h>
-#include <spdlog/spdlog.h>
-#include <filesystem>
 #ifdef _WIN32
-    #include <windows.h>
+    #include <Windows.h>
     #define DL_OPEN(dll) LoadLibraryW(dll)
     #define DL_CLOSE(handle) FreeLibrary(handle)
     #define DL_LOAD_SYMBOL(handle, symbol) GetProcAddress(handle, symbol)
@@ -17,127 +14,131 @@
     #define DL_HANDLE void *
 #endif
 
+#include <filesystem>
+
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/callback_sink.h>
+
 #include "mksync/base/nodebase.hpp"
 #include "mksync/base/app.hpp"
 
-namespace mks::base
-{
-    using ::ilias::IoTask;
-    using ::ilias::IPEndpoint;
-    using ::ilias::Task;
+MKS_BEGIN
 
-    class MKS_BASE_API NodeDll {
-    public:
-        NodeDll() {}
-        auto load(std::string_view dll) -> bool
-        {
-            if (!std::filesystem::exists(dll)) {
-                SPDLOG_ERROR("load plugins failed! file {} not exists!", dll);
-                return false;
-            }
-            std::filesystem::path dllPath(dll);
+using ::ilias::IoTask;
+using ::ilias::IPEndpoint;
+using ::ilias::Task;
+
+class MKS_BASE_API NodeDll {
+public:
+    NodeDll() {}
+    auto load(std::string_view dll) -> bool
+    {
+        if (!std::filesystem::exists(dll)) {
+            SPDLOG_ERROR("load plugins failed! file {} not exists!", dll);
+            return false;
+        }
+        std::filesystem::path dllPath(dll);
 #ifdef _WIN32
-            _handle = DL_OPEN(dllPath.wstring().c_str());
+        _handle = DL_OPEN(dllPath.wstring().c_str());
 #elif defined(__linux__)
-            _handle = DL_OPEN(dllPath.string().c_str());
+        _handle = DL_OPEN(dllPath.string().c_str());
 #endif
-            return _handle != nullptr;
+        return _handle != nullptr;
+    }
+    auto create_node(IApp *app) -> std::unique_ptr<NodeBase, void (*)(NodeBase *)>
+    {
+        if (_handle == nullptr) {
+            return {nullptr, +[](NodeBase *) {}};
         }
-        auto create_node(IApp *app) -> std::unique_ptr<NodeBase, void (*)(NodeBase *)>
-        {
-            if (_handle == nullptr) {
-                return {nullptr, +[](NodeBase *) {}};
-            }
-            auto *createNode = reinterpret_cast<MKS_MAKE_NODE_FUNC_TYPE>(
-                DL_LOAD_SYMBOL(_handle, MKS_MAKE_NODE_FUNC_NAME));
-            auto deleteNode = reinterpret_cast<MKS_DELETE_NODE_FUNC_TYPE>(
-                DL_LOAD_SYMBOL(_handle, MKS_DELETE_NODE_FUNC_NAME));
-            if (createNode == nullptr || deleteNode == nullptr) {
-                SPDLOG_ERROR("load plugins failed! createNode or deleteNode is nullptr!");
-                return {nullptr, +[](NodeBase *) {}};
-            }
-            return {(NodeBase *)createNode(app), deleteNode};
+        auto *createNode = reinterpret_cast<MKS_MAKE_NODE_FUNC_TYPE>(
+            DL_LOAD_SYMBOL(_handle, MKS_MAKE_NODE_FUNC_NAME));
+        auto deleteNode = reinterpret_cast<MKS_DELETE_NODE_FUNC_TYPE>(
+            DL_LOAD_SYMBOL(_handle, MKS_DELETE_NODE_FUNC_NAME));
+        if (createNode == nullptr || deleteNode == nullptr) {
+            SPDLOG_ERROR("load plugins failed! createNode or deleteNode is nullptr!");
+            return {nullptr, +[](NodeBase *) {}};
         }
-        ~NodeDll()
-        {
-            if (_handle != nullptr) {
-                DL_CLOSE(_handle);
-            }
+        return {(NodeBase *)createNode(app), deleteNode};
+    }
+    ~NodeDll()
+    {
+        if (_handle != nullptr) {
+            DL_CLOSE(_handle);
         }
+    }
 
-    private:
-        DL_HANDLE _handle = nullptr;
-    };
+private:
+    DL_HANDLE _handle = nullptr;
+};
 
     NodeManager::NodeManager(IApp *app) : _app(app), _taskScope(*app->get_io_context())
     {
         _taskScope.spawn(_events_loop());
     }
 
-    NodeManager::~NodeManager()
-    {
-        teardown_node().wait();
-        _taskScope.cancel();
-    }
+NodeManager::~NodeManager()
+{
+    teardown_node().wait();
+    _taskScope.cancel();
+}
 
-    auto NodeManager::load_node(std::string_view dll) -> std::string_view
-    {
-        _dlls.emplace_back(std::make_unique<NodeDll>());
-        if (_dlls.back()->load(dll)) {
-            auto node = _dlls.back()->create_node(_app);
-            if (node == nullptr) {
-                SPDLOG_ERROR("load plugin from {} failed!", dll);
-                _dlls.pop_back();
-                return "";
-            }
-            if (auto item = _nodeMap.find(node->name()); item != _nodeMap.end()) {
-                SPDLOG_ERROR("load plugin from {} failed! node({}) already exists!", dll,
-                             node->name());
-                _dlls.pop_back();
-                return "";
-            }
-            return add_node(std::move(node));
-        }
-        _dlls.pop_back();
-        return "";
-    }
-
-    auto NodeManager::load_nodes(std::string_view path) -> std::vector<std::string_view>
-    {
-        std::vector<std::string_view> names;
-        for (const auto &file : std::filesystem::directory_iterator(path)) {
-            if (file.is_regular_file()) {
-                auto name = load_node(file.path().string());
-                if (!name.empty()) {
-                    names.push_back(name);
-                }
-            }
-        }
-        return names;
-    }
-
-    auto NodeManager::add_node(std::unique_ptr<NodeBase, void (*)(NodeBase *)> &&node)
-        -> std::string_view
-    {
+auto NodeManager::load_node(std::string_view dll) -> std::string_view
+{
+    _dlls.emplace_back(std::make_unique<NodeDll>());
+    if (_dlls.back()->load(dll)) {
+        auto node = _dlls.back()->create_node(_app);
         if (node == nullptr) {
+            SPDLOG_ERROR("load plugin from {} failed!", dll);
+            _dlls.pop_back();
             return "";
         }
-        const auto *name = node->name();
-        if (auto item = _nodeMap.find(name); item != _nodeMap.end()) {
-            if (item->second->status == eNodeDestroyed) {
-                item->second->node   = std::move(node);
-                item->second->status = eNodeStatusStopped;
-                return name;
+        if (auto item = _nodeMap.find(node->name()); item != _nodeMap.end()) {
+            SPDLOG_ERROR("load plugin from {} failed! node({}) already exists!", dll, node->name());
+            _dlls.pop_back();
+            return "";
+        }
+        return add_node(std::move(node));
+    }
+    _dlls.pop_back();
+    return "";
+}
+
+auto NodeManager::load_nodes(std::string_view path) -> std::vector<std::string_view>
+{
+    std::vector<std::string_view> names;
+    for (const auto &file : std::filesystem::directory_iterator(path)) {
+        if (file.is_regular_file()) {
+            auto name = load_node(file.path().string());
+            if (!name.empty()) {
+                names.push_back(name);
             }
-            SPDLOG_ERROR("add node: {}<{}> failed! node already exists!", name, (void *)node.get());
+        }
+    }
+    return names;
+}
+
+auto NodeManager::add_node(std::unique_ptr<NodeBase, void (*)(NodeBase *)> &&node)
+    -> std::string_view
+{
+    if (node == nullptr) {
+        return "";
+    }
+    const auto *name = node->name();
+    if (auto item = _nodeMap.find(name); item != _nodeMap.end()) {
+        if (item->second->status == eNodeDestroyed) {
+            item->second->node   = std::move(node);
+            item->second->status = eNodeStatusStopped;
             return name;
         }
-        SPDLOG_INFO("add node: {}<{}>", name, (void *)node.get());
-        _nodeMap.insert(std::make_pair(
-            name, _nodeList.emplace(_nodeList.end(),
-                                    NodeData{std::move(node), NodeStatus::eNodeStatusStopped})));
+        SPDLOG_ERROR("add node: {}<{}> failed! node already exists!", name, (void *)node.get());
         return name;
     }
+    SPDLOG_INFO("add node: {}<{}>", name, (void *)node.get());
+    _nodeMap.insert(std::make_pair(
+        name, _nodeList.emplace(_nodeList.end(),
+                                NodeData{std::move(node), NodeStatus::eNodeStatusStopped})));
+    return name;
+}
 
     auto NodeManager::destroy_node(std::string_view name) -> int
     {
@@ -165,13 +166,13 @@ namespace mks::base
         return 0;
     }
 
-    auto NodeManager::setup_node(std::string_view name) -> ilias::Task<int>
-    {
-        if (auto item = _nodeMap.find(name); item != _nodeMap.end()) {
-            co_return co_await setup_node(*(item->second));
-        }
-        co_return -1;
+auto NodeManager::setup_node(std::string_view name) -> ilias::Task<int>
+{
+    if (auto item = _nodeMap.find(name); item != _nodeMap.end()) {
+        co_return co_await setup_node(*(item->second));
     }
+    co_return -1;
+}
 
     auto NodeManager::setup_node(NodeData &node) -> ilias::Task<int>
     {
@@ -243,138 +244,138 @@ namespace mks::base
         }
     }
 
-    auto NodeManager::subscribe(int type, Consumer *consumer) -> void
-    {
+auto NodeManager::subscribe(int type, Consumer *consumer) -> void
+{
+    SPDLOG_INFO("subscribe: {}<{}> type: {}", dynamic_cast<NodeBase *>(consumer)->name(),
+                (void *)dynamic_cast<NodeBase *>(consumer), type);
+    _consumerMap[type].insert(consumer);
+}
+
+auto NodeManager::subscribe(std::vector<int> types, Consumer *consumer) -> void
+{
+    for (int type : types) {
         SPDLOG_INFO("subscribe: {}<{}> type: {}", dynamic_cast<NodeBase *>(consumer)->name(),
                     (void *)dynamic_cast<NodeBase *>(consumer), type);
         _consumerMap[type].insert(consumer);
     }
+}
 
-    auto NodeManager::subscribe(std::vector<int> types, Consumer *consumer) -> void
-    {
-        for (int type : types) {
-            SPDLOG_INFO("subscribe: {}<{}> type: {}", dynamic_cast<NodeBase *>(consumer)->name(),
-                        (void *)dynamic_cast<NodeBase *>(consumer), type);
-            _consumerMap[type].insert(consumer);
-        }
-    }
+auto NodeManager::unsubscribe(int type, Consumer *consumer) -> void
+{
+    SPDLOG_INFO("unsubscribe: {}<{}> type: {}", dynamic_cast<NodeBase *>(consumer)->name(),
+                (void *)dynamic_cast<NodeBase *>(consumer), type);
+    _consumerMap[type].erase(consumer);
+}
 
-    auto NodeManager::unsubscribe(int type, Consumer *consumer) -> void
-    {
+auto NodeManager::unsubscribe(std::vector<int> types, Consumer *consumer) -> void
+{
+    for (int type : types) {
         SPDLOG_INFO("unsubscribe: {}<{}> type: {}", dynamic_cast<NodeBase *>(consumer)->name(),
                     (void *)dynamic_cast<NodeBase *>(consumer), type);
         _consumerMap[type].erase(consumer);
     }
+}
 
-    auto NodeManager::unsubscribe(std::vector<int> types, Consumer *consumer) -> void
-    {
-        for (int type : types) {
-            SPDLOG_INFO("unsubscribe: {}<{}> type: {}", dynamic_cast<NodeBase *>(consumer)->name(),
-                        (void *)dynamic_cast<NodeBase *>(consumer), type);
-            _consumerMap[type].erase(consumer);
-        }
+auto NodeManager::teardown_node(std::string_view name) -> ilias::Task<int>
+{
+    if (auto item = _nodeMap.find(name); item != _nodeMap.end()) {
+        co_return co_await teardown_node(*(item->second));
     }
+    co_return -1;
+}
 
-    auto NodeManager::teardown_node(std::string_view name) -> ilias::Task<int>
-    {
-        if (auto item = _nodeMap.find(name); item != _nodeMap.end()) {
-            co_return co_await teardown_node(*(item->second));
-        }
-        co_return -1;
-    }
-
-    auto NodeManager::teardown_node(NodeData &node) -> ilias::Task<int>
-    {
-        if (node.status == NodeStatus::eNodeStatusRunning) {
-            node.status    = NodeStatus::eNodeStatusStopped;
-            auto *consumer = dynamic_cast<Consumer *>(node.node.get());
-            if (consumer != nullptr) {
-                for (auto item = _consumerMap.begin(); item != _consumerMap.end();) {
-                    // 遍历所有协议的消费者表，删除防止其运行时订阅的遗漏。
-                    SPDLOG_INFO("unsubscribe: {}<{}> type: {}",
-                                dynamic_cast<NodeBase *>(consumer)->name(),
-                                (void *)dynamic_cast<NodeBase *>(consumer), item->first);
-                    item->second.erase(consumer);
-                    if (item->second.size() == 0) {
-                        item = _consumerMap.erase(item);
-                    }
-                    else {
-                        ++item;
-                    }
+auto NodeManager::teardown_node(NodeData &node) -> ilias::Task<int>
+{
+    if (node.status == NodeStatus::eNodeStatusRunning) {
+        node.status    = NodeStatus::eNodeStatusStopped;
+        auto *consumer = dynamic_cast<Consumer *>(node.node.get());
+        if (consumer != nullptr) {
+            for (auto item = _consumerMap.begin(); item != _consumerMap.end();) {
+                // 遍历所有协议的消费者表，删除防止其运行时订阅的遗漏。
+                SPDLOG_INFO("unsubscribe: {}<{}> type: {}",
+                            dynamic_cast<NodeBase *>(consumer)->name(),
+                            (void *)dynamic_cast<NodeBase *>(consumer), item->first);
+                item->second.erase(consumer);
+                if (item->second.size() == 0) {
+                    item = _consumerMap.erase(item);
+                }
+                else {
+                    ++item;
                 }
             }
-            auto *producer = dynamic_cast<Producer *>(node.node.get());
-            if (producer != nullptr) {
-                auto handle = _cancelHandleMap.find(node.node->name());
-                if (handle != _cancelHandleMap.end() && handle->second) {
-                    handle->second.cancel();
-                    co_await std::move(handle->second);
-                }
-                _cancelHandleMap.erase(handle);
-            }
-            co_return co_await node.node->teardown();
         }
-        co_return 0;
+        auto *producer = dynamic_cast<Producer *>(node.node.get());
+        if (producer != nullptr) {
+            auto handle = _cancelHandleMap.find(node.node->name());
+            if (handle != _cancelHandleMap.end() && handle->second) {
+                handle->second.cancel();
+                co_await std::move(handle->second);
+            }
+            _cancelHandleMap.erase(handle);
+        }
+        co_return co_await node.node->teardown();
     }
+    co_return 0;
+}
 
-    auto NodeManager::dispatch(const NekoProto::IProto &proto, NodeBase *nodebase) -> Task<void>
-    {
-        int type = proto.type();
-        for (auto *consumer : _consumerMap[type]) {
-            if (proto == nullptr) {
-                break;
-            }
-            if (dynamic_cast<NodeBase *>(consumer) == nodebase) {
-                continue;
-            }
-            SPDLOG_INFO("dispatch {} from {} to {}", proto.protoName(),
-                        nodebase == nullptr ? "unknow" : nodebase->name(),
-                        dynamic_cast<NodeBase *>(consumer)->name());
-            co_await consumer->handle_event(proto);
+auto NodeManager::dispatch(const NekoProto::IProto &proto, NodeBase *nodebase) -> Task<void>
+{
+    int type = proto.type();
+    for (auto *consumer : _consumerMap[type]) {
+        if (proto == nullptr) {
+            break;
         }
-        co_return;
+        if (dynamic_cast<NodeBase *>(consumer) == nodebase) {
+            continue;
+        }
+        SPDLOG_INFO("dispatch {} from {} to {}", proto.protoName(),
+                    nodebase == nullptr ? "unknow" : nodebase->name(),
+                    dynamic_cast<NodeBase *>(consumer)->name());
+        co_await consumer->handle_event(proto);
     }
+    co_return;
+}
 
-    auto NodeManager::setup_node() -> ilias::Task<int>
-    {
-        auto ret = 0;
-        for (auto &node : _nodeList) {
-            if (auto re = co_await setup_node(node); re != 0) {
-                ret = re;
-                SPDLOG_ERROR("node {} start failed!", node.node->name());
-            }
+auto NodeManager::setup_node() -> ilias::Task<int>
+{
+    auto ret = 0;
+    for (auto &node : _nodeList) {
+        if (auto re = co_await setup_node(node); re != 0) {
+            ret = re;
+            SPDLOG_ERROR("node {} start failed!", node.node->name());
         }
-        co_return ret;
     }
+    co_return ret;
+}
 
-    auto NodeManager::teardown_node() -> ilias::Task<int>
-    {
-        auto ret     = 0;
-        _isInProcess = true;
-        for (auto node = _nodeList.rbegin(); node != _nodeList.rend(); ++node) {
-            // FIXME:过程中删除节点在windows上可以运行，在ubuntu上会出现内存异常
-            if (auto re = co_await teardown_node(*node); re != 0) {
-                ret = re;
-                SPDLOG_ERROR("node {} stop failed!", node->node->name());
-            }
+auto NodeManager::teardown_node() -> ilias::Task<int>
+{
+    auto ret     = 0;
+    _isInProcess = true;
+    for (auto node = _nodeList.rbegin(); node != _nodeList.rend(); ++node) {
+        // FIXME:过程中删除节点在windows上可以运行，在ubuntu上会出现内存异常
+        if (auto re = co_await teardown_node(*node); re != 0) {
+            ret = re;
+            SPDLOG_ERROR("node {} stop failed!", node->node->name());
         }
-        for (auto item = _nodeMap.begin(); item != _nodeMap.end();) {
-            if (item->second->status == eNodeDestroyed) {
-                _nodeList.erase(item->second);
-                item = _nodeMap.erase(item);
-            }
-            else {
-                ++item;
-            }
-        }
-        _isInProcess = false;
-        co_return ret;
     }
+    for (auto item = _nodeMap.begin(); item != _nodeMap.end();) {
+        if (item->second->status == eNodeDestroyed) {
+            _nodeList.erase(item->second);
+            item = _nodeMap.erase(item);
+        }
+        else {
+            ++item;
+        }
+    }
+    _isInProcess = false;
+    co_return ret;
+}
 
-    auto NodeManager::get_nodes() -> std::list<NodeData> &
-    {
-        return _nodeList;
-    }
+auto NodeManager::get_nodes() -> std::list<NodeData> &
+{
+    return _nodeList;
+}
 
     auto NodeManager::get_nodes() const -> const std::list<NodeData> &
     {
@@ -389,9 +390,9 @@ namespace mks::base
         return nullptr;
     }
 
-    auto NodeManager::get_events() -> EventBase &
-    {
-        return _events;
-    }
+auto NodeManager::get_events() -> EventBase &
+{
+    return _events;
+}
 
-} // namespace mks::base
+MKS_END

@@ -9,11 +9,14 @@
  *
  */
 #pragma once
+#include <mksync/base/base_library.h>
 
 #include <string>
 
-#include "mksync/base/base_library.h"
 #include "mksync/proto/config_proto.hpp"
+
+MKS_BEGIN
+MKS_BASE_BEGIN
 
 // base config table, configuration column
 // config name | type | default value | description
@@ -27,14 +30,15 @@
     MKS_BASE_CONFIG(server_ipaddress, std::string, "0.0.0.0:8577", "sever ip")                     \
     MKS_BASE_CONFIG(remote_controller, std::string, "tcp://127.0.0.1:8578", "Remote controller type.")
 
-namespace mks::base
-{
 #define MKS_BASE_CONFIG(config_name, type, default_value, description)                             \
     inline static const type  config_name##_default_value      = default_value;                    \
     inline static const char *config_name##_config_description = description;                      \
     inline static const char *config_name##_config_name        = #config_name;
-    MKS_BASE_CONFIG_TABLE
-#undef MKS_BASE_CONFIG
 
-} // namespace mks::base
+MKS_BASE_CONFIG_TABLE
+
+#undef MKS_BASE_CONFIG
 #undef MKS_BASE_CONFIG_TABLE
+
+MKS_BASE_END
+MKS_END
