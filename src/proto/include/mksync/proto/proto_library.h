@@ -8,6 +8,7 @@
 
 #ifndef _MKSYNC_PROTO_LIBRARY_H_
 #define _MKSYNC_PROTO_LIBRARY_H_
+#include <mksync/config.h>
 
 #if defined(_WIN32) && defined(MKS_PROTO_DLL)
     #if defined(MKS_PROTO_EXPORTS)

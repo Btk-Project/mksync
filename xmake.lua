@@ -49,6 +49,7 @@ if is_plat("linux") then
     add_requires("libx11", {system = true})
     add_requires("libxcb", {system = true})
     add_requires("libxi", {system = true})
+    add_requires("xcb-util-keysyms", {system = true})
     -- sudo apt install libx11-dev libxi-dev libxcb-keysyms1-dev libxcb-util0-dev libxcb-xtest0-dev
 end
 -- normal libraries' dependencies configurations
