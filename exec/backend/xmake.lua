@@ -9,20 +9,14 @@ target("backend")
     set_kind("binary")
     set_targetdir("$(bindir)")
 
-    add_deps("core")
-    add_rules("target.clean", "target.autoname")
-
+    add_deps("config", "core")
     add_packages("cxxopts", "ilias", "sobjectizer", "spdlog", "neko-proto-tools")
 
-    -- version
-    -- set_configdir("./")
-    -- add_configfiles("*.rc.in")
-    -- add_files("*.rc")
-    -- target files
     -- add_includedirs("include", {public = true})
     -- add_headerfiles("include/(**)")
     -- add_headerfiles("src/**.hpp", "src/**.h", {install = false})
     add_files("src/**.cpp")
+
     if has_config("memcheck") then
         on_run(function (target)
             local argv = {}
@@ -31,5 +25,11 @@ target("backend")
             table.insert(argv, target:targetfile())
             os.execv("valgrind", argv)
         end)
-    end 
+    end
+
+    after_build(function (target) 
+        import("lua.auto", {rootdir = os.projectdir()})
+        auto().target_autoclean(target)
+        -- auto().binary_autoluanch(target)
+    end)
 target_end()
