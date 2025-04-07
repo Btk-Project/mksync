@@ -56,19 +56,19 @@ namespace mks::base
         return save();
     }
 
-    bool Settings::load()
-    {
-        if (!std::filesystem::exists(_file)) {
-            return true;
-        }
-        std::ifstream ifs(_file);
-        if (!ifs.is_open()) {
-            return false;
-        }
-        rapidjson::IStreamWrapper istream(ifs);
-        _document.ParseStream(istream);
-        return true;
+bool Settings::load()
+{
+    if (!std::filesystem::exists(_file)) {
+        return false;
     }
+    std::ifstream ifs(_file);
+    if (!ifs.is_open()) {
+        return false;
+    }
+    rapidjson::IStreamWrapper istream(ifs);
+    _document.ParseStream(istream);
+    return true;
+}
 
     bool Settings::load(std::string_view file)
     {

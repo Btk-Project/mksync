@@ -201,8 +201,8 @@ QPoint GraphicsScreenItem::adsorption_to_grid(QGraphicsScene *scene, QGraphicsIt
             qDebug() << "touching left" << rect << ": mvoe rectRect to" << retRect;
             touching = 1;
         }
-        if (((overlap & 1) != 0) && rect.top() - gridRect.bottom() < threshold &&
-            rect.top() - gridRect.bottom() >= -(rect.height() + gridRect.height()) / 2) {
+        else if (((overlap & 1) != 0) && rect.top() - gridRect.bottom() < threshold &&
+                 rect.top() - gridRect.bottom() >= -(rect.height() + gridRect.height()) / 2) {
             retRect.moveBottom(rect.top());
             qDebug() << "touching bottom" << rect << ": mvoe rectRect to" << retRect;
             touching = 2;

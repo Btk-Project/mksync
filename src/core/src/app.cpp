@@ -287,7 +287,8 @@ namespace mks::base
                 co_await start_console();
             }
             else {
-                co_await std::suspend_never{};
+                _exitEvent.clear();
+                co_await _exitEvent;
             }
         }
         co_return;
@@ -303,6 +304,7 @@ namespace mks::base
 
     auto App::stop() -> ilias::Task<void>
     {
+        _exitEvent.set();
         _isRuning = false;
         co_await stop_console();
         co_await _nodeManager.teardown_node();

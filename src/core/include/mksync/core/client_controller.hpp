@@ -14,15 +14,27 @@
 
 namespace mks::base
 {
+    /**
+     * @brief 客户端程序控制器
+     *
+     */
     class MKS_CORE_API ClientController final : public ControllerImp {
     public:
         ClientController(Controller *self, IApp *app);
         virtual ~ClientController();
+
+        ///> 启动节点。加载MKSender节点并初始化。
         [[nodiscard("coroutine function")]]
         auto setup() -> ::ilias::Task<int> override;
-        ///> 停用节点。
+        ///> 停用节点。卸载MKSender节点并清理。
         [[nodiscard("coroutine function")]]
         auto teardown() -> ::ilias::Task<int> override;
+        /**
+         * @brief 处理事件
+         * @note 目前客户端节点没有需要处理的事件
+         * @param event 
+         * @return ::ilias::Task<void> 
+         */
         [[nodiscard("coroutine function")]]
         auto handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void> override;
 

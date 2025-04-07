@@ -1,7 +1,7 @@
 /**
  * @file default_configs.hpp
  * @author llhsdmd (llhsdmd@gmail.com)
- * @brief
+ * @brief 软件配置项与默认值。
  * @version 0.1
  * @date 2025-03-18
  *

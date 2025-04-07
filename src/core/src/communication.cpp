@@ -17,6 +17,10 @@ namespace mks::base
     using ::ilias::TcpListener;
     using ::ilias::Unexpected;
 
+    /**
+     * @brief 通信模块服务命令
+     * @note 主要负责解析和执行启动服务模式相关命令
+     */
     class MKS_CORE_API ServerCommand : public Command {
     public:
         enum Operation
@@ -48,6 +52,10 @@ namespace mks::base
         cxxopts::Options _options;
     };
 
+    /**
+     * @brief 通信模块客户端命令
+     * @note 主要负责解析和执行启动客户端模式相关命令
+     */
     class MKS_CORE_API ClientCommand : public ServerCommand {
     public:
         ClientCommand(IApp *app, MKCommunication *self);
@@ -59,6 +67,10 @@ namespace mks::base
         auto need_proto_type() const -> int override;
     };
 
+    /**
+     * @brief 通信模块服务器模式下的对外接口
+     * 
+     */
     class MKS_CORE_API ServerCommunication : public IServerCommunication {
     public:
         ServerCommunication(MKCommunication *self);
@@ -67,13 +79,16 @@ namespace mks::base
         auto unsubscribes(int type) -> void override;
         auto unsubscribes(std::vector<int> types) -> void override;
         auto send(NekoProto::IProto &event, std::string_view peer) -> ilias::IoTask<void> override;
-        auto recv(std::string_view peer) -> ilias::IoTask<NekoProto::IProto> override;
         auto peers() const -> std::vector<std::string> override;
 
     private:
         MKCommunication *_self = nullptr;
     };
 
+    /**
+     * @brief 通信模块客户端模式下的对外接口
+     * 
+     */
     class MKS_CORE_API ClientCommunication : public IClientCommunication {
     public:
         ClientCommunication(MKCommunication *self);
@@ -82,7 +97,6 @@ namespace mks::base
         auto unsubscribes(int type) -> void override;
         auto unsubscribes(std::vector<int> types) -> void override;
         auto send(NekoProto::IProto &event) -> ilias::IoTask<void> override;
-        auto recv() -> ilias::IoTask<NekoProto::IProto> override;
 
     private:
         MKCommunication *_self = nullptr;
@@ -120,11 +134,6 @@ namespace mks::base
         return _self->send(event, peer);
     }
 
-    auto ServerCommunication::recv(std::string_view peer) -> ilias::IoTask<NekoProto::IProto>
-    {
-        return _self->recv(peer);
-    }
-
     auto ServerCommunication::peers() const -> std::vector<std::string>
     {
         return _self->peers();
@@ -159,11 +168,6 @@ namespace mks::base
     auto ClientCommunication::send(NekoProto::IProto &event) -> ilias::IoTask<void>
     {
         return _self->send(event, "self");
-    }
-
-    auto ClientCommunication::recv() -> ilias::IoTask<NekoProto::IProto>
-    {
-        return _self->recv("self");
     }
 
     ServerCommand::ServerCommand(IApp *app, MKCommunication *self, const char *name)

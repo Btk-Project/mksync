@@ -38,32 +38,72 @@ namespace mks::base
     public:
         Trie() : _root(std::make_unique<TrieNode>()) {}
 
-        /**
-         * @brief insert to trie
-         *
-         * @param str
-         * @param value
-         * @return ilias::Result<void>
-         */
-        auto insert(std::string_view str, const value_type &value) -> ilias::Result<void>;
-        template <typename... Args>
-        auto emplace(std::string_view str, Args &&...args) -> ilias::Result<void>;
-        /**
-         * @brief search in trie
-         *
-         * @param str
-         * @return ilias::Result<T>
-         */
-        auto at(std::string_view str) const -> const value_type &;
-        auto at(std::string_view str) -> value_type &;
-        auto search(std::string_view str) -> ilias::Result<value_type>;
-        auto remove(std::string_view str) -> bool;
-        auto size() -> std::size_t;
-        /**
-         * @brief clear the trie
-         *
-         */
-        auto clear() -> void;
+    /**
+     * @brief insert to trie
+     *
+     * @param str
+     * @param value
+     * @return ilias::Result<void>
+     */
+    auto insert(std::string_view str, const value_type &value) -> ilias::Result<void>;
+    template <typename... Args>
+    auto emplace(std::string_view str, Args &&...args) -> ilias::Result<void>;
+
+    /**
+     * @brief get value from trie
+     * @note if the value is not found, it will throw an exception
+     * @param str 
+     * @return const value_type& 
+     */
+    auto at(std::string_view str) const -> const value_type &;
+    auto at(std::string_view str) -> value_type &;
+
+    /**
+     * @brief search in trie
+     *
+     * @param str
+     * @return ilias::Result<T>
+     */
+    auto search(std::string_view str) -> ilias::Result<value_type>;
+
+    /**
+     * @brief check if the trie contains the string
+     * 
+     * @param str 
+     * @return true 
+     * @return false 
+     */
+    auto contains(std::string_view str) -> bool;
+
+    /**
+     * @brief remove the string from trie
+     * 
+     * @param str 
+     * @return true 
+     * @return false 
+     */
+    auto remove(std::string_view str) -> bool;
+
+    /**
+     * @brief get the size of the trie
+     * 
+     * @return std::size_t 
+     */
+    auto size() -> std::size_t;
+
+    /**
+     * @brief clear the trie
+     *
+     */
+    auto clear() -> void;
+
+    /**
+     * @brief check if the trie is empty
+     * 
+     * @return true 
+     * @return false 
+     */
+    auto empty() -> bool;
 
         iterator_type begin();
         iterator_type end();
@@ -322,21 +362,28 @@ namespace mks::base
         return {};
     }
 
-    template <typename T>
-    auto Trie<T>::search(std::string_view str) -> ilias::Result<value_type>
-    {
-        auto node = _root.get();
-        for (auto ch : str) {
-            if (node->children.find(ch) == node->children.end()) {
-                return ilias::Unexpected<ilias::Error>(ilias::Error::Unknown);
-            }
-            node = node->children.at(ch).get();
+template <typename T>
+auto Trie<T>::search(std::string_view str) -> ilias::Result<value_type>
+{
+    auto node = _root.get();
+    for (auto ch : str) {
+        if (node->children.find(ch) == node->children.end()) {
+            return ilias::Unexpected<ilias::Error>(ilias::Error::Unknown);
         }
-        if (node->isEndOfWord) {
-            return node->value;
-        }
-        return ilias::Unexpected<ilias::Error>(ilias::Error::Unknown);
+        node = node->children.at(ch).get();
     }
+    if (node->isEndOfWord) {
+        return node->value;
+    }
+    return ilias::Unexpected<ilias::Error>(ilias::Error::Unknown);
+}
+
+template <typename T>
+auto Trie<T>::contains(std::string_view str) -> bool {
+    auto val = search(str);
+    return val.has_value();
+}
+
 
     template <typename T>
     auto Trie<T>::at(std::string_view str) -> value_type &
