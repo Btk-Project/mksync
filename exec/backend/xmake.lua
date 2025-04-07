@@ -12,7 +12,7 @@ target("backend")
     add_deps("core")
     add_rules("target.clean", "target.autoname")
 
-    add_packages("cxxopts", "ilias", "sobjectizer", "spdlog", "neko-proto")
+    add_packages("cxxopts", "ilias", "sobjectizer", "spdlog", "neko-proto-tools")
 
     -- version
     -- set_configdir("./")

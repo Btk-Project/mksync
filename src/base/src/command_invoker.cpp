@@ -291,33 +291,49 @@ namespace mks::base
         co_return;
     }
 
-    auto CommandInvoker::remove_cmd(NodeBase *module) -> void
-    {
-        if (module == nullptr) {
-            _commands.clear();
-            _modules.clear();
-            _trie.clear();
-            for (auto &[key, value] : _protoCommandsTable) {
-                _app->node_manager().unsubscribe(key, this);
-            }
-            _protoCommandsTable.clear();
-            SPDLOG_INFO("remove all commands");
-            return;
+auto CommandInvoker::remove_cmd(NodeBase *module) -> void
+{
+    if (module == nullptr) {
+        _commands.clear();
+        _modules.clear();
+        _trie.clear();
+        for (auto &[key, value] : _protoCommandsTable) {
+            _app->node_manager().unsubscribe(key, this);
         }
-        SPDLOG_INFO("remove commands for module {}<{}>", module->name(), (void *)module);
-        auto itemRange = _modules.equal_range(module->name());
-        for (auto item = itemRange.first; item != itemRange.second; ++item) {
-            const auto &command = *item->second;
-            _trie.remove(command->name());
-            for (const auto &cmd : command->alias_names()) {
-                _trie.remove(cmd);
-            }
-            _app->node_manager().unsubscribe(command->need_proto_type(), this);
-            _protoCommandsTable.erase(command->need_proto_type());
-            _commands.erase(item->second);
-        }
-        _modules.erase(itemRange.first, itemRange.second);
+        _protoCommandsTable.clear();
+        SPDLOG_INFO("remove all commands");
+        return;
     }
+    SPDLOG_INFO("remove commands for module {}<{}>", module->name(), (void *)module);
+    auto itemRange = _modules.equal_range(module->name());
+    for (auto item = itemRange.first; item != itemRange.second; ++item) {
+        const auto &command = *item->second;
+        _trie.remove(command->name());
+        for (const auto &cmd : command->alias_names()) {
+            _trie.remove(cmd);
+        }
+        _app->node_manager().unsubscribe(command->need_proto_type(), this);
+        _protoCommandsTable.erase(command->need_proto_type());
+        _commands.erase(item->second);
+    }
+    _modules.erase(itemRange.first, itemRange.second);
+}
+
+auto CommandInvoker::remove_cmd(std::string_view cmd) -> void
+{
+    auto item = _trie.search(cmd);
+    if (item) {
+        const auto &command = *(*item);
+        _trie.remove(command->name());
+        for (const auto &cm : command->alias_names()) {
+            _trie.remove(cm);
+        }
+        _app->node_manager().unsubscribe(command->need_proto_type(), this);
+        _protoCommandsTable.erase(command->need_proto_type());
+        _commands.erase(*item);
+        SPDLOG_INFO("remove command \"{}\"", cmd);
+    }
+}
 
     auto CommandInvoker::execute(std::span<char> cmd) -> Task<std::string>
     {
