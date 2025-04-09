@@ -25,7 +25,7 @@
     MKS_BASE_CONFIG(module_list, std::vector<std::string>, {}, "Module list to load.")             \
     MKS_BASE_CONFIG(screen_settings, std::vector<VirtualScreenConfig>, {}, "Screen's settings.")   \
     MKS_BASE_CONFIG(server_ipaddress, std::string, "0.0.0.0:8577", "sever ip")                     \
-    MKS_BASE_CONFIG(remote_controller, std::string, "tcp:127.0.0.1:8578", "Remote controller type.")
+    MKS_BASE_CONFIG(remote_controller, std::string, "tcp://127.0.0.1:8578", "Remote controller type.")
 
 namespace mks::base
 {

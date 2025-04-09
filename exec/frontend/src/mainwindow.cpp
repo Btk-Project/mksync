@@ -23,7 +23,7 @@
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), _settingFile(QApplication::applicationDirPath() + "/config.json"),
-      _ui(new Ui::MainWindow), _buttonGroup(new QButtonGroup(this))
+      _ui(new Ui::MainWindow), _buttonGroup(new QButtonGroup(this)), _rpcClient(_ctxt)
 {
     _ui->setupUi(this);
     // 设置无边框窗口
@@ -66,6 +66,10 @@ MainWindow::MainWindow(QWidget *parent)
         _ui->listWidget->addItem(item);
     });
 
+    connect(&_rpcReconnectTimer, &QTimer::timeout, this, &MainWindow::setup_backend);
+    _rpcReconnectTimer.setSingleShot(true);
+    _rpcReconnectTimer.start(3000);
+
 #ifndef NDEBUG
     _ui->listWidget->addItem(ScreenListView::make_screen_item("testScreen0", QSize{1920, 1080}));
     _ui->listWidget->addItem(ScreenListView::make_screen_item("testScreen1", QSize{1440, 900}));
@@ -76,6 +80,9 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow()
 {
+    _process.kill();
+    _process.waitForFinished();
+    _rpcClient.close();
     delete _ui;
 }
 
@@ -111,7 +118,6 @@ void MainWindow::mouseReleaseEvent(QMouseEvent *event)
 void MainWindow::showEvent(QShowEvent *event)
 {
     refresh_configs();
-
     QMainWindow::showEvent(event);
 }
 
@@ -254,7 +260,7 @@ void MainWindow::refresh_configs(QString file)
     }
     _ui->module_list_edit->setPlainText(moduleListQStr.join("\n"));
     auto remoteAddress =
-        _settings["remote_controller"].toString(QLatin1String("tcp:127.0.0.1:8578"));
+        _settings["remote_controller"].toString(QLatin1String("tcp://127.0.0.1:8578"));
     _ui->remote_address_edit->setText(remoteAddress);
 
     auto serverIpaddress = _settings["server_ipaddress"].toString(QLatin1String("0.0.0.0:857"));
@@ -288,6 +294,51 @@ void MainWindow::changeEvent(QEvent *event)
     }
 }
 
+void MainWindow::stop_rpc_reconnected_timer()
+{
+    _rpcReconnectTimer.stop();
+}
+
+void MainWindow::start_rpc_reconnected_timer()
+{
+    _rpcReconnectTimer.start(10000);
+    _rpcReconnectTimer.setSingleShot(true);
+}
+
+void MainWindow::setup_backend()
+{
+    auto remoteAddress = _ui->remote_address_edit->text();
+    if (!_rpcClient.isConnected()) {
+        if (!(ilias_wait _rpcClient.connect(remoteAddress.toStdString())) &&
+            _process.state() != QProcess::Running) {
+            _process.startCommand(QString("MKsyncBackend config --dir=%1 --noconsole")
+                                      .arg(_ui->config_file_edit->text()));
+            _process.waitForStarted();
+            ilias_wait _rpcClient.connect(remoteAddress.toStdString());
+        }
+    }
+    if (_rpcClient.isConnected()) {
+        if (auto ret = ilias_wait _rpcClient->clientStatus(); ret && ret.value() == 1) {
+            _ui->client_start_button->setText(tr("stop"));
+        }
+        else {
+            _ui->client_start_button->setText(tr("start"));
+        }
+
+        if (auto ret = ilias_wait _rpcClient->serverStatus(); ret && ret.value() == 1) {
+            _ui->server_start_button->setText(tr("stop"));
+        }
+        else {
+            _ui->server_start_button->setText(tr("start"));
+        }
+        stop_rpc_reconnected_timer();
+    }
+    else {
+        MaterialToast::show(this, "backend程序连接失败");
+        start_rpc_reconnected_timer();
+    }
+}
+
 void MainWindow::server_config()
 {
     auto configs                 = _scene.get_screen_configs();
@@ -304,6 +355,8 @@ void MainWindow::server_config()
         file.write(modifiedDoc.toJson());
         file.close();
     }
+
+    ilias_wait _rpcClient->reloadConfigFile(_settingFile.toStdString());
 }
 
 void MainWindow::client_config()
@@ -320,16 +373,63 @@ void MainWindow::client_config()
         file.write(modifiedDoc.toJson());
         file.close();
     }
+
+    ilias_wait _rpcClient->reloadConfigFile(_settingFile.toStdString());
 }
 
 void MainWindow::server_start()
 {
-    // TODO:
+    if (_ui->server_start_button->text() == tr("start")) {
+        auto ip   = _ui->server_ip_edit->text();
+        auto port = _ui->server_port_edit->text();
+        if (ip.contains(':')) {
+            ip = "[" + ip + "]";
+        }
+
+        _ui->server_start_button->setDisabled(true);
+        if (auto ret = ilias_wait _rpcClient->server(mks::ServerControl::eStart, ip.toStdString(),
+                                                     port.toInt());
+            ret && ret.value() == "") {
+            _ui->server_start_button->setText(tr("stop"));
+        }
+        else {
+            MaterialToast::show(
+                this, QString("启动失败: %1")
+                          .arg(QString::fromStdString(ret ? ret.value() : ret.error().message())));
+        }
+        _ui->server_start_button->setDisabled(false);
+    }
+    else if (_ui->server_start_button->text() == tr("stop")) {
+        ilias_wait _rpcClient->server(mks::ServerControl::eStop, "", 0);
+        _ui->server_start_button->setText(tr("start"));
+    }
 }
 
 void MainWindow::client_start()
 {
-    // TODO:
+    if (_ui->client_start_button->text() == tr("start")) {
+        auto ip   = _ui->client_ip_edit->text();
+        auto port = _ui->client_port_edit->text();
+        if (ip.contains(':')) {
+            ip = "[" + ip + "]";
+        }
+        _ui->client_start_button->setDisabled(true);
+        if (auto ret = ilias_wait _rpcClient->client(mks::ClientControl::eStart, ip.toStdString(),
+                                                     port.toInt());
+            ret && ret.value() == "") {
+            _ui->client_start_button->setText(tr("stop"));
+        }
+        else {
+            MaterialToast::show(
+                this, QString("启动失败: %1")
+                          .arg(QString::fromStdString(ret ? ret.value() : ret.error().message())));
+        }
+        _ui->client_start_button->setDisabled(false);
+    }
+    else if (_ui->client_start_button->text() == tr("stop")) {
+        ilias_wait _rpcClient->client(mks::ClientControl::eStop, "", 0);
+        _ui->client_start_button->setText(tr("start"));
+    }
 }
 
 void MainWindow::setting_config()
@@ -365,4 +465,6 @@ void MainWindow::setting_config()
         file.write(modifiedDoc.toJson());
         file.close();
     }
+
+    ilias_wait _rpcClient->reloadConfigFile(_settingFile.toStdString());
 }

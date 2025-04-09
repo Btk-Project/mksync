@@ -33,13 +33,12 @@ void MaterialToast::show(QWidget *parent, const QString &message, int durationMs
     if (effectiveParent != nullptr) {
         QPoint targetPos    = effectiveParent->mapToGlobal(QPoint(0, 0)); // Top-left of parent
         int    parentWidth  = effectiveParent->width();
-        int    parentHeight = effectiveParent->height();
         int    toastWidth   = toast->width();
         int    toastHeight  = toast->height();
 
         // Position: Bottom-center, with some margin
         int posx = targetPos.x() + ((parentWidth - toastWidth) / 2);
-        int posy = targetPos.y() + parentHeight - toastHeight - 20; // 20px margin from bottom
+        int posy = targetPos.y() + 20; // 20px margin from top
 
         // Ensure it stays within screen bounds (basic check)
         QRect screenGeometry = effectiveParent->screen()->availableGeometry();

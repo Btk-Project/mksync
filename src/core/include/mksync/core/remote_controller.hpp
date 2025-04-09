@@ -11,14 +11,15 @@
 #pragma once
 
 #include <ilias/sync/scope.hpp>
+#include <nekoproto/jsonrpc/jsonrpc.hpp>
 
 #include "mksync/core/core_library.h"
 #include "mksync/base/nodebase.hpp"
+#include "mksync/proto/rpc_proto.hpp"
 
 namespace mks::base
 {
     class IApp;
-    class RemoteControllerImp;
 
     class MKS_CORE_API RemoteController : public NodeBase {
     public:
@@ -30,9 +31,11 @@ namespace mks::base
         auto teardown() -> ::ilias::Task<int> override;
         auto name() -> const char * override;
 
+        auto rpc_server() -> NekoProto::JsonRpcServer<BaseMethods> &;
+
     private:
-        IApp                                *_app;
-        std::unique_ptr<RemoteControllerImp> _imp;
-        ::ilias::TaskScope                   _taskScop;
+        IApp                                 *_app;
+        NekoProto::JsonRpcServer<BaseMethods> _rpcServer;
+        ::ilias::TaskScope                    _taskScop;
     };
 } // namespace mks::base

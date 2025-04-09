@@ -200,14 +200,18 @@ namespace mks::base
         auto _events_loop() -> ::ilias::Task<void>;
 
     private:
-        IApp                                                                *_app;
-        EventBase                                                            _events;
-        std::list<NodeData>                                                  _nodeList;
-        std::map<int, std::set<Consumer *>>                                  _consumerMap;
-        std::unordered_map<std::string_view, std::list<NodeData>::iterator>  _nodeMap;
-        ::ilias::TaskScope                                                   _taskScope;
-        std::vector<std::unique_ptr<NodeDll>>                                _dlls;
+        IApp               *_app;
+        EventBase           _events;
+        std::list<NodeData> _nodeList;
+        ::ilias::TaskScope  _taskScope;
+        // 是否正在teardown节点，在teardown过程中不能删除节点
+        bool _isInProcess = false;
+        // 协议类型 -> 订阅了该协议的消费者集合
+        std::map<int, std::set<Consumer *>> _consumerMap;
+        // 节点名称 -> 节点迭代器
+        std::unordered_map<std::string_view, std::list<NodeData>::iterator> _nodeMap;
+        std::vector<std::unique_ptr<NodeDll>>                               _dlls;
+        // 节点名称 -> 生产者节点循环的取消句柄
         std::unordered_map<std::string_view, ilias::TaskScope::WaitHandle<>> _cancelHandleMap;
-        bool                                                                 _isInProcess = false;
     };
 } // namespace mks::base

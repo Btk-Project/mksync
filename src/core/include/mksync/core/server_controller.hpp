@@ -12,6 +12,7 @@
 
 #include "mksync/core/core_library.h"
 #include "mksync/core/controller.hpp"
+#include "mksync/core/math_types.hpp"
 
 namespace mks::base
 {
@@ -30,8 +31,7 @@ namespace mks::base
 
     public:
         ///> 配置屏幕信息
-        auto set_virtual_screen_positions(std::string_view srcScreen, std::string_view dstScreen,
-                                          int direction) -> void;
+        auto set_virtual_screen_positions(std::string_view srcScreen, Point<int> pos) -> void;
         ///> 展示当前配置
         auto show_virtual_screen_positions() -> std::string;
         ///> 从配置中删除屏幕
