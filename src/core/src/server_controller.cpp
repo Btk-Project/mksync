@@ -6,6 +6,7 @@
 #include "mksync/base/default_configs.hpp"
 #include "mksync/core/mk_sender.hpp"
 #include "mksync/core/math_types.hpp"
+#include "mksync/core/remote_controller.hpp"
 
 namespace mks::base
 {
@@ -23,14 +24,6 @@ namespace mks::base
             eRemoveScreen,
             eShowConfigs,
         };
-        enum Direction
-        {
-            eUnknown,
-            eLeft,
-            eRight,
-            eTop,
-            eBottom,
-        };
 
     public:
         VScreenCmd(ServerController *controller);
@@ -46,9 +39,8 @@ namespace mks::base
 
     private:
         Operation         _operation;
-        Direction         _direction;
         std::string       _srcScreen;
-        std::string       _dstScreen;
+        Point<int>        _pos;
         ServerController *_controller;
         cxxopts::Options  _options;
     };
@@ -65,16 +57,16 @@ namespace mks::base
             ret.pop_back();
             ret.pop_back();
         }
-        _options.custom_help(fmt::format(
-            "{}{}{}{} [options...], config the screens. specification src, dst, direction to set "
-            "dst near src. specification remove for src. show to print all settings.",
-            this->name(), ret.empty() ? "" : "(", ret, ret.empty() ? "" : ")"));
+        _options.custom_help(fmt::format("{}{}{}{} [options...], config the screens. specification "
+                                         "--src $(screen_name) --pos $(width).$(height) to move"
+                                         "specification --remove --src $(screen_name). "
+                                         "specification --show to print all settings.",
+                                         this->name(), ret.empty() ? "" : "(", ret,
+                                         ret.empty() ? "" : ")"));
         _options.add_options()("src", "src virtual screen name", cxxopts::value<std::string>(),
-                               "[screen_name]")("dst", "dst virtual screen name",
-                                                cxxopts::value<std::string>(), "[screen_name]")(
-            "direction", "direction, left, right, top, bottom", cxxopts::value<std::string>(),
-            "[string]")("show", "show virtual screen configs",
-                        cxxopts::value<bool>()->default_value("false"))(
+                               "[screen_name]")("pos", "lefttop pos, int width.height",
+                                                cxxopts::value<std::string>(), "[string]")(
+            "show", "show virtual screen configs", cxxopts::value<bool>()->default_value("false"))(
             "remove", "remove virtual screen", cxxopts::value<bool>()->default_value("false"));
         _options.allow_unrecognised_options();
     }
@@ -83,12 +75,12 @@ namespace mks::base
     {
         switch (_operation) {
         case eSetScreen:
-            if (_srcScreen.empty() || _dstScreen.empty() || _direction == eUnknown) {
+            if (_srcScreen.empty()) {
                 SPDLOG_ERROR(
                     "please specify the src, dst and direction to set the screen position");
                 co_return "please specify the src, dst and direction to set the screen position";
             }
-            _controller->set_virtual_screen_positions(_srcScreen, _dstScreen, _direction);
+            _controller->set_virtual_screen_positions(_srcScreen, _pos);
             break;
         case eRemoveScreen:
             if (_srcScreen.empty()) {
@@ -104,9 +96,8 @@ namespace mks::base
             SPDLOG_ERROR("unknown operation");
             co_return "unknown operation";
         }
-        _dstScreen = "";
+        _pos       = {};
         _srcScreen = "";
-        _direction = eUnknown;
         _operation = eNone;
         co_return "";
     }
@@ -131,28 +122,22 @@ namespace mks::base
         if (option == "src") {
             _srcScreen = value;
         }
-        else if (option == "dst") {
-            _dstScreen = value;
-        }
-        else if (option == "direction") {
+        else if (option == "pos") {
+            auto pos   = value;
             _operation = eSetScreen;
-            if (value == "left") {
-                _direction = eLeft;
-            }
-            else if (value == "right") {
-                _direction = eRight;
-            }
-            else if (value == "top") {
-                _direction = eTop;
-            }
-            else if (value == "bottom") {
-                _direction = eBottom;
+            auto split = pos.find('.');
+            if (split != std::string::npos) {
+                int width = 0;
+                std::from_chars(pos.data(), pos.data() + split, width);
+                int height = 0;
+                std::from_chars(pos.data() + split + 1, pos.data() + pos.size(), height);
+                _pos = {width, height};
             }
             else {
-                _direction = eUnknown;
+                SPDLOG_ERROR("invalid pos, should be width.height");
             }
         }
-        if (option == "show") {
+        else if (option == "show") {
             _operation = eShowConfigs;
         }
         else if (option == "remove") {
@@ -171,26 +156,19 @@ namespace mks::base
         if (retsult.count("src") != 0U) {
             _srcScreen = retsult["src"].as<std::string>();
         }
-        if (retsult.count("dst") != 0U) {
-            _dstScreen = retsult["dst"].as<std::string>();
-        }
-        if (retsult.count("direction") != 0U) {
-            auto direction = retsult["direction"].as<std::string>();
-            _operation     = eSetScreen;
-            if (direction == "left") {
-                _direction = eLeft;
-            }
-            else if (direction == "right") {
-                _direction = eRight;
-            }
-            else if (direction == "top") {
-                _direction = eTop;
-            }
-            else if (direction == "bottom") {
-                _direction = eBottom;
+        if (retsult.count("pos") != 0U) {
+            auto pos   = retsult["pos"].as<std::string>();
+            _operation = eSetScreen;
+            auto split = pos.find('.');
+            if (split != std::string::npos) {
+                int width = 0;
+                std::from_chars(pos.data(), pos.data() + split, width);
+                int height = 0;
+                std::from_chars(pos.data() + split + 1, pos.data() + pos.size(), height);
+                _pos = {width, height};
             }
             else {
-                _direction = eUnknown;
+                SPDLOG_ERROR("invalid pos, should be width.height");
             }
         }
         if (retsult.count("show") != 0U) {
@@ -237,8 +215,6 @@ namespace mks::base
         _register_event_handler<ClientDisconnected>();
         _register_event_handler<MouseMotionEvent>();
         _register_event_handler<BorderEvent>();
-        // _register_event_handler<AppStatusChanged>();
-        // _subscribes.pop_back(); // AppStatusChanged在主节点里面被订阅了，弹出防止其被取消订阅。
         auto commandInstaller = _app->command_installer(_self);
         commandInstaller(std::make_unique<VScreenCmd>(this));
         auto &settings  = _app->settings();
@@ -274,6 +250,32 @@ namespace mks::base
             NekoProto::ProtoFactory::protoType<MouseWheelEvent>(),
             NekoProto::ProtoFactory::protoType<KeyboardEvent>(),
         });
+
+        auto *rpcModule =
+            dynamic_cast<RemoteController *>(_app->node_manager().get_node("RemoteController"));
+        if (rpcModule != nullptr) {
+            auto &rpcServer                   = rpcModule->rpc_server();
+            rpcServer->setVirtualScreenConfig = [this](VirtualScreenConfig vsconfig) {
+                set_virtual_screen_positions(vsconfig.name, {vsconfig.posX, vsconfig.posY});
+            };
+            rpcServer->setVirtualScreenConfigs =
+                [this](std::vector<VirtualScreenConfig> vsconfigs) {
+                    for (auto &vsconfig : vsconfigs) {
+                        set_virtual_screen_positions(vsconfig.name, {vsconfig.posX, vsconfig.posY});
+                    }
+                };
+            rpcServer->getOnlineScreens = [this]() -> std::vector<VirtualScreenInfo> {
+                std::vector<VirtualScreenInfo> configs;
+                for (auto &[peer, vs] : _virtualScreens) {
+                    if (peer != "self") {
+                        configs.push_back(vs);
+                    }
+                }
+                return configs;
+            };
+            rpcServer->serverStatus = []() -> int { return 1; };
+        }
+
         co_return 0;
     }
 
@@ -281,6 +283,15 @@ namespace mks::base
     {
         if (_captureNode.empty()) {
             co_return 0;
+        }
+        auto *rpcModule =
+            dynamic_cast<RemoteController *>(_app->node_manager().get_node("RemoteController"));
+        if (rpcModule != nullptr) {
+            auto &rpcServer = rpcModule->rpc_server();
+            rpcServer->setVirtualScreenConfig.clear();
+            rpcServer->setVirtualScreenConfigs.clear();
+            rpcServer->getOnlineScreens.clear();
+            rpcServer->serverStatus.clear();
         }
         co_await _sender->teardown();
         _app->node_manager().unsubscribe(_subscribes, _self);
@@ -311,11 +322,9 @@ namespace mks::base
     }
 
     ///> 配置屏幕信息
-    auto ServerController::set_virtual_screen_positions(std::string_view srcScreen,
-                                                        std::string_view dstScreen, int direction)
+    auto ServerController::set_virtual_screen_positions(std::string_view srcScreen, Point<int> pos)
         -> void
     {
-        // TODO: 用更高效的方式存储该配置，目前的方式遍历次数有点多了。
         VirtualScreenInfo srcVs;
         if (auto item = _screenNameTable.find(srcScreen); item != _screenNameTable.end()) {
             srcVs = item->second->second;
@@ -324,62 +333,23 @@ namespace mks::base
             SPDLOG_ERROR("screen {} not found.", srcScreen);
             return;
         }
-
-        VirtualScreenInfo dstVs;
-        if (auto item = _screenNameTable.find(dstScreen); item != _screenNameTable.end()) {
-            dstVs = item->second->second;
-        }
-        else {
-            SPDLOG_ERROR("screen {} not found.", dstScreen);
-            return;
-        }
-        VirtualScreenConfig *dstConfig = nullptr;
-        if (auto item =
-                std::find_if(_vscreenConfig.begin(), _vscreenConfig.end(),
-                             [dstScreen](const auto &sct) { return dstScreen == sct.name; });
-            item != _vscreenConfig.end()) {
-            dstConfig = std::addressof(*item);
-        }
-        else {
-            SPDLOG_ERROR("screen {} not found in config.", dstScreen);
-            return;
-        }
-        VirtualScreenConfig *srcConfig = nullptr;
         if (auto item =
                 std::find_if(_vscreenConfig.begin(), _vscreenConfig.end(),
                              [srcScreen](const auto &sct) { return srcScreen == sct.name; });
             item != _vscreenConfig.end()) {
+            item->posX   = pos.x;
+            item->posY   = pos.y;
             item->width  = (int)srcVs.width;
             item->height = (int)srcVs.height;
-            srcConfig    = std::addressof(*item);
         }
         else {
             _vscreenConfig.emplace_back(VirtualScreenConfig{
                 .name   = srcVs.name,
-                .posX   = 0,
-                .posY   = 0,
+                .posX   = pos.x,
+                .posY   = pos.y,
                 .width  = (int)srcVs.width,
                 .height = (int)srcVs.height,
             });
-            srcConfig = std::addressof(_vscreenConfig.back());
-        }
-        switch (direction) {
-        case VScreenCmd::eLeft:
-            srcConfig->posX = dstConfig->posX - srcConfig->width;
-            srcConfig->posY = dstConfig->posY;
-            break;
-        case VScreenCmd::eRight:
-            srcConfig->posX = dstConfig->posX + dstConfig->width;
-            srcConfig->posY = dstConfig->posY;
-            break;
-        case VScreenCmd::eTop:
-            srcConfig->posX = dstConfig->posX;
-            srcConfig->posY = dstConfig->posY - srcConfig->height;
-            break;
-        case VScreenCmd::eBottom:
-            srcConfig->posX = dstConfig->posX;
-            srcConfig->posY = dstConfig->posY + dstConfig->height;
-            break;
         }
     }
     ///> 展示当前配置

@@ -2,6 +2,7 @@
 
 #include "mksync/core/client_controller.hpp"
 #include "mksync/core/mk_sender.hpp"
+#include "mksync/core/remote_controller.hpp"
 
 namespace mks::base
 {
@@ -28,6 +29,12 @@ namespace mks::base
         }
         co_await _app->push_event(SenderControl::emplaceProto(SenderControl::eStart),
                                   _self); // 直接开启
+        auto *rpcModule =
+            dynamic_cast<RemoteController *>(_app->node_manager().get_node("RemoteController"));
+        if (rpcModule != nullptr) {
+            auto &rpcServer         = rpcModule->rpc_server();
+            rpcServer->serverStatus = []() -> int { return 1; };
+        }
         co_return 0;
     }
 
@@ -43,6 +50,12 @@ namespace mks::base
         }
         _app->node_manager().destroy_node(_senderNode);
         _senderNode = "";
+        auto *rpcModule =
+            dynamic_cast<RemoteController *>(_app->node_manager().get_node("RemoteController"));
+        if (rpcModule != nullptr) {
+            auto &rpcServer = rpcModule->rpc_server();
+            rpcServer->serverStatus.clear();
+        }
         co_return 0;
     }
 

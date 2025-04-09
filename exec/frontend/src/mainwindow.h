@@ -11,9 +11,15 @@
 #include <QGraphicsGridLayout>
 #include <QPushButton>
 #include <QJsonObject>
+#include <ilias/ilias.hpp>
+#include <ilias/platform/qt.hpp>
+#include <nekoproto/jsonrpc/jsonrpc.hpp>
+#include <QProcess>
+#include <QTimer>
 
 #include "screen_scene.hpp"
 #include "graphics_screen_item.hpp"
+#include "mksync/proto/rpc_proto.hpp"
 
 namespace Ui
 {
@@ -34,7 +40,11 @@ public:
     void showEvent(QShowEvent *event) override;
     void changeEvent(QEvent *event) override;
 
+    void stop_rpc_reconnected_timer();
+    void start_rpc_reconnected_timer();
+
 public Q_SLOTS:
+    void setup_backend();
     void server_config();
     void client_config();
     void server_start();
@@ -47,17 +57,21 @@ private:
     void _load_configs(const QString &file);
 
 private:
-    bool            _dragging;
-    bool            _resizing;
-    QPoint          _dragStartPos;
-    QPoint          _resizeStartPos;
-    QSize           _resizeStartSize;
-    ScreenScene     _scene;
-    bool            _isFull;
-    QString         _settingFile;
-    QJsonObject     _settings;
-    Ui::MainWindow *_ui;
-    QButtonGroup   *_buttonGroup;
+    bool                                       _dragging;
+    bool                                       _resizing;
+    QPoint                                     _dragStartPos;
+    QPoint                                     _resizeStartPos;
+    QSize                                      _resizeStartSize;
+    ScreenScene                                _scene;
+    bool                                       _isFull;
+    QString                                    _settingFile;
+    QJsonObject                                _settings;
+    Ui::MainWindow                            *_ui;
+    QButtonGroup                              *_buttonGroup;
+    NekoProto::JsonRpcClient<mks::BaseMethods> _rpcClient;
+    QTimer                                     _rpcReconnectTimer;
+    QProcess                                   _process;
+    ilias::QIoContext                          _ctxt;
 };
 
 #endif // MAINWINDOW_H
