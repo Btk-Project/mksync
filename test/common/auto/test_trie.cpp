@@ -4,7 +4,7 @@
 
 TEST(Trie, Basic)
 {
-    mks::base::Trie<int> trie;
+    mks::Trie<int> trie;
     trie.insert("abc", 1);
     trie.insert("ab", 2);
     trie.insert("abcd", 3);

@@ -27,9 +27,14 @@ target("backend")
         end)
     end
 
+    on_load(function (target) 
+        import("lua.auto", {rootdir = os.projectdir()})
+        auto().target_autoname(target)
+        -- auto().binary_autoluanch(target)
+    end)
+
     after_build(function (target) 
         import("lua.auto", {rootdir = os.projectdir()})
         auto().target_autoclean(target)
-        -- auto().binary_autoluanch(target)
     end)
 target_end()

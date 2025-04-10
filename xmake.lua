@@ -71,5 +71,5 @@ if is_mode("debug") then
 end
 
 includes("src/*/xmake.lua")
--- includes("exec/*/xmake.lua")
--- includes("test/*/xmake.lua")
+includes("exec/*/xmake.lua")
+includes("test/*/xmake.lua")
