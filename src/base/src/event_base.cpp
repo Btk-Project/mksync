@@ -1,7 +1,6 @@
 #include "mksync/base/event_base.hpp"
 
 MKS_BEGIN
-MKS_BASE_BEGIN
 
 EventBase::EventBase(std::size_t size) : _queue(size) {}
 
@@ -72,5 +71,4 @@ auto EventBase::size() const -> std::size_t
     return _queue.size();
 }
 
-MKS_BASE_END
 MKS_END

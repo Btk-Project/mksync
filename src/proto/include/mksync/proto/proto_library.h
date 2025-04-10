@@ -26,9 +26,4 @@
     #endif
 #endif
 
-#define MKS_PROTO_BEGIN                                                                            \
-    namespace proto                                                                                \
-    {
-#define MKS_PROTO_END }
-
 #endif

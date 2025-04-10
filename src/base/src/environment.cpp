@@ -6,7 +6,6 @@
 #include <iterator>
 
 MKS_BEGIN
-MKS_BASE_BEGIN
 
 char **convert_argc_argv(size_t argc, const wchar_t *const *wargv, std::string &args,
                          std::vector<char *> &argvector)
@@ -51,5 +50,4 @@ std::string string_to_argc_argv(const std::string &str, int &argc,
     return buffer;
 }
 
-MKS_BASE_END
 MKS_END

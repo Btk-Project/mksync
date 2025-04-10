@@ -2,7 +2,7 @@
 
 #include "mksync/base/ring_buffer.hpp"
 
-using namespace mks::base;
+using MKS_BEGIN;
 
 TEST(RingBuffer, Test)
 {

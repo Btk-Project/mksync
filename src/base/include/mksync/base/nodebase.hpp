@@ -34,7 +34,6 @@
 #include <nekoproto/communication/communication_base.hpp>
 
 MKS_BEGIN
-MKS_BASE_BEGIN
 
 class IApp;
 /**
@@ -103,15 +102,14 @@ public:
     virtual auto get_event() -> ::ilias::IoTask<NekoProto::IProto> = 0;
 };
 
-MKS_BASE_END
 MKS_END
 
 #define MKS_MAKE_NODE_FUNC_NAME "mks_make_node"
 #define MKS_MAKE_NODE_FUNC                                                                         \
-    extern "C" ::mks::base::NodeBase *mks_make_node([[maybe_unused]] void *app)
+    extern "C" ::mks::NodeBase *mks_make_node([[maybe_unused]] void *app)
 #define MKS_DELETE_NODE_FUNC_NAME "mks_delete_node"
-#define MKS_DELETE_NODE_FUNC extern "C" void mks_delete_node(::mks::base::NodeBase *node)
+#define MKS_DELETE_NODE_FUNC extern "C" void mks_delete_node(::mks::NodeBase *node)
 ///> 从dll中创建一个NodeBase对象，如果有命令需要注册可以通过app的接口。
 typedef void *(*MKS_MAKE_NODE_FUNC_TYPE)(void *app);
 ///> 删除该dll创建出来的node对象。
-typedef void (*MKS_DELETE_NODE_FUNC_TYPE)(::mks::base::NodeBase *node);
+typedef void (*MKS_DELETE_NODE_FUNC_TYPE)(::mks::NodeBase *node);

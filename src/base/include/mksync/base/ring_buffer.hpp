@@ -15,7 +15,6 @@
 #include <utility>
 
 MKS_BEGIN
-MKS_BASE_BEGIN
 
 /**
  * @brief ringbuffer
@@ -133,5 +132,4 @@ auto RingBuffer<T>::capacity() const -> std::size_t
     return _capacity - 1;
 }
 
-MKS_BASE_END
 MKS_END

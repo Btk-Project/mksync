@@ -18,7 +18,6 @@
 #include <cxxopts.hpp>
 
 MKS_BEGIN
-MKS_BASE_BEGIN
 
 /**
  * @brief Command
@@ -72,5 +71,4 @@ public:
     virtual auto need_proto_type() const -> int = 0;
 };
 
-MKS_BASE_END
 MKS_END

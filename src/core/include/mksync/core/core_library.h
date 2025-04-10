@@ -25,9 +25,4 @@
     #endif
 #endif
 
-#define MKS_CORE_BEGIN                                                                             \
-    namespace core                                                                                 \
-    {
-#define MKS_CORE_END }
-
 #endif

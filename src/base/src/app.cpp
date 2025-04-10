@@ -12,7 +12,6 @@
 #endif
 
 MKS_BEGIN
-MKS_BASE_BEGIN
 
 auto IApp::app_name() -> const char *
 {
@@ -24,5 +23,4 @@ auto IApp::app_version() -> const char *
     return MKS_VERSION;
 }
 
-MKS_BASE_END
 MKS_END

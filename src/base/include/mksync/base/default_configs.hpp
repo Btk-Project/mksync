@@ -16,7 +16,6 @@
 #include "mksync/proto/config_proto.hpp"
 
 MKS_BEGIN
-MKS_BASE_BEGIN
 
 // base config table, configuration column
 // config name | type | default value | description
@@ -40,5 +39,4 @@ MKS_BASE_CONFIG_TABLE
 #undef MKS_BASE_CONFIG
 #undef MKS_BASE_CONFIG_TABLE
 
-MKS_BASE_END
 MKS_END

@@ -2,7 +2,7 @@
 
 #include "mksync/core/math_types.hpp"
 
-using namespace mks::base;
+using namespace mks;
 
 TEST(Math, Point)
 {

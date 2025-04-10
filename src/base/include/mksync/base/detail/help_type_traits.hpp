@@ -21,7 +21,6 @@
 #include <nekoproto/proto/json_serializer.hpp>
 
 MKS_BEGIN
-MKS_BASE_BEGIN
 
 namespace detail
 {
@@ -214,5 +213,4 @@ namespace detail
     }
 } // namespace detail
 
-MKS_BASE_END
 MKS_END

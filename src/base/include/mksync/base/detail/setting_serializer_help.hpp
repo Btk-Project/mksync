@@ -794,7 +794,6 @@ namespace NekoProto
 } // namespace NekoProto
 
 MKS_BEGIN
-MKS_BASE_BEGIN
 
 namespace detail
 {
@@ -825,5 +824,4 @@ namespace detail
     }
 } // namespace detail
 
-MKS_BASE_END
 MKS_END

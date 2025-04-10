@@ -26,9 +26,4 @@
     #endif
 #endif
 
-#define MKS_BASE_BEGIN                                                                             \
-    namespace base                                                                                 \
-    {
-#define MKS_BASE_END }
-
 #endif
