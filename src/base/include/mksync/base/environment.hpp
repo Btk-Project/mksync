@@ -7,15 +7,12 @@
 //
 
 #pragma once
-
-#include "mksync/base/base_library.h"
-#include "mksync/base/osdep.h"
+#include <mksync/base/base_library.h>
 
 #include <string>
 #include <vector>
 
 MKS_BEGIN
-MKS_BASE_BEGIN
 
 /**
  * @brief 将 unicode(wchar_t)编码 的 argv 转换成 utf8(char)编码 的 argv
@@ -43,5 +40,4 @@ MKS_BASE_API char **convert_argc_argv(size_t argc, const wchar_t *const *wargv, 
 MKS_BASE_API std::string string_to_argc_argv(const std::string &str, int &argc,
                                              std::vector<const char *> &argvector);
 
-MKS_BASE_END
 MKS_END

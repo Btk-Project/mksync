@@ -9,17 +9,17 @@
  *
  */
 #pragma once
+#include <mksync/base/base_library.h>
 
 #include <nekoproto/proto/proto_base.hpp>
 #include <ilias/sync/event.hpp>
 #include <ilias/sync/scope.hpp>
 
 #include "mksync/base/ring_buffer.hpp"
-#include "mksync/base/base_library.h"
 #include "mksync/base/nodebase.hpp"
 
-namespace mks::base
-{
+MKS_BEGIN
+
 class MKS_BASE_API EventBase {
 public:
     struct Event {
@@ -28,8 +28,8 @@ public:
     };
     using EventQueue = RingBuffer<Event>;
 
-        EventBase(std::size_t size = 100);
-        ~EventBase();
+    EventBase(std::size_t size = 100);
+    ~EventBase();
 
     /**
      * @brief 尝试向事件队列中推入事件
@@ -88,9 +88,10 @@ public:
      */
     auto size() const -> std::size_t;
 
-    private:
-        ::ilias::Event _emptySync;
-        ::ilias::Event _fullSync;
-        EventQueue     _queue;
-    };
-} // namespace mks::base
+private:
+    ::ilias::Event _emptySync;
+    ::ilias::Event _fullSync;
+    EventQueue     _queue;
+};
+
+MKS_END

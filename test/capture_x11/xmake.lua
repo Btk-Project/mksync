@@ -1,25 +1,21 @@
 
 if is_host("linux") and not is_plat("corss") then
-add_requires("libx11", "libxi", "libxcb")
--- sudo apt install libx11-dev libxi-dev libxcb-keysyms1-dev libxcb-util0-dev libxcb-xtest0-dev
 target("capture_x11")
     set_kind("binary")
     set_targetdir("$(testdir)")
 
-    add_deps("proto")
-    add_rules("target.clean")
-    add_packages("out_ptr", "sobjectizer", "spdlog")
-    add_packages("libx11", "libxi", "libxcb", "ilias")
-    add_links("X11", "Xi", "xcb", "xcb-keysyms", "xcb-util", "xcb-xtest")
+    add_deps("config", "proto")
+    add_packages("out_ptr", "sobjectizer", "spdlog", "ilias", "libx11", "libxi", "libxcb")
 
-    -- version
-    -- set_configdir("./")
-    -- add_configfiles("*.rc.in")
-    -- add_files("*.rc")
-    -- target files
     -- add_includedirs("include", {public = true})
     -- add_headerfiles("include/(**)")
     -- add_headerfiles("src/**.hpp", "src/**.h", {install = false})
     add_files("src/**.cpp")
+
+    after_build(function (target) 
+        import("lua.auto", {rootdir = os.projectdir()})
+        auto().target_autoclean(target)
+        -- auto().binary_autoluanch(target)
+    end)
 target_end()
 end

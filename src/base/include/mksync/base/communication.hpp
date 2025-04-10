@@ -9,13 +9,12 @@
  *
  */
 #pragma once
+#include <mksync/base/base_library.h>
 
 #include <nekoproto/communication/communication_base.hpp>
 
-#include "mksync/base/base_library.h"
+MKS_BEGIN
 
-namespace mks::base
-{
 // 公共通信接口
 class MKS_BASE_API ICommunication {
 public:
@@ -91,4 +90,4 @@ public:
     [[nodiscard("coroutine function")]]
     virtual auto send(NekoProto::IProto &event) -> ilias::IoTask<void> = 0;
 };
-}
+MKS_END

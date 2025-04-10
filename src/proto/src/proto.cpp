@@ -2,11 +2,12 @@
 
 #include <iostream>
 
-namespace mks
+MKS_BEGIN
+
+uint32_t proto_unused()
 {
-    uint32_t proto_unused()
-    {
-        std::cout << "mksync proto:" << __FUNCTION__ << std::endl;
-        return 0;
-    }
-} // namespace mks
+    std::cout << "mksync proto:" << __FUNCTION__ << std::endl;
+    return 0;
+}
+
+MKS_END

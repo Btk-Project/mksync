@@ -257,4 +257,4 @@
     SCANCODE_MAP(0xe07e, KeyCode::eUnknown            , XK_VoidSymbol),
     SCANCODE_MAP(0xe07f, KeyCode::eUnknown            , XK_VoidSymbol),
     SCANCODE_MAP(0,      KeyCode::ePlusminus          , XK_plusminus),
-};
+}

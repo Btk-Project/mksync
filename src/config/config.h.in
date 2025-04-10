@@ -1,0 +1,27 @@
+#ifndef _MKS_CONGIG_H_
+#define _MKS_CONGIG_H_
+
+#include "os.h"
+#include "host.h"
+#include "target.h"
+#include "compiler.h"
+
+#define MKS_VERSION "${VERSION}"
+#define MKS_VERSION_MAJOR ${VERSION_MAJOR}
+#define MKS_VERSION_MINOR ${VERSION_MINOR}
+#define MKS_VERSION_ALTER ${VERSION_ALTER}
+#define MKS_VERSION_BUILD ${VERSION_BUILD}
+#define MKS_PLAT "${PLAT}"
+#define MKS_ARCH "${ARCH}"
+#define MKS_MODE "${MODE}"
+#define MKS_DEBUG ${DEBUG}
+#define MKS_OS "${OS}"
+
+${define MKS_LUANCH}
+
+#define MKS_BEGIN                                                                                  \
+    namespace mks                                                                                  \
+    {
+#define MKS_END }
+
+#endif
