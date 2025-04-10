@@ -17,25 +17,24 @@
 #include "mksync/base/nodebase.hpp"
 #include "mksync/proto/rpc_proto.hpp"
 
-namespace mks::base
-{
-    class IApp;
+MKS_BEGIN
+class IApp;
 
-    class MKS_CORE_API RemoteController : public NodeBase {
-    public:
-        RemoteController(IApp *app);
-        ~RemoteController();
-        [[nodiscard("coroutine function")]]
-        auto setup() -> ::ilias::Task<int> override;
-        [[nodiscard("coroutine function")]]
-        auto teardown() -> ::ilias::Task<int> override;
-        auto name() -> const char * override;
+class MKS_CORE_API RemoteController : public NodeBase {
+public:
+    RemoteController(IApp *app);
+    ~RemoteController();
+    [[nodiscard("coroutine function")]]
+    auto setup() -> ::ilias::Task<int> override;
+    [[nodiscard("coroutine function")]]
+    auto teardown() -> ::ilias::Task<int> override;
+    auto name() -> const char * override;
 
-        auto rpc_server() -> NekoProto::JsonRpcServer<BaseMethods> &;
+    auto rpc_server() -> NekoProto::JsonRpcServer<BaseMethods> &;
 
-    private:
-        IApp                                 *_app;
-        NekoProto::JsonRpcServer<BaseMethods> _rpcServer;
-        ::ilias::TaskScope                    _taskScop;
-    };
-} // namespace mks::base
+private:
+    IApp                                 *_app;
+    NekoProto::JsonRpcServer<BaseMethods> _rpcServer;
+    ::ilias::TaskScope                    _taskScop;
+};
+MKS_END

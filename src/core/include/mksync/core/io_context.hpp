@@ -13,14 +13,12 @@
 
 #if defined(_WIN32)
     #include "mksync/core/platform/win_context.hpp"
-namespace mks::base
-{
-    using IoContext = WinContext;
-}
+MKS_BEGIN
+using IoContext = WinContext;
+MKS_END
 #elif defined(__linux__)
     #include <ilias/platform.hpp>
-namespace mks::base
-{
-    using IoContext = ::ilias::PlatformContext;
-}
+MKS_BEGIN
+using IoContext = ::ilias::PlatformContext;
+MKS_END
 #endif

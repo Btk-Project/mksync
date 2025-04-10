@@ -2,3 +2,5 @@
 /.xmake/
 /bin/
 /build/
+
+config.h
