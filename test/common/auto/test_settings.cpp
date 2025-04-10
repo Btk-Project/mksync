@@ -22,7 +22,7 @@ TEST(Settings, Default)
         .width  = 1920,
         .height = 1080,
     };
-    mks::base::Settings settings("./config.json");
+    mks::Settings settings("./config.json");
     settings.set("appname", "mksync");
     settings.set("version", "0.0.1");
     settings.set("loglevel", "info");
@@ -46,7 +46,7 @@ TEST(Settings, Default)
 
 TEST(Settings, Load)
 {
-    mks::base::Settings settings("./config.json");
+    mks::Settings settings("./config.json");
     EXPECT_EQ(settings.get<std::string>("appname", ""), "mksync");
     EXPECT_EQ(settings.get<std::string>("version", ""), "0.0.1");
     EXPECT_EQ(settings.get<std::string>("loglevel", ""), "info");
