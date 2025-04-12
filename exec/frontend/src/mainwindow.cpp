@@ -36,9 +36,11 @@ MainWindow::MainWindow(QWidget *parent)
     connect(_ui->minimize_button, &QPushButton::clicked, this, &MainWindow::showMinimized);
     connect(_ui->layout_button, &QPushButton::clicked, this, [this]() {
         if (isMaximized()) {
+            qDebug() << "show normal";
             showNormal();
         }
         else {
+            qDebug() << "show maximize";
             showMaximized();
         }
     });

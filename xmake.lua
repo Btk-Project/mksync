@@ -12,7 +12,7 @@ set_exceptions("cxx")
 set_encodings("utf-8")
 
 -- 添加编译选项
-add_rules("mode.release", "mode.debug", "mode.releasedbg", "mode.minsizerel")
+add_rules("mode.release", "mode.mydebug", "mode.releasedbg", "mode.minsizerel")
 add_rules("plugin.compile_commands.autoupdate", {lsp = "clangd", outputdir = ".vscode"})
 
 if is_plat("linux") then
@@ -21,6 +21,7 @@ if is_plat("linux") then
 end
 
 -- 编译设置
+option("frontend", {showmenu = true, default = true, type = "boolean"})
 option("3rd_kind",     {showmenu = true, default = "shared", values = {"static", "shared"}})
 option("buildversion", {showmenu = true, default = "0", type = "string"})
 option("outputdir",    {showmenu = true, default = "bin", type = "string"})
@@ -37,9 +38,9 @@ add_requires(
     -- c++23
     "out_ptr",
     -- tools
-    "cxxopts",
-    "rapidjson"
+    "cxxopts"
 )
+add_requires("rapidjson", {configs = {header_only = true}})
 add_requires("ilias", {version = "dev"})
 -- normal libraries
 add_requires("spdlog", {version = "1.x.x", configs = {shared = is_config("3rd_kind", "shared"), header_only = false, fmt_external = true, wchar = true, wchar_console = true}})
@@ -57,6 +58,7 @@ add_requireconfs("**.fmt", {override = true, version = "11.0.x", configs = {shar
 add_requireconfs("**.spdlog", {override = true, version = "1.x.x", configs = {shared = is_config("3rd_kind", "shared"), header_only = false, fmt_external = true, wchar = true, wchar_console = true}})
 add_requireconfs("**.neko-proto-tools", {override = true, version = "dev", configs = {shared = is_config("3rd_kind", "shared"), enable_simdjson = false, enable_rapidjson = true, enable_fmt = true, enable_communication = true}})
 add_requireconfs("**.ilias", {override = true, version = "dev"})
+add_requireconfs("**.rapidjson", {override = true, configs = {header_only = true}})
 if is_plat("linux") then
     add_requireconfs("**.libportal", {system = true, optional = true})
     -- apt::python3-pip apt::libgirepository1.0-dev apt::valac
@@ -71,5 +73,11 @@ if is_mode("debug") then
 end
 
 includes("src/*/xmake.lua")
-includes("exec/*/xmake.lua")
+includes("exec/backend/xmake.lua")
 includes("test/*/xmake.lua")
+
+if has_config("frontend") then 
+    add_requires("qt6base")
+    set_runtimes("MD")
+    includes("exec/frontend/xmake.lua")
+end
