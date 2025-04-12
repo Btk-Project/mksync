@@ -49,3 +49,17 @@ option("datadir")
         ))
     end)
 option_end()
+
+rule("mode.mydebug")
+    on_config(function (target)
+
+        if is_mode("mydebug") then
+            if not target:get("symbols") then
+                target:set("symbols", "debug")
+            end
+            if not target:get("optimize") then
+                target:set("optimize", "none")
+            end
+            target:add("cuflags", "-G")
+        end
+    end)
