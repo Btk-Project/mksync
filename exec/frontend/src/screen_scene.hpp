@@ -26,6 +26,9 @@ public:
     auto config_screens(const QString &self, const QJsonArray &configs) -> void;
     auto get_self_item() -> GraphicsScreenItem *;
     auto contains_screen(const QString &screen) -> bool;
+    auto new_screen_item(QString screen, QPoint scenePos, QSize size, int id = 0)
+        -> GraphicsScreenItem *;
+    bool remove_screen_item(QString screen);
 
 Q_SIGNALS:
     void remove_screen(QString screen, QSize size);

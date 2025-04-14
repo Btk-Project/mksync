@@ -13,6 +13,7 @@
 #include <QJsonObject>
 #include <ilias/ilias.hpp>
 #include <ilias/platform/qt.hpp>
+// #include <ilias/platform/qt_utils.hpp>
 #include <nekoproto/jsonrpc/jsonrpc.hpp>
 #include <QProcess>
 #include <QTimer>
@@ -42,14 +43,20 @@ public:
 
     void stop_rpc_reconnected_timer();
     void start_rpc_reconnected_timer();
-
-public Q_SLOTS:
-    void setup_backend();
-    void server_config();
-    void client_config();
-    void server_start();
-    void client_start();
-    void setting_config();
+    // [[nodiscard("coroutine function")]]
+    auto refresh_online_screens() -> void;
+    // [[nodiscard("coroutine function")]]
+    auto setup_backend() -> void;
+    // [[nodiscard("coroutine function")]]
+    auto server_config() -> void;
+    // [[nodiscard("coroutine function")]]
+    auto client_config() -> void;
+    // [[nodiscard("coroutine function")]]
+    auto server_start() -> void;
+    // [[nodiscard("coroutine function")]]
+    auto client_start() -> void;
+    // [[nodiscard("coroutine function")]]
+    auto setting_config() -> void;
     void button_clicked(QAbstractButton *button);
     void refresh_configs(QString file = "");
 

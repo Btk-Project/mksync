@@ -12,42 +12,16 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 
-#ifdef _WIN32
-    #include <Windows.h>
-    #include <windowsx.h>
-    #include <dwmapi.h>
-#endif
-
 #include "graphics_screen_item.hpp"
 #include "materialtoast.hpp"
+#include "mksync/base/default_configs.hpp"
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), _settingFile(QApplication::applicationDirPath() + "/config.json"),
       _ui(new Ui::MainWindow), _buttonGroup(new QButtonGroup(this)), _rpcClient(_ctxt)
 {
     _ui->setupUi(this);
-    // 设置无边框窗口
-    setWindowFlags(Qt::FramelessWindowHint);
-    // 设置窗口透明
-    setAttribute(Qt::WA_TranslucentBackground);
-    HWND  hwnd  = (HWND)this->winId();
-    DWORD style = ::GetWindowLong(hwnd, GWL_STYLE);
-    ::SetWindowLong(hwnd, GWL_STYLE, style | WS_MAXIMIZEBOX | WS_THICKFRAME);
-    connect(_ui->minimize_button, &QPushButton::clicked, this, &MainWindow::showMinimized);
-    connect(_ui->layout_button, &QPushButton::clicked, this, [this]() {
-        if (isMaximized()) {
-            qDebug() << "show normal";
-            showNormal();
-        }
-        else {
-            qDebug() << "show maximize";
-            showMaximized();
-        }
-    });
-    connect(_ui->close_button, &QPushButton::clicked, this, &MainWindow::close);
 
-    connect(_ui->client_config_button, &QPushButton::clicked, this, &MainWindow::client_config);
-    connect(_ui->server_config_button, &QPushButton::clicked, this, &MainWindow::server_config);
     connect(_ui->server_start_button, &QPushButton::clicked, this, &MainWindow::server_start);
     connect(_ui->client_start_button, &QPushButton::clicked, this, &MainWindow::client_start);
     connect(_ui->setting_config_button, &QPushButton::clicked, this, &MainWindow::setting_config);
@@ -67,17 +41,11 @@ MainWindow::MainWindow(QWidget *parent)
         auto *item = ScreenListView::make_screen_item(screen, size);
         _ui->listWidget->addItem(item);
     });
-
+    connect(_ui->graphicsView, &ScreenEditView::refresh_screens_request, this,
+            &MainWindow::refresh_online_screens);
     connect(&_rpcReconnectTimer, &QTimer::timeout, this, &MainWindow::setup_backend);
     _rpcReconnectTimer.setSingleShot(true);
-    _rpcReconnectTimer.start(3000);
-
-#ifndef NDEBUG
-    _ui->listWidget->addItem(ScreenListView::make_screen_item("testScreen0", QSize{1920, 1080}));
-    _ui->listWidget->addItem(ScreenListView::make_screen_item("testScreen1", QSize{1440, 900}));
-    _ui->listWidget->addItem(ScreenListView::make_screen_item("testScreen2", QSize{1280, 720}));
-    _ui->listWidget->addItem(ScreenListView::make_screen_item("testScreen3", QSize{1024, 768}));
-#endif
+    _rpcReconnectTimer.start(10);
 }
 
 MainWindow::~MainWindow()
@@ -90,31 +58,17 @@ MainWindow::~MainWindow()
 
 void MainWindow::mousePressEvent(QMouseEvent *event)
 {
-    // if (event->button() == Qt::LeftButton) {
-    //     if (_ui->title->geometry().contains(event->pos())) {
-    //         // 否则进入拖拽模式
-    //         _dragging     = true;
-    //         _dragStartPos = event->globalPosition().toPoint() - frameGeometry().topLeft();
-    //     }
-    // }
+    return QMainWindow::mousePressEvent(event);
 }
 
 void MainWindow::mouseMoveEvent(QMouseEvent *event)
 {
-    // if (_dragging) {
-    //     // 移动窗口
-    //     move(event->globalPosition().toPoint() - _dragStartPos);
-    // }
+    return QMainWindow::mouseMoveEvent(event);
 }
 
 void MainWindow::mouseReleaseEvent(QMouseEvent *event)
 {
-    // if (event->button() == Qt::LeftButton) {
-    //     if (_dragging) {
-    //         unsetCursor(); // 恢复默认光标
-    //     }
-    //     _dragging = false;
-    // }
+    return QMainWindow::mouseReleaseEvent(event);
 }
 
 void MainWindow::showEvent(QShowEvent *event)
@@ -125,71 +79,6 @@ void MainWindow::showEvent(QShowEvent *event)
 
 bool MainWindow::nativeEvent(const QByteArray &eventType, void *message, qintptr *result)
 {
-#ifdef _WIN32
-    MSG *msg = static_cast<MSG *>(message);
-    switch (msg->message) {
-    case WM_NCHITTEST: {
-        *result               = 0;
-        const int borderWidth = 8;
-        RECT      winrect;
-        GetWindowRect((HWND)winId(), &winrect);
-        auto posx = GET_X_LPARAM(msg->lParam);
-        auto posy = GET_Y_LPARAM(msg->lParam);
-
-        // 还原windows系统snap assist行为
-        double dpr = this->devicePixelRatioF();
-        QPoint pos = _ui->title->mapFromGlobal(QPoint(posx / dpr, posy / dpr));
-
-        if (_ui->title->rect().contains(pos)) {
-            *result = HTCAPTION;
-        }
-
-        if (_ui->layout_button->geometry().contains(pos)) {
-            *result = 0;
-        }
-
-        if (_ui->minimize_button->geometry().contains(pos)) {
-            *result = 0;
-        }
-
-        if (_ui->close_button->geometry().contains(pos)) {
-            *result = 0;
-        }
-
-        // 还原Windows系统窗口resize行为, 优先级高于标题栏拖拽行为，否则会导致标题栏上无法缩放。
-        if (posy < winrect.top + borderWidth) {
-            *result = HTTOP;
-        }
-        if (posy > winrect.bottom - borderWidth) {
-            *result = HTBOTTOM;
-        }
-        if (posx < winrect.left + borderWidth) {
-            *result = HTLEFT;
-        }
-        if (posx > winrect.right - borderWidth) {
-            *result = HTRIGHT;
-        }
-        if (posy < winrect.top + borderWidth && posx < winrect.left + borderWidth) {
-            *result = HTTOPLEFT;
-        }
-        if (posy < winrect.top + borderWidth && posx > winrect.right - borderWidth) {
-            *result = HTTOPRIGHT;
-        }
-        if (posy > winrect.bottom - borderWidth && posx < winrect.left + borderWidth) {
-            *result = HTBOTTOMLEFT;
-        }
-        if (posy > winrect.bottom - borderWidth && posx > winrect.right - borderWidth) {
-            *result = HTBOTTOMRIGHT;
-        }
-
-        if (*result != 0) {
-            return true;
-        }
-    } break;
-    default:
-        break;
-    }
-#endif
     return QMainWindow::nativeEvent(eventType, message, result);
 }
 
@@ -249,23 +138,27 @@ void MainWindow::refresh_configs(QString file)
 {
     _load_configs(file);
     _ui->config_file_edit->setText(_settingFile);
-    _ui->screen_name_edit->setText(_settings["screen_name"].toString(QLatin1String("unknow")));
+    _ui->screen_name_edit->setText(_settings[mks::screen_name_config_name].toString(
+        QString::fromStdString(mks::screen_name_default_value)));
 
-    _ui->max_log_records_edit->setValue(_settings["max_log_records"].toInt(1000));
+    _ui->max_log_records_edit->setValue(
+        _settings[mks::max_log_records_config_name].toInt(mks::max_log_records_default_value));
 
-    _ui->log_level_edit->setCurrentText(_settings["log_level"].toString(QLatin1String("warn")));
+    _ui->log_level_edit->setCurrentText(_settings[mks::log_level_config_name].toString(
+        QString::fromStdString(mks::log_level_default_value)));
 
-    auto        moduleList = _settings["module_list"].toArray();
+    auto        moduleList = _settings[mks::module_list_config_name].toArray();
     QStringList moduleListQStr;
     for (auto module : moduleList) {
         moduleListQStr << module.toString();
     }
     _ui->module_list_edit->setPlainText(moduleListQStr.join("\n"));
-    auto remoteAddress =
-        _settings["remote_controller"].toString(QLatin1String("tcp://127.0.0.1:8578"));
+    auto remoteAddress = _settings[mks::remote_controller_config_name].toString(
+        QString::fromStdString(mks::remote_controller_default_value));
     _ui->remote_address_edit->setText(remoteAddress);
 
-    auto serverIpaddress = _settings["server_ipaddress"].toString(QLatin1String("0.0.0.0:857"));
+    auto serverIpaddress = _settings[mks::server_ipaddress_config_name].toString(
+        QString::fromStdString(mks::server_ipaddress_default_value));
 
     auto serverIp   = serverIpaddress.mid(0, serverIpaddress.lastIndexOf(':'));
     auto serverPort = serverIpaddress.mid(serverIpaddress.lastIndexOf(':') + 1);
@@ -276,10 +169,51 @@ void MainWindow::refresh_configs(QString file)
     _ui->client_ip_edit->setText(_ui->server_ip_edit->text());
     _ui->client_port_edit->setValue(_ui->server_port_edit->value());
 
-    _scene.config_screens(_settings["screen_name"].toString(QLatin1String("unknow")),
-                          _settings["screen_settings"].toArray());
+    _scene.config_screens(_ui->screen_name_edit->text(),
+                          _settings[mks::screen_settings_config_name].toArray());
     _ui->graphicsView->fit_view_to_scene();
 }
+
+auto MainWindow::refresh_online_screens() -> void
+{
+    auto ret = ilias_wait _rpcClient->getOnlineScreens();
+    if (ret) {
+        auto                                                 screens = ret.value();
+        std::map<std::string_view, mks::VirtualScreenInfo *> screenMap;
+        for (auto screen : screens) {
+            screenMap[screen.name] = &screen;
+        }
+        auto screenInScene = _scene.items();
+        for (auto *screen : screenInScene) {
+            auto *screenItem = dynamic_cast<GraphicsScreenItem *>(screen);
+            if (auto item = screenMap.find(screenItem->get_screen_name().toStdString());
+                item != screenMap.end()) {
+                screenItem->set_screen_id(item->second->screenId);
+                screenItem->update_size(QSize{(int)item->second->width, (int)item->second->height});
+                screenItem->update_online(true);
+                screenMap.erase(item);
+            }
+            else if (screenItem != _scene.get_self_item()) {
+                screenItem->update_online(false);
+            }
+        }
+        // 清理list里原有的
+        _ui->listWidget->clear();
+        for (auto [screenName, screen] : screenMap) {
+            // 检查屏幕是否已经存在
+            auto *item = ScreenListView::make_screen_item(QString::fromStdString(screen->name),
+                                                          QSize(screen->width, screen->height));
+            item->setData(ScreenListView::eScreenIdRole, screen->screenId);
+            _ui->listWidget->addItem(item);
+        }
+    }
+    else {
+        MaterialToast::show(
+            this,
+            QString("获取在线屏幕失败: %1").arg(QString::fromStdString(ret.error().message())));
+    }
+}
+
 void MainWindow::changeEvent(QEvent *event)
 {
     if (event->type() == QEvent::WindowStateChange) {
@@ -307,7 +241,7 @@ void MainWindow::start_rpc_reconnected_timer()
     _rpcReconnectTimer.setSingleShot(true);
 }
 
-void MainWindow::setup_backend()
+auto MainWindow::setup_backend() -> void
 {
     auto remoteAddress = _ui->remote_address_edit->text();
     if (!_rpcClient.isConnected()) {
@@ -341,7 +275,7 @@ void MainWindow::setup_backend()
     }
 }
 
-void MainWindow::server_config()
+auto MainWindow::server_config() -> void
 {
     auto configs                 = _scene.get_screen_configs();
     _settings["screen_settings"] = configs;
@@ -357,11 +291,12 @@ void MainWindow::server_config()
         file.write(modifiedDoc.toJson());
         file.close();
     }
-
-    ilias_wait _rpcClient->reloadConfigFile(_settingFile.toStdString());
+    auto       str = _settingFile.toStdString();
+    ilias_wait _rpcClient->reloadConfigFile(str);
+    // co_return;
 }
 
-void MainWindow::client_config()
+auto MainWindow::client_config() -> void
 {
     auto ip   = _ui->client_ip_edit->text();
     auto port = _ui->client_port_edit->text();
@@ -379,8 +314,9 @@ void MainWindow::client_config()
     ilias_wait _rpcClient->reloadConfigFile(_settingFile.toStdString());
 }
 
-void MainWindow::server_start()
+auto MainWindow::server_start() -> void
 {
+    server_config();
     if (_ui->server_start_button->text() == tr("start")) {
         auto ip   = _ui->server_ip_edit->text();
         auto port = _ui->server_port_edit->text();
@@ -407,8 +343,9 @@ void MainWindow::server_start()
     }
 }
 
-void MainWindow::client_start()
+auto MainWindow::client_start() -> void
 {
+    client_config();
     if (_ui->client_start_button->text() == tr("start")) {
         auto ip   = _ui->client_ip_edit->text();
         auto port = _ui->client_port_edit->text();
@@ -434,7 +371,7 @@ void MainWindow::client_start()
     }
 }
 
-void MainWindow::setting_config()
+auto MainWindow::setting_config() -> void
 {
     auto configFile = _ui->config_file_edit->text();
     if (_settingFile != configFile) {

@@ -9,20 +9,23 @@
 #include <QFontMetricsF>
 #include <QApplication>
 #include <QGraphicsView>
+#include <QStyleOptionGraphicsItem>
+#include <QTextCursor>
+#include <QRegularExpression>
 
 #include "screen_scene.hpp"
 #include "detail/rect_algorithm.hpp"
 
 GraphicsScreenItem::GraphicsScreenItem(const QString &screenName, const int &screenId,
                                        const QSize &itemSize)
-    : _screenName(screenName), _screenId(screenId), _itemSize(itemSize)
+    : QGraphicsTextItem(screenName), _screenId(screenId), _itemSize(itemSize)
 {
     _path.addRect(0, 0, _itemSize.width(), _itemSize.height());
 }
 
 void GraphicsScreenItem::set_screen_name(const QString &screenName)
 {
-    _screenName = screenName;
+    setPlainText(screenName);
 }
 
 void GraphicsScreenItem::set_screen_id(const int &screenId)
@@ -38,9 +41,14 @@ void GraphicsScreenItem::set_item_geometry(const QRect &itemGeometry)
     setPos(itemGeometry.topLeft());
 }
 
+void GraphicsScreenItem::update_size(const QSize &itemSize)
+{
+    _itemSize = itemSize;
+}
+
 QString GraphicsScreenItem::get_screen_name() const
 {
-    return _screenName;
+    return toPlainText();
 }
 
 int GraphicsScreenItem::get_screen_id() const
@@ -76,28 +84,30 @@ void GraphicsScreenItem::paint(QPainter                                        *
     // 如果z大于0，表示正在其他状态，画个高亮的框
     auto rect = boundingRect();
     painter->setPen(Qt::black);
-    if (_isReachable) {
-        painter->setBrush(Qt::green);
+    if ((_states & eOnline) != 0) {
+        if ((_states & eReachable) != 0) {
+            painter->setBrush(Qt::green);
+        }
+        else {
+            painter->setBrush(Qt::yellow);
+        }
     }
     else {
         painter->setBrush(Qt::red);
     }
+    auto paint = font().pointSize() * 0.5;
     painter->drawRect(rect);
     // 绘制背景的矩形框
     if (zValue() > 0) {
-        painter->setBrush(QColor("#6750A4"));
+        painter->setBrush(QColor("#FAFAFA"));
     }
     else {
-        painter->setBrush(QColor("#544597"));
+        painter->setBrush(QColor("#A3A3A3"));
     }
-    auto rw = rect.width() / 100;
-    auto rh = rect.height() / 100;
-    painter->drawRect(rect.adjusted(rw, rh, -rw, -rh));
-    // 绘制屏幕名称
-    painter->setFont(_font);
-    painter->setPen(Qt::black);
-    painter->drawText(rect, Qt::AlignCenter, _showText);
+    painter->drawRect(rect.adjusted(paint, paint, -paint, -paint));
     painter->restore();
+
+    QGraphicsTextItem::paint(painter, option, widget);
 }
 
 void GraphicsScreenItem::dragMoveEvent(QGraphicsSceneDragDropEvent *event)
@@ -107,18 +117,67 @@ void GraphicsScreenItem::dragMoveEvent(QGraphicsSceneDragDropEvent *event)
 
 auto GraphicsScreenItem::fit_font(const QTransform &transform) -> void
 {
-    setToolTip(_screenName); // 设置提示
-    _font = QApplication::font();
-    _font.setPixelSize(20 / transform.m11());
-    // 计算文本长度，并确定省略部分
-    auto fm        = QFontMetricsF(_font);
-    auto textWidth = fm.horizontalAdvance(_screenName);
-    if (textWidth > _itemSize.width()) {
-        _showText = fm.elidedText(_screenName, Qt::ElideRight, _itemSize.width());
+    auto ffont = font();
+    ffont.setPointSizeF(ffont.pointSizeF() / transform.m11());
+    setFont(ffont);
+    setTextWidth(_itemSize.width());
+}
+
+void GraphicsScreenItem::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event)
+{
+    // 双击时允许编辑
+    if (textInteractionFlags() == Qt::NoTextInteraction) {
+        edit();
     }
-    else {
-        _showText = _screenName;
+    QGraphicsTextItem::mouseDoubleClickEvent(event);
+}
+
+auto GraphicsScreenItem::edit() -> void
+{
+    _oldScreenName = get_screen_name();
+    setTextInteractionFlags(Qt::TextEditorInteraction);
+    setFocus();                        // 获取焦点以开始编辑
+    QTextCursor cursor = textCursor(); // 获取当前光标
+    if (!cursor.hasSelection()) {
+        cursor.select(QTextCursor::Document); // 选中整个文本
+        setTextCursor(cursor); // 将修改后的光标设置回去
     }
+}
+
+auto GraphicsScreenItem::after_edit() -> void
+{
+    // 失去焦点时结束编辑状态
+    setTextInteractionFlags(Qt::NoTextInteraction);
+    // 3. 清除文本光标的选择状态 <--- 关键步骤
+    QTextCursor cursor = textCursor(); // 获取当前光标
+    if (cursor.hasSelection()) {
+        cursor.clearSelection(); // 清除选择
+        setTextCursor(cursor);   // 将修改后的光标设置回去
+    }
+    // 删除特殊字符，如换行符和空格
+    QString text = toPlainText();
+    text.remove(QRegularExpression("[\n\r\t]"));
+    setPlainText(text);
+    if (_oldScreenName != get_screen_name()) {
+        Q_EMIT name_changed(_oldScreenName, get_screen_name());
+    }
+}
+
+void GraphicsScreenItem::focusOutEvent(QFocusEvent *event)
+{
+    after_edit();
+    QGraphicsTextItem::focusOutEvent(event);
+}
+
+void GraphicsScreenItem::hoverLeaveEvent(QGraphicsSceneHoverEvent *event)
+{
+    // after_edit();
+    QGraphicsTextItem::hoverLeaveEvent(event);
+}
+
+void GraphicsScreenItem::contextMenuEvent(QGraphicsSceneContextMenuEvent *event)
+{
+    // QGraphicsTextItem::contextMenuEvent(event);
 }
 
 void GraphicsScreenItem::mousePressEvent(QGraphicsSceneMouseEvent *event)
@@ -126,6 +185,7 @@ void GraphicsScreenItem::mousePressEvent(QGraphicsSceneMouseEvent *event)
     if ((flags() & QGraphicsItem::ItemIsMovable) != 0) {
         setZValue(1);
     }
+
     QGraphicsItem::mousePressEvent(event);
 }
 
@@ -146,9 +206,29 @@ void GraphicsScreenItem::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
     QGraphicsItem::mouseMoveEvent(event);
 }
 
+auto GraphicsScreenItem::update_online(bool isOnline) -> void
+{
+    if (isOnline) {
+        _states |= eOnline;
+    }
+    else {
+        _states &= ~eOnline;
+    }
+}
+
+auto GraphicsScreenItem::set_state(int states) -> void
+{
+    _states = states;
+}
+
 auto GraphicsScreenItem::update_reachable(bool isReachable) -> void
 {
-    _isReachable = isReachable;
+    if (isReachable) {
+        _states |= eReachable;
+    }
+    else {
+        _states &= ~eReachable;
+    }
 }
 
 void GraphicsScreenItem::update_grid_pos(const QPointF &scenePos)
@@ -157,18 +237,17 @@ void GraphicsScreenItem::update_grid_pos(const QPointF &scenePos)
     _gridPos     = gridPos;
 }
 
-void GraphicsScreenItem::adsorption_to_grid()
+bool GraphicsScreenItem::adsorption_to_grid()
 {
     setPos(_gridPos);
 
     auto *scene = qobject_cast<ScreenScene *>(this->scene());
     if (scene != nullptr) {
         if (scene->collidingItems(this).size() >= 1) {
-            Q_EMIT scene->remove_screen(get_screen_name(), _itemSize);
-            scene->removeItem(this);
-            this->deleteLater();
+            return false;
         }
     }
+    return true;
 }
 
 QPoint GraphicsScreenItem::adsorption_to_grid(QGraphicsScene *scene, QGraphicsItem *self,
