@@ -178,9 +178,9 @@ auto MainWindow::refresh_online_screens() -> ::ilias::QAsyncSlot<void>
 {
     auto ret = co_await _rpcClient->getOnlineScreens();
     if (ret) {
-        auto                                                 screens = ret.value();
+        auto                                                 screens = std::move(ret.value());
         std::map<std::string_view, mks::VirtualScreenInfo *> screenMap;
-        for (auto screen : screens) {
+        for (auto &screen : screens) {
             screenMap[screen.name] = &screen;
         }
         auto screenInScene = _scene.items();

@@ -27,7 +27,7 @@ struct MouseMotionEventConversion {
     bool     isAbsolute; /**< Whether the coordinates are absolute */
     uint64_t timestamp;  /**< system event time */
 
-    NEKO_SERIALIZER(x, y, timestamp)
+    NEKO_SERIALIZER(x, y, isAbsolute, timestamp)
     NEKO_DECLARE_PROTOCOL(MouseMotionEventConversion, NEKO_NAMESPACE::JsonSerializer)
 };
 

@@ -187,7 +187,7 @@ LRESULT WinMKCapture::_mouse_proc(int ncode, WPARAM wp, LPARAM lp)
             push_event(mks::MouseMotionEvent::emplaceProto(
                 (int32_t)hookStruct->pt.x, (int32_t)hookStruct->pt.y, !_isStartCapture,
                 (uint64_t)hookStruct->time));
-            SPDLOG_INFO("Mouse Move X: {} Y: {}", hookStruct->pt.x, hookStruct->pt.y);
+            // SPDLOG_INFO("Mouse Move X: {} Y: {}", hookStruct->pt.x, hookStruct->pt.y);
             break;
         case WM_MOUSEWHEEL:
             push_event(mks::MouseWheelEvent::emplaceProto(
