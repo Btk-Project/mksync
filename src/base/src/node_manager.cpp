@@ -328,9 +328,9 @@ auto NodeManager::dispatch(const NekoProto::IProto &proto, NodeBase *nodebase) -
         if (dynamic_cast<NodeBase *>(consumer) == nodebase) {
             continue;
         }
-        SPDLOG_INFO("dispatch {} from {} to {}", proto.protoName(),
-                    nodebase == nullptr ? "unknow" : nodebase->name(),
-                    dynamic_cast<NodeBase *>(consumer)->name());
+        // SPDLOG_INFO("dispatch {} from {} to {}", proto.protoName(),
+        //             nodebase == nullptr ? "unknow" : nodebase->name(),
+        //             dynamic_cast<NodeBase *>(consumer)->name());
         co_await consumer->handle_event(proto);
     }
     co_return;

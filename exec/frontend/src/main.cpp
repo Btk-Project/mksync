@@ -4,11 +4,13 @@
 
 #pragma comment(linker, "/subsystem:console") // 设置连接器选项
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
     ILIAS_LOG_SET_LEVEL(ILIAS_INFO_LEVEL);
+    NEKO_LOG_SET_LEVEL(NEKO_LOG_LEVEL_INFO);
     spdlog::set_level(spdlog::level::info);
     QApplication app(argc, argv);
-    MainWindow wind;
+    MainWindow   wind;
     wind.show();
     return QApplication::exec();
 }

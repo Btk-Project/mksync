@@ -202,6 +202,7 @@ auto ServerController::setup() -> ::ilias::Task<int>
     if (co_await _sender->setup() != 0) {
         co_return 0;
     }
+    co_await _sender->start_sender();
     // 这两个节点在服务端与客户分别开启即可。因此通过Controller导入并加以控制。
     _captureNode = _app->node_manager().add_node(MKCapture::make(_app));
     if (auto ret = co_await _app->node_manager().setup_node(_captureNode); ret != 0) {
@@ -397,7 +398,9 @@ auto ServerController::set_current_screen(std::string_view screen) -> Task<bool>
         SPDLOG_INFO("switch to screen {}", screen);
     }
     else {
-        SPDLOG_ERROR("screen {} not found.", screen);
+        if (!screen.empty()) {
+            SPDLOG_ERROR("screen {} not online.", screen);
+        }
         co_return false;
     }
     if (auto item = std::find_if(_vscreenConfig.begin(), _vscreenConfig.end(),
@@ -406,6 +409,9 @@ auto ServerController::set_current_screen(std::string_view screen) -> Task<bool>
         _currentScreen.config = std::addressof(*item);
         co_return true;
     }
+    _currentScreen.isInBorder = true; // 标记防止马上就被识别成在屏幕边界。
+    _currentScreen.posX       = 0;
+    _currentScreen.posY       = 0;
     SPDLOG_CRITICAL("near screen {} config not found.", screen);
     co_return false;
 }
@@ -434,6 +440,9 @@ auto ServerController::handle_event(const ClientDisconnected &event) -> ::ilias:
         _screenNameTable.erase(item->second.name);
         _virtualScreens.erase(event.peer);
     }
+    if (event.peer == _currentScreen.peer) {
+        co_await set_current_screen(_virtualScreens["self"].name);
+    }
     SPDLOG_INFO("client {} disconnect... [{}]", event.peer, event.reason);
     co_return;
 }
@@ -444,7 +453,7 @@ auto ServerController::handle_event(const BorderEvent &event) -> ::ilias::Task<v
         SPDLOG_ERROR("current screen config is null!!!");
         co_return;
     }
-    Point pt(event.x, event.y);
+    Point pt(event.x + _currentScreen.config->posX, event.y + _currentScreen.config->posY);
     if (event.border == BorderEvent::eLeft) {
         pt.x = _currentScreen.config->posX - 1;
     }
@@ -460,42 +469,43 @@ auto ServerController::handle_event(const BorderEvent &event) -> ::ilias::Task<v
     else {
         co_return;
     }
+    SPDLOG_INFO("Mouse Border: {}, x {}, y {}", (int)event.border, pt.x, pt.y);
     std::string_view nextScreen;
+    auto             prevConfig = *_currentScreen.config;
     for (const auto &screen : _vscreenConfig) {
         if (screen.name == _currentScreen.name) {
             continue;
         }
-        if (Rect rect = Rect(screen.posX, screen.posY, screen.width, screen.height);
-            rect.contains(pt)) {
+        Rect rect = Rect(screen.posX, screen.posY, screen.width, screen.height);
+        if (rect.contains(pt)) {
             nextScreen = screen.name;
             break;
         }
     }
     if (co_await set_current_screen(nextScreen)) {
-        _currentScreen.isInBorder = true; // 标记防止马上就被识别成在屏幕边界。
         ILIAS_ASSERT(_currentScreen.config != nullptr);
         switch (event.border) { // 计算从上一个屏幕边界出去的鼠标应该从下一块屏幕的何处进入。
         case BorderEvent::eLeft:
             _currentScreen.posX = _currentScreen.config->width;
-            _currentScreen.posY = (int)(event.y * _currentScreen.config->height);
+            _currentScreen.posY = (int)(event.y + prevConfig.posY - _currentScreen.config->posY);
             break;
         case BorderEvent::eRight:
             _currentScreen.posX = 0;
-            _currentScreen.posY = (int)(event.y * _currentScreen.config->height);
+            _currentScreen.posY = (int)(event.y + prevConfig.posY - _currentScreen.config->posY);
             break;
         case BorderEvent::eTop:
-            _currentScreen.posX = (int)(event.x * _currentScreen.config->width);
+            _currentScreen.posX = (int)(event.x + prevConfig.posX - _currentScreen.config->posX);
             _currentScreen.posY = _currentScreen.config->height;
             break;
         case BorderEvent::eBottom:
-            _currentScreen.posX = (int)(event.x * _currentScreen.config->width);
+            _currentScreen.posX = (int)(event.x + prevConfig.posX - _currentScreen.config->posX);
             _currentScreen.posY = 0;
             break;
         }
         if (_currentScreen.peer == "self") {
-            co_await dynamic_cast<Consumer *>(_sender.get())
-                ->handle_event(MouseMotionEventConversion::emplaceProto(
-                    _currentScreen.posX, _currentScreen.posY, true, 0U));
+            SPDLOG_INFO("Mouse to: x {}, y {}", _currentScreen.posX, _currentScreen.posY);
+            co_await _sender->handle_event(MouseMotionEventConversion::emplaceProto(
+                _currentScreen.posX, _currentScreen.posY, true, 0U));
         }
     }
     co_return;
@@ -523,8 +533,6 @@ auto ServerController::handle_event(const MouseMotionEvent &event) -> ::ilias::T
             BorderEvent::check_border(_currentScreen.posX, _currentScreen.posY,
                                       _currentScreen.config->width, _currentScreen.config->height);
         if (border != 0) {
-            SPDLOG_INFO("Mouse Border: {}, x {}, y {}", (int)border, _currentScreen.posX,
-                        _currentScreen.posY);
             _currentScreen.isInBorder = true;
             auto oldScreen            = _currentScreen.name;
             co_await handle_event(mks::BorderEvent::emplaceProto(
@@ -535,7 +543,7 @@ auto ServerController::handle_event(const MouseMotionEvent &event) -> ::ilias::T
         }
     }
     // 构建用于发送到客户端的鼠标移动事件
-    SPDLOG_INFO("MouseMotionEvent: x {}, y {}", _currentScreen.posX, _currentScreen.posY);
+    // SPDLOG_INFO("MouseMotionEvent: x {}, y {}", _currentScreen.posX, _currentScreen.posY);
     co_await _app->push_event(MouseMotionEventConversion::emplaceProto(
                                   _currentScreen.posX, _currentScreen.posY, true, event.timestamp),
                               _self);

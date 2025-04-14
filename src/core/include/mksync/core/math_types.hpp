@@ -359,12 +359,14 @@ struct Rect<T> {
     template <typename G>
     auto contains(const Point<G> &rp) const
     {
-        return rp >= top_left() && rp <= bottom_right();
+        return rp.x >= pos.x && rp.x <= pos.x + size.width && rp.y >= pos.y &&
+               rp.y <= pos.y + size.height;
     }
     template <typename G>
     auto contains(const Rect<G> &rect) const
     {
-        return rect.top_left() >= top_left() && rect.bottom_right() <= bottom_right();
+        return top() <= rect.top() && bottom() >= rect.bottom() && left() <= rect.left() &&
+               right() >= rect.right();
     }
     template <typename G>
     auto intersects(const Rect<G> &rect) const

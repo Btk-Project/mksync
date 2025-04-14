@@ -11,8 +11,10 @@ WinMKSender::~WinMKSender() {}
 
 auto WinMKSender::start_sender() -> ::ilias::Task<int>
 {
-    _screenWidth  = GetSystemMetrics(SM_CXSCREEN);
-    _screenHeight = GetSystemMetrics(SM_CYSCREEN);
+    HWND hd       = GetDesktopWindow();
+    int  zoom     = GetDpiForWindow(hd); // 96 is the default DPI
+    _screenWidth  = GetSystemMetrics(SM_CXSCREEN) * zoom / 96;
+    _screenHeight = GetSystemMetrics(SM_CYSCREEN) * zoom / 96;
     _isStart      = true;
     co_return 0;
 }
@@ -31,6 +33,7 @@ auto WinMKSender::name() -> const char *
 auto WinMKSender::handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void>
 {
     ILIAS_ASSERT(event != nullptr);
+    SPDLOG_INFO("WinMKSender handle_event: {}", event.protoName());
     if (event.type() == NekoProto::ProtoFactory::protoType<MouseMotionEventConversion>()) {
         ILIAS_ASSERT(event.cast<MouseMotionEventConversion>() != nullptr);
         _send_motion_event(*event.cast<MouseMotionEventConversion>());
@@ -55,11 +58,12 @@ void WinMKSender::_send_motion_event(const mks::MouseMotionEventConversion &even
     if (!_isStart) {
         return;
     }
+    SPDLOG_INFO("Mouse move: x {}, y {}", event.x, event.y);
     INPUT input = {};
     memset(&input, 0, sizeof(INPUT));
     input.type  = INPUT_MOUSE;
-    input.mi.dx = (LONG)(event.isAbsolute ? ((float)event.x / _screenWidth * 65535) : event.x);
-    input.mi.dy = (LONG)(event.isAbsolute ? ((float)event.y / _screenHeight * 65535) : event.y);
+    input.mi.dx = (LONG)(event.isAbsolute ? (((float)event.x / _screenWidth) * 65535) : event.x);
+    input.mi.dy = (LONG)(event.isAbsolute ? (((float)event.y / _screenHeight) * 65535) : event.y);
     input.mi.mouseData = 0;
     input.mi.dwFlags =
         (event.isAbsolute ? (MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_MOVE) : MOUSEEVENTF_MOVE);

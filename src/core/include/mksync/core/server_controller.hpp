@@ -55,7 +55,7 @@ private:
     std::string_view                                _captureNode;
     std::vector<VirtualScreenConfig>                _vscreenConfig;
     std::vector<int>                                _subscribes;
-    std::unique_ptr<NodeBase, void (*)(NodeBase *)> _sender;
+    std::unique_ptr<MKSender, void (*)(NodeBase *)> _sender;
     std::unordered_map<int, ::ilias::Task<void> (*)(ServerController *, const NekoProto::IProto &)>
                                                           _eventHandlers;
     std::map<std::string, VirtualScreenInfo, std::less<>> _virtualScreens; // peer -> vscreninfo
@@ -63,8 +63,8 @@ private:
         std::string          peer;
         std::string          name;
         VirtualScreenConfig *config;
-        int32_t              posX;
-        int32_t              posY;
+        int32_t              posX; // 所在屏幕的X位置
+        int32_t              posY; // 所在屏幕的Y位置
         bool                 isInBorder;
     } _currentScreen = {"", "", nullptr, 0, 0, false};
     std::map<std::string, std::map<std::string, VirtualScreenInfo, std::less<>>::iterator,
