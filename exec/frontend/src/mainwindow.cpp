@@ -174,9 +174,9 @@ void MainWindow::refresh_configs(QString file)
     _ui->graphicsView->fit_view_to_scene();
 }
 
-auto MainWindow::refresh_online_screens() -> void
+auto MainWindow::refresh_online_screens() -> ::ilias::QAsyncSlot<void>
 {
-    auto ret = ilias_wait _rpcClient->getOnlineScreens();
+    auto ret = co_await _rpcClient->getOnlineScreens();
     if (ret) {
         auto                                                 screens = ret.value();
         std::map<std::string_view, mks::VirtualScreenInfo *> screenMap;
@@ -241,27 +241,27 @@ void MainWindow::start_rpc_reconnected_timer()
     _rpcReconnectTimer.setSingleShot(true);
 }
 
-auto MainWindow::setup_backend() -> void
+auto MainWindow::setup_backend() -> ::ilias::QAsyncSlot<void>
 {
     auto remoteAddress = _ui->remote_address_edit->text();
     if (!_rpcClient.isConnected()) {
-        if (!(ilias_wait _rpcClient.connect(remoteAddress.toStdString())) &&
+        if (!(co_await _rpcClient.connect(remoteAddress.toStdString())) &&
             _process.state() != QProcess::Running) {
             _process.startCommand(QString("MKsyncBackend config --dir=%1 --noconsole")
                                       .arg(_ui->config_file_edit->text()));
             _process.waitForStarted();
-            ilias_wait _rpcClient.connect(remoteAddress.toStdString());
+            co_await _rpcClient.connect(remoteAddress.toStdString());
         }
     }
     if (_rpcClient.isConnected()) {
-        if (auto ret = ilias_wait _rpcClient->clientStatus(); ret && ret.value() == 1) {
+        if (auto ret = co_await _rpcClient->clientStatus(); ret && ret.value() == 1) {
             _ui->client_start_button->setText(tr("stop"));
         }
         else {
             _ui->client_start_button->setText(tr("start"));
         }
 
-        if (auto ret = ilias_wait _rpcClient->serverStatus(); ret && ret.value() == 1) {
+        if (auto ret = co_await _rpcClient->serverStatus(); ret && ret.value() == 1) {
             _ui->server_start_button->setText(tr("stop"));
         }
         else {
@@ -275,7 +275,7 @@ auto MainWindow::setup_backend() -> void
     }
 }
 
-auto MainWindow::server_config() -> void
+auto MainWindow::server_config() -> ::ilias::QAsyncSlot<void>
 {
     auto configs                 = _scene.get_screen_configs();
     _settings["screen_settings"] = configs;
@@ -291,12 +291,12 @@ auto MainWindow::server_config() -> void
         file.write(modifiedDoc.toJson());
         file.close();
     }
-    auto       str = _settingFile.toStdString();
-    ilias_wait _rpcClient->reloadConfigFile(str);
+    auto str = _settingFile.toStdString();
+    co_await _rpcClient->reloadConfigFile(str);
     // co_return;
 }
 
-auto MainWindow::client_config() -> void
+auto MainWindow::client_config() -> ::ilias::QAsyncSlot<void>
 {
     auto ip   = _ui->client_ip_edit->text();
     auto port = _ui->client_port_edit->text();
@@ -311,12 +311,12 @@ auto MainWindow::client_config() -> void
         file.close();
     }
 
-    ilias_wait _rpcClient->reloadConfigFile(_settingFile.toStdString());
+    co_await _rpcClient->reloadConfigFile(_settingFile.toStdString());
 }
 
-auto MainWindow::server_start() -> void
+auto MainWindow::server_start() -> ::ilias::QAsyncSlot<void>
 {
-    server_config();
+    co_await server_config();
     if (_ui->server_start_button->text() == tr("start")) {
         auto ip   = _ui->server_ip_edit->text();
         auto port = _ui->server_port_edit->text();
@@ -325,8 +325,8 @@ auto MainWindow::server_start() -> void
         }
 
         _ui->server_start_button->setDisabled(true);
-        if (auto ret = ilias_wait _rpcClient->server(mks::ServerControl::eStart, ip.toStdString(),
-                                                     port.toInt());
+        if (auto ret = co_await _rpcClient->server(mks::ServerControl::eStart, ip.toStdString(),
+                                                   port.toInt());
             ret && ret.value() == "") {
             _ui->server_start_button->setText(tr("stop"));
         }
@@ -338,14 +338,14 @@ auto MainWindow::server_start() -> void
         _ui->server_start_button->setDisabled(false);
     }
     else if (_ui->server_start_button->text() == tr("stop")) {
-        ilias_wait _rpcClient->server(mks::ServerControl::eStop, "", 0);
+        co_await _rpcClient->server(mks::ServerControl::eStop, "", 0);
         _ui->server_start_button->setText(tr("start"));
     }
 }
 
-auto MainWindow::client_start() -> void
+auto MainWindow::client_start() -> ::ilias::QAsyncSlot<void>
 {
-    client_config();
+    co_await client_config();
     if (_ui->client_start_button->text() == tr("start")) {
         auto ip   = _ui->client_ip_edit->text();
         auto port = _ui->client_port_edit->text();
@@ -366,12 +366,12 @@ auto MainWindow::client_start() -> void
         _ui->client_start_button->setDisabled(false);
     }
     else if (_ui->client_start_button->text() == tr("stop")) {
-        ilias_wait _rpcClient->client(mks::ClientControl::eStop, "", 0);
+        co_await _rpcClient->client(mks::ClientControl::eStop, "", 0);
         _ui->client_start_button->setText(tr("start"));
     }
 }
 
-auto MainWindow::setting_config() -> void
+auto MainWindow::setting_config() -> ::ilias::QAsyncSlot<void>
 {
     auto configFile = _ui->config_file_edit->text();
     if (_settingFile != configFile) {
@@ -405,5 +405,5 @@ auto MainWindow::setting_config() -> void
         file.close();
     }
 
-    ilias_wait _rpcClient->reloadConfigFile(_settingFile.toStdString());
+    co_await _rpcClient->reloadConfigFile(_settingFile.toStdString());
 }
