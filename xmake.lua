@@ -7,7 +7,7 @@ set_configvar("PROJECT_NAME", "mksync")
 
 -- 全局设置
 set_warnings("allextra")
-set_languages("cxx20", "c17")
+set_languages("cxx23", "c17")
 set_exceptions("cxx")
 set_encodings("utf-8")
 
@@ -65,8 +65,8 @@ if is_plat("linux") then
     -- sudo apt install python3-pip libgirepository1.0-dev valac
 end
 
-if is_mode("debug") then
-    add_defines("ILIAS_ENABLE_LOG", "ILIAS_USE_FMT")
+if is_mode("mydebug") then
+    add_defines("ILIAS_ENABLE_LOG", "ILIAS_USE_FMT", "ILIAS_TASK_TRACE")
     -- add_defines("ILIAS_USE_IO_URING")
     -- add_syslinks("rt", "uring")
     -- add_packages("liburing")

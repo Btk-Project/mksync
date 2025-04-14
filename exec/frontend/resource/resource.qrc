@@ -12,5 +12,6 @@
     <file>widget/minimize.png</file>
     <file>widget/background.png</file>
     <file>widget/close.png</file>
+    <file>widget/refresh.png</file>
   </qresource>
 </RCC>

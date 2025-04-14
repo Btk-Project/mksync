@@ -31,112 +31,6 @@
      <number>0</number>
     </property>
     <item>
-     <widget class="QWidget" name="title" native="true">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-        <horstretch>0</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
-      <property name="minimumSize">
-       <size>
-        <width>0</width>
-        <height>30</height>
-       </size>
-      </property>
-      <property name="styleSheet">
-       <string notr="true">QWidget#title {
-	border-top-left-radius: 10;
-	border: 1px solid #302c54;
-	background-color: #302c54;
-}
-QPushButton {
-	background-color: transparent;
-}
-
-QPushButton:hover {
-	border: 1px solid #3a3866;
-	background-color: #3a3866;
-}</string>
-      </property>
-      <layout class="QHBoxLayout" name="horizontalLayout_2">
-       <property name="leftMargin">
-        <number>10</number>
-       </property>
-       <property name="topMargin">
-        <number>0</number>
-       </property>
-       <property name="rightMargin">
-        <number>10</number>
-       </property>
-       <property name="bottomMargin">
-        <number>0</number>
-       </property>
-       <item>
-        <widget class="QLabel" name="label">
-         <property name="styleSheet">
-          <string notr="true">QLabel {
-	color: #FFFFFF;
-}</string>
-         </property>
-         <property name="text">
-          <string>MKSync</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <spacer name="horizontalSpacer">
-         <property name="orientation">
-          <enum>Qt::Horizontal</enum>
-         </property>
-         <property name="sizeHint" stdset="0">
-          <size>
-           <width>359</width>
-           <height>20</height>
-          </size>
-         </property>
-        </spacer>
-       </item>
-       <item>
-        <widget class="QPushButton" name="minimize_button">
-         <property name="styleSheet">
-          <string notr="true"/>
-         </property>
-         <property name="text">
-          <string/>
-         </property>
-         <property name="icon">
-          <iconset resource="../resource/resource.qrc">
-           <normaloff>:/icons/widget/minimize.png</normaloff>:/icons/widget/minimize.png</iconset>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QPushButton" name="layout_button">
-         <property name="text">
-          <string/>
-         </property>
-         <property name="icon">
-          <iconset resource="../resource/resource.qrc">
-           <normaloff>:/icons/widget/layout.png</normaloff>:/icons/widget/layout.png</iconset>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QPushButton" name="close_button">
-         <property name="text">
-          <string/>
-         </property>
-         <property name="icon">
-          <iconset resource="../resource/resource.qrc">
-           <normaloff>:/icons/widget/close.png</normaloff>:/icons/widget/close.png</iconset>
-         </property>
-        </widget>
-       </item>
-      </layout>
-     </widget>
-    </item>
-    <item>
      <widget class="QWidget" name="control" native="true">
       <property name="layoutDirection">
        <enum>Qt::LeftToRight</enum>
@@ -307,6 +201,9 @@ QRadioButton::indicator {
 	background-color: transparent;
 	border-bottom-right-radius: 10;
 }
+QLabel {
+	color: #000000;
+}
 </string>
          </property>
          <property name="currentIndex">
@@ -323,7 +220,7 @@ QLineEdit {
     color: #333333; /* 深灰色文字 */
     border: 1px solid #BDBDBD; /* 浅灰色边框 */
     border-radius: 5px; /* 圆角 */
-    padding: 3px 6px; /* 内边距 */
+    padding: 3px 3px; /* 内边距 */
     font-size: 12px; /* 字体大小 */
 	text-align: center; /* 文本居中对齐 */
 }
@@ -338,7 +235,7 @@ QLineEdit:hover {
 QLineEdit:focus {
     border: 2px solid #2196F3; /* 更粗的蓝色边框 */
     background-color: #FFFFFF; /* 白色背景 */
-    padding: 2px 5px; /* 微调内边距以适应更粗的边框 */
+    padding: 2px 2px; /* 微调内边距以适应更粗的边框 */
 }
 
 /* 禁用状态 */
@@ -353,8 +250,7 @@ QSpinBox {
     color: #333333; /* 深灰色文字 */
     border: 1px solid #BDBDBD; /* 浅灰色边框 */
     border-radius: 5px; /* 圆角 */
-    padding: 3px 6px; /* 内边距 */
-    font-size: 12px; /* 字体大小 */
+    padding: 3px 3px; /* 内边距 */
 	text-align: center; /* 文本居中对齐 */
 }
 
@@ -368,7 +264,7 @@ QSpinBox:hover {
 QSpinBox:focus {
     border: 2px solid #2196F3; /* 更粗的蓝色边框 */
     background-color: #FFFFFF; /* 白色背景 */
-    padding: 2px 5px; /* 微调内边距以适应更粗的边框 */
+    padding: 2px 2px; /* 微调内边距以适应更粗的边框 */
 }
 
 /* 禁用状态 */
@@ -377,6 +273,7 @@ QSpinBox:disabled {
     color: #A0A0A0; /* 更浅的灰色文字 */
     border: 1px solid #DADADA; /* 更浅的灰色边框 */
 }
+
 QSpinBox::up-button {
     subcontrol-origin: border;
     subcontrol-position: top right; /* position at the top right corner */
@@ -528,13 +425,6 @@ QPushButton:disabled {
               </spacer>
              </item>
              <item>
-              <widget class="QPushButton" name="client_config_button">
-               <property name="text">
-                <string>save</string>
-               </property>
-              </widget>
-             </item>
-             <item>
               <widget class="QPushButton" name="client_start_button">
                <property name="text">
                 <string>start</string>
@@ -556,7 +446,7 @@ QLineEdit {
     color: #333333; /* 深灰色文字 */
     border: 1px solid #BDBDBD; /* 浅灰色边框 */
     border-radius: 5px; /* 圆角 */
-    padding: 3px 6px; /* 内边距 */
+    padding: 3px 3px; /* 内边距 */
     font-size: 12px; /* 字体大小 */
 	text-align: center; /* 文本居中对齐 */
 }
@@ -571,7 +461,7 @@ QLineEdit:hover {
 QLineEdit:focus {
     border: 2px solid #2196F3; /* 更粗的蓝色边框 */
     background-color: #FFFFFF; /* 白色背景 */
-    padding: 2px 5px; /* 微调内边距以适应更粗的边框 */
+    padding: 2px 2px; /* 微调内边距以适应更粗的边框 */
 }
 
 /* 禁用状态 */
@@ -586,7 +476,7 @@ QSpinBox {
     color: #333333; /* 深灰色文字 */
     border: 1px solid #BDBDBD; /* 浅灰色边框 */
     border-radius: 5px; /* 圆角 */
-    padding: 3px 6px; /* 内边距 */
+    padding: 3px 3px; /* 内边距 */
 	text-align: center; /* 文本居中对齐 */
 }
 
@@ -600,7 +490,7 @@ QSpinBox:hover {
 QSpinBox:focus {
     border: 2px solid #2196F3; /* 更粗的蓝色边框 */
     background-color: #FFFFFF; /* 白色背景 */
-    padding: 2px 5px; /* 微调内边距以适应更粗的边框 */
+    padding: 2px 2px; /* 微调内边距以适应更粗的边框 */
 }
 
 /* 禁用状态 */
@@ -897,13 +787,6 @@ QListWidget::item:disabled {
                 </size>
                </property>
               </spacer>
-             </item>
-             <item>
-              <widget class="QPushButton" name="server_config_button">
-               <property name="text">
-                <string>save</string>
-               </property>
-              </widget>
              </item>
              <item>
               <widget class="QPushButton" name="server_start_button">

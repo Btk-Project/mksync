@@ -48,6 +48,8 @@ auto ScreenScene::config_screens(const QString &self, const QJsonArray &configs)
         addItem(item);
         if (self == name) {
             _selfItem = item;
+            _selfItem->update_online(true);
+            _selfItem->update_reachable(true);
         }
         item->setFlag(QGraphicsItem::ItemIsMovable, self != name);
         item->setPos(cf["posX"].toInt(), cf["posY"].toInt());
@@ -92,19 +94,53 @@ void ScreenScene::dropEvent(QGraphicsSceneDragDropEvent *event)
         event->acceptProposedAction();
     }
     else if (!text.isEmpty()) {
-        auto                screenId     = event->mimeData()->data("screenId").toInt();
-        auto                screenWidth  = event->mimeData()->data("screenWidth").toInt();
-        auto                screenHeight = event->mimeData()->data("screenHeight").toInt();
-        GraphicsScreenItem *item         = new GraphicsScreenItem(
-            text, screenId, {screenWidth, screenHeight}); // 创建一个新的文本项
-        addItem(item);
-        item->setFlag(QGraphicsItem::ItemIsMovable, true);
-        item->update_grid_pos(event->scenePos() - QPoint{screenWidth, screenHeight} / 2);
-        item->adsorption_to_grid(); // 网格吸附
-        item->fit_font(views().back()->transform());
-        event->setProposedAction(Qt::DropAction::MoveAction); // 设置放置动作
-        event->acceptProposedAction();                        // 接受放置事件
+        auto screenId     = event->mimeData()->data("screenId").toInt();
+        auto screenWidth  = event->mimeData()->data("screenWidth").toInt();
+        auto screenHeight = event->mimeData()->data("screenHeight").toInt();
+        if (new_screen_item(text, event->screenPos(), {screenWidth, screenHeight}, screenId) ==
+            nullptr) {
+            event->setProposedAction(Qt::DropAction::IgnoreAction); // 忽略放置事件
+            event->acceptProposedAction();
+        }
+        else {
+            event->setProposedAction(Qt::DropAction::MoveAction); // 设置放置动作
+            event->acceptProposedAction();                        // 接受放置事件
+        }
     }
+}
+
+auto ScreenScene::new_screen_item(QString screen, QPoint scenePos, QSize size, int id)
+    -> GraphicsScreenItem *
+{
+    GraphicsScreenItem *item =
+        new GraphicsScreenItem(screen, id, {size.width(), size.height()}); // 创建一个新的文本项
+    addItem(item);
+    item->setFont(font());
+    item->setFlag(QGraphicsItem::ItemIsMovable, true);
+    item->update_grid_pos(scenePos - QPoint{size.width(), size.height()} / 2);
+    if (item->adsorption_to_grid()) {
+        item->fit_font(views().back()->transform());
+        return item;
+    }
+    removeItem(item); // 如果无法对齐，则删除该项
+    item->deleteLater();
+    return nullptr;
+}
+
+bool ScreenScene::remove_screen_item(QString screen)
+{
+    for (auto *item : items()) {
+        if (auto *screenItem = dynamic_cast<GraphicsScreenItem *>(item); item != nullptr) {
+            if (screenItem->get_screen_name() == screen) {
+                Q_EMIT remove_screen(screenItem->get_screen_name(),
+                                     screenItem->get_item_geometry().size());
+                removeItem(item);
+                screenItem->deleteLater();
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 void ScreenScene::dragLeaveEvent([[maybe_unused]] QGraphicsSceneDragDropEvent *event) {}

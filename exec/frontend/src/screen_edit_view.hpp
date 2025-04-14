@@ -34,12 +34,20 @@ protected:
     void dragMoveEvent(QDragMoveEvent *event) override;
     void dropEvent(QDropEvent *event) override;
     bool eventFilter(QObject *object, QEvent *event) override;
+    void contextMenuEvent(QContextMenuEvent *event) override;
+
+Q_SIGNALS:
+    void refresh_screens_request();
 
 public Q_SLOTS:
     void location_button_clicked();
     void pushpin_button_clicked(bool checked);
     void fit_view_to_scene();
     void zoom_in_out_view(float scale);
+
+    void rename_item(GraphicsScreenItem *item);
+    void delete_item(GraphicsScreenItem *item);
+    void create_item(QPoint pos);
 
 private:
     void _update_view_area(QPointF pos);
@@ -52,12 +60,12 @@ private:
     bool _isItemMoving     = false;
     bool _isToolMenuMoving = false;
 
-    GraphicsScreenItem *_selfItem;
     QPushButton        *_locationButton;
     QCheckBox          *_pushpinButton;
     QWidget            *_suspensionWidget;
     QPushButton        *_fitViewButton;
     QPushButton        *_zoomInButton;
     QPushButton        *_zoomOutButton;
+    QPushButton        *_refreshButton;
     QLabel             *_dragPoint;
 };

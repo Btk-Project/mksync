@@ -3,6 +3,8 @@
 #include <QScrollBar>
 #include <QDragMoveEvent>
 #include <QHBoxLayout>
+#include <QMenu>
+#include <QAction>
 
 #include "screen_scene.hpp"
 
@@ -32,6 +34,8 @@ ScreenEditView::ScreenEditView(QWidget *parent) : QGraphicsView(parent)
     layout->setSpacing(0);
     _dragPoint = new QLabel(this);
     _dragPoint->setFixedSize(24, 24);
+    _refreshButton = new QPushButton(this);
+    _refreshButton->setFixedSize(24, 24);
     _locationButton = new QPushButton(this);
     _locationButton->setFixedSize(24, 24);
     _pushpinButton = new QCheckBox(this);
@@ -47,6 +51,7 @@ ScreenEditView::ScreenEditView(QWidget *parent) : QGraphicsView(parent)
 
     layout->addWidget(_dragPoint);
     layout->addWidget(_pushpinButton);
+    layout->addWidget(_refreshButton);
     layout->addWidget(_locationButton);
     layout->addWidget(_fitViewButton);
     layout->addWidget(_zoomInButton);
@@ -62,6 +67,12 @@ QLabel{
     height: 24px;
     border-image: url(:/icons/widget/v_drag_point.png);
 })");
+    _refreshButton->setStyleSheet(g_buttonStyleTemplate.arg("#30FFFFFF")
+                                      .arg("5")
+                                      .arg(24)
+                                      .arg(":/icons/widget/refresh.png")
+                                      .arg("#A3EADDFF")
+                                      .arg("#EADDFF"));
     _locationButton->setStyleSheet(g_buttonStyleTemplate.arg("#30FFFFFF")
                                        .arg("5")
                                        .arg(24)
@@ -125,6 +136,7 @@ QCheckBox::indicator:unchecked:pressed{
     connect(_fitViewButton, &QPushButton::clicked, this, &ScreenEditView::fit_view_to_scene);
     connect(_zoomInButton, &QPushButton::clicked, this, [this]() { zoom_in_out_view(1.1); });
     connect(_zoomOutButton, &QPushButton::clicked, this, [this]() { zoom_in_out_view(0.9); });
+    connect(_refreshButton, &QPushButton::clicked, this, &ScreenEditView::refresh_screens_request);
 }
 
 void ScreenEditView::location_button_clicked()
@@ -186,7 +198,8 @@ void ScreenEditView::zoom_in_out_view(float scale)
 
 void ScreenEditView::mousePressEvent(QMouseEvent *event)
 {
-    if (auto *item = itemAt(event->pos()); item != nullptr && item != _selfItem) {
+    if (auto *item = itemAt(event->pos());
+        item != nullptr && ((item->flags() & QGraphicsItem::ItemIsMovable) != 0)) {
         _isItemMoving = true;
     }
     return QGraphicsView::mousePressEvent(event);
@@ -269,6 +282,118 @@ bool ScreenEditView::eventFilter(QObject *object, QEvent *event)
         return true;
     }
     return QGraphicsView::eventFilter(object, event);
+}
+
+void ScreenEditView::contextMenuEvent(QContextMenuEvent *event)
+{
+    QPoint  viewPos  = event->pos();
+    QPointF scenePos = mapToScene(viewPos);
+
+    // 尝试获取点击位置的 Item
+    QGraphicsItem *itemUnderMouse = itemAt(viewPos);
+    auto *textItem = dynamic_cast<GraphicsScreenItem *>(itemUnderMouse); // 尝试转换为你的自定义类型
+
+    QMenu menu(this);
+    menu.setStyleSheet(R"(QMenu {
+    background-color: white;
+    margin: 2px; /* some spacing around the menu */
+}
+
+QMenu::item {
+    color: black;
+    padding: 2px 25px 2px 20px;
+    border: 1px solid transparent; /* reserve space for selection border */
+}
+
+QMenu::item:selected {
+    border-color: darkblue;
+    background: rgba(100, 100, 100, 150);
+}
+
+QMenu::icon:checked { /* appearance of a 'checked' icon */
+    background: gray;
+    border: 1px inset gray;
+    position: absolute;
+    top: 1px;
+    right: 1px;
+    bottom: 1px;
+    left: 1px;
+}
+
+QMenu::separator {
+    height: 2px;
+    background: lightblue;
+    margin-left: 10px;
+    margin-right: 5px;
+}
+
+QMenu::indicator {
+    width: 13px;
+    height: 13px;
+})");
+    if (textItem != nullptr) {
+        // --- 点击在 Screen 上 ---
+        qDebug() << "Right click on item:" << textItem->toPlainText();
+
+        QAction *renameAction = menu.addAction(tr("rename"));
+        if ((textItem->flags() & QGraphicsItem::ItemIsMovable) != 0) {
+            QAction *deleteAction = menu.addAction(tr("delete"));
+            connect(deleteAction, &QAction::triggered, this,
+                    [this, textItem]() { delete_item(textItem); });
+        }
+
+        // 使用 Lambda 捕获 item 指针
+        connect(renameAction, &QAction::triggered, this,
+                [this, textItem]() { rename_item(textItem); });
+    }
+    else {
+        // --- 点击在空白区域 ---
+        qDebug() << "Right click on empty space at scene pos:" << scenePos;
+
+        QAction *createAction = menu.addAction("new Item");
+
+        // 使用 Lambda 捕获 scenePos
+        connect(createAction, &QAction::triggered, this,
+                [this, scenePos]() { create_item(scenePos.toPoint()); });
+    }
+
+    // 在鼠标光标的全局位置显示菜单
+    menu.exec(event->globalPos());
+    // return QGraphicsView::contextMenuEvent(event);
+}
+
+void ScreenEditView::rename_item(GraphicsScreenItem *item)
+{
+    if (item == nullptr) {
+        return;
+    }
+    item->edit();
+}
+
+void ScreenEditView::delete_item(GraphicsScreenItem *item)
+{
+    if (item != nullptr) {
+        auto *ss = dynamic_cast<ScreenScene *>(scene());
+        if (ss != nullptr) {
+            Q_EMIT ss->remove_screen(item->get_screen_name(), item->get_item_geometry().size());
+        }
+        scene()->removeItem(item);
+        delete item;
+    }
+}
+
+void ScreenEditView::create_item(QPoint scenePos)
+{
+    auto *ss = dynamic_cast<ScreenScene *>(scene());
+    if (ss != nullptr) {
+        if (auto *item = ss->new_screen_item("newScreen", scenePos, QSize(1920, 1080));
+            item != nullptr) {
+            rename_item(item);
+        }
+    }
+    else {
+        qDebug() << "Scene is not ScreenScene";
+    }
 }
 
 void ScreenEditView::_update_view_area(QPointF pos)
