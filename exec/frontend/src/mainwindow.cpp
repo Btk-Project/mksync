@@ -254,6 +254,7 @@ auto MainWindow::setup_backend() -> ::ilias::QAsyncSlot<void>
         }
     }
     if (_rpcClient.isConnected()) {
+        qDebug() << "backend connected";
         if (auto ret = co_await _rpcClient->clientStatus(); ret && ret.value() == 1) {
             _ui->client_start_button->setText(tr("stop"));
         }

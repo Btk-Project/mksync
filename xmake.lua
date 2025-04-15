@@ -14,6 +14,7 @@ set_encodings("utf-8")
 -- 添加编译选项
 add_rules("mode.release", "mode.mydebug", "mode.releasedbg", "mode.minsizerel")
 add_rules("plugin.compile_commands.autoupdate", {lsp = "clangd", outputdir = ".vscode"})
+set_policy("package.cmake_generator.ninja", true)
 
 if is_plat("linux") then
     add_cxxflags("-fcoroutines")

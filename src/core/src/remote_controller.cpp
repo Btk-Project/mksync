@@ -26,6 +26,7 @@ RemoteController::~RemoteController() {}
 
 auto RemoteController::setup() -> Task<int>
 {
+    SPDLOG_INFO("RemoteController setup");
     if (auto ret = co_await _rpcServer.start(
             _app->settings().get(remote_controller_config_name, remote_controller_default_value));
         !ret) {

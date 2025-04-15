@@ -33,6 +33,7 @@ public:
     NodeDll() {}
     auto load(std::string_view dll) -> bool
     {
+        // TODO: check dll string encoding
         if (!std::filesystem::exists(dll)) {
             SPDLOG_ERROR("load plugins failed! file {} not exists!", dll);
             return false;
