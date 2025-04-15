@@ -22,6 +22,7 @@ ClientController::~ClientController()
 [[nodiscard("coroutine function")]]
 auto ClientController::setup() -> ::ilias::Task<int>
 {
+    SPDLOG_INFO("setup client controller.");
     _senderNode = _app->node_manager().add_node(MKSender::make(_app));
     if (auto ret = co_await _app->node_manager().setup_node(_senderNode); ret != 0) {
         SPDLOG_ERROR("setup {} node failed.", _senderNode);
