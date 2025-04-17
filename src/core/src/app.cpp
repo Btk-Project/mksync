@@ -67,7 +67,7 @@ App::App(::ilias::IoContext *ctx)
                     SPDLOG_ERROR("can't start console in running!");
                 }
             }
-            reconfigure();
+            co_await reconfigure();
             co_return "";
          },
         {{"dir", CommandInvoker::OptionsData::eString, "set the config.json dir"},
@@ -291,7 +291,7 @@ auto App::exec(int argc, const char *const *argv) -> Task<void>
     _nodeManager.add_node(Controller::make(*this));
     _nodeManager.add_node({new RemoteController(this), [](NodeBase *ptr) { delete ptr; }});
 
-    reconfigure();
+    co_await reconfigure();
 
     // start all node
     co_await _nodeManager.setup_node();
