@@ -67,6 +67,7 @@ App::App(::ilias::IoContext *ctx)
                     SPDLOG_ERROR("can't start console in running!");
                 }
             }
+            reconfigure();
             co_return "";
          },
         {{"dir", CommandInvoker::OptionsData::eString, "set the config.json dir"},
@@ -159,6 +160,7 @@ auto App::log_handle([[maybe_unused]] const CommandInvoker::ArgsType    &args,
     if (options.contains("max_log")) {
         int value = std::get<int>(options.at("max_log"));
         if (value > 0) {
+            settings().set(max_log_records_config_name, value);
             _logListMaxSize = value;
             while ((int)_logList.size() > value) {
                 _logList.pop_front();
@@ -173,24 +175,8 @@ auto App::log_handle([[maybe_unused]] const CommandInvoker::ArgsType    &args,
     }
     if (options.contains("level")) {
         const auto &str = std::get<std::string>(options.at("level"));
-        if (str == "trace") {
-            spdlog::set_level(spdlog::level::trace);
-        }
-        else if (str == "debug") {
-            spdlog::set_level(spdlog::level::debug);
-        }
-        else if (str == "info") {
-            spdlog::set_level(spdlog::level::info);
-        }
-        else if (str == "warn") {
-            spdlog::set_level(spdlog::level::warn);
-        }
-        else if (str == "err") {
-            spdlog::set_level(spdlog::level::err);
-        }
-        else if (str == "critical") {
-            spdlog::set_level(spdlog::level::critical);
-        }
+        settings().set(log_level_config_name, str);
+        co_await reconfigure();
         co_return "";
     }
     ::fprintf(stdout, "logs: %d items\n", int(_logList.size()));
@@ -199,6 +185,38 @@ auto App::log_handle([[maybe_unused]] const CommandInvoker::ArgsType    &args,
     }
     ::fflush(stdout);
     co_return "";
+}
+
+auto App::reconfigure() -> ::ilias::Task<void>
+{
+    const auto &str = settings().get(log_level_config_name, log_level_default_value);
+    if (str == "trace") {
+        spdlog::set_level(spdlog::level::trace);
+    }
+    else if (str == "debug") {
+        spdlog::set_level(spdlog::level::debug);
+    }
+    else if (str == "info") {
+        spdlog::set_level(spdlog::level::info);
+    }
+    else if (str == "warn") {
+        spdlog::set_level(spdlog::level::warn);
+    }
+    else if (str == "err") {
+        spdlog::set_level(spdlog::level::err);
+    }
+    else if (str == "critical") {
+        spdlog::set_level(spdlog::level::critical);
+    }
+
+    const auto maxLogRecords =
+        settings().get(max_log_records_config_name, max_log_records_default_value);
+    if (maxLogRecords > 0) {
+        _logListMaxSize = maxLogRecords;
+    }
+
+    co_await _nodeManager.reconfigure_node();
+    co_return;
 }
 
 auto App::start_console() -> Task<void>
@@ -272,6 +290,8 @@ auto App::exec(int argc, const char *const *argv) -> Task<void>
     _nodeManager.add_node(std::move(communication));
     _nodeManager.add_node(Controller::make(*this));
     _nodeManager.add_node({new RemoteController(this), [](NodeBase *ptr) { delete ptr; }});
+
+    reconfigure();
 
     // start all node
     co_await _nodeManager.setup_node();

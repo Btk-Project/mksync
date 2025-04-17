@@ -117,7 +117,7 @@ void GraphicsScreenItem::dragMoveEvent(QGraphicsSceneDragDropEvent *event)
 
 auto GraphicsScreenItem::fit_font(const QTransform &transform) -> void
 {
-    auto ffont = font();
+    auto ffont = QApplication::font();
     ffont.setPointSizeF(ffont.pointSizeF() / transform.m11());
     setFont(ffont);
     setTextWidth(_itemSize.width());
@@ -125,9 +125,11 @@ auto GraphicsScreenItem::fit_font(const QTransform &transform) -> void
 
 void GraphicsScreenItem::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event)
 {
-    // 双击时允许编辑
-    if (textInteractionFlags() == Qt::NoTextInteraction) {
-        edit();
+    if ((flags() & QGraphicsItem::ItemIsMovable) != 0) {
+        // 双击时允许编辑
+        if (textInteractionFlags() == Qt::NoTextInteraction) {
+            edit();
+        }
     }
     QGraphicsTextItem::mouseDoubleClickEvent(event);
 }
@@ -140,7 +142,7 @@ auto GraphicsScreenItem::edit() -> void
     QTextCursor cursor = textCursor(); // 获取当前光标
     if (!cursor.hasSelection()) {
         cursor.select(QTextCursor::Document); // 选中整个文本
-        setTextCursor(cursor); // 将修改后的光标设置回去
+        setTextCursor(cursor);                // 将修改后的光标设置回去
     }
 }
 
@@ -198,6 +200,10 @@ void GraphicsScreenItem::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
     if ((flags() & QGraphicsItem::ItemIsMovable) != 0) {
         update_grid_pos(pos());
         adsorption_to_grid();
+        auto *scene = qobject_cast<ScreenScene *>(this->scene());
+        if (scene != nullptr) {
+            Q_EMIT scene->screen_moved(get_screen_name(), _gridPos, _itemSize);
+        }
     }
 }
 

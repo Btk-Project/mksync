@@ -57,6 +57,10 @@ public:
     auto client_start() -> ::ilias::QAsyncSlot<void>;
     [[nodiscard("coroutine function")]]
     auto setting_config() -> ::ilias::QAsyncSlot<void>;
+    [[nodiscard("coroutine function")]]
+    auto screen_moved(QString screen, QPoint pos, QSize size) -> ::ilias::QAsyncSlot<void>;
+    [[nodiscard("coroutine function")]]
+    auto remove_screen(QString screen, QSize size) -> ::ilias::QAsyncSlot<void>;
     void button_clicked(QAbstractButton *button);
     void refresh_configs(QString file = "");
 

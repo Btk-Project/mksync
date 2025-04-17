@@ -29,6 +29,7 @@ public:
     [[nodiscard("coroutine function")]]
     auto teardown() -> ::ilias::Task<int> override;
     auto name() -> const char * override;
+    auto reconfigure([[maybe_unused]] Settings &settings) -> ::ilias::Task<void> override;
 
     auto rpc_server() -> NekoProto::JsonRpcServer<BaseMethods> &;
 

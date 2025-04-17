@@ -36,6 +36,8 @@ public:
      */
     [[nodiscard("coroutine function")]]
     auto handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void> override;
+    auto reconfigure([[maybe_unused]] Settings &settings) -> ::ilias::Task<void> override;
+    auto type() -> Type override { return eClientController; }
 
 private:
     std::string_view _senderNode;

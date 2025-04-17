@@ -26,6 +26,13 @@ class App;
 class Controller;
 class MKS_CORE_API ControllerImp {
 public:
+    enum Type
+    {
+        eServerController = 0,
+        eClientController = 1,
+    };
+
+public:
     ControllerImp(Controller *self, IApp *app) : _self(self), _app(app) {}
     virtual ~ControllerImp() = default;
     [[nodiscard("coroutine function")]]
@@ -34,7 +41,9 @@ public:
     [[nodiscard("coroutine function")]]
     virtual auto teardown() -> ::ilias::Task<int> = 0;
     [[nodiscard("coroutine function")]]
-    virtual auto handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void> = 0;
+    virtual auto handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void>     = 0;
+    virtual auto reconfigure([[maybe_unused]] Settings &settings) -> ::ilias::Task<void> = 0;
+    virtual auto type() -> Type                                                          = 0;
 
 protected:
     Controller *_self;
@@ -57,6 +66,9 @@ public:
     auto teardown() -> ::ilias::Task<int> override;
     ///> 获取节点名称。
     auto name() -> const char * override;
+    ///> 重新配置节点。
+    auto reconfigure([[maybe_unused]] Settings &settings) -> ::ilias::Task<void> override;
+
     ///> 预先订阅的事件类型集合。
     auto get_subscribes() -> std::vector<int> override;
     ///> 处理一个事件，需要订阅。
