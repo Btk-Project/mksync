@@ -27,6 +27,8 @@ public:
     auto teardown() -> ::ilias::Task<int> override;
     [[nodiscard("coroutine function")]]
     auto handle_event(const NekoProto::IProto &event) -> ::ilias::Task<void> override;
+    auto reconfigure([[maybe_unused]] Settings &settings) -> ::ilias::Task<void> override;
+    auto type() -> Type override { return eServerController; }
 
 public:
     ///> 配置屏幕信息

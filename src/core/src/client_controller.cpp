@@ -29,12 +29,6 @@ auto ClientController::setup() -> ::ilias::Task<int>
     }
     co_await _app->push_event(SenderControl::emplaceProto(SenderControl::eStart),
                               _self); // 直接开启
-    auto *rpcModule =
-        dynamic_cast<RemoteController *>(_app->node_manager().get_node("RemoteController"));
-    if (rpcModule != nullptr) {
-        auto &rpcServer         = rpcModule->rpc_server();
-        rpcServer->serverStatus = []() -> int { return 1; };
-    }
     co_return 0;
 }
 
@@ -50,12 +44,6 @@ auto ClientController::teardown() -> ::ilias::Task<int>
     }
     _app->node_manager().destroy_node(_senderNode);
     _senderNode = "";
-    auto *rpcModule =
-        dynamic_cast<RemoteController *>(_app->node_manager().get_node("RemoteController"));
-    if (rpcModule != nullptr) {
-        auto &rpcServer = rpcModule->rpc_server();
-        rpcServer->serverStatus.clear();
-    }
     co_return 0;
 }
 
@@ -65,4 +53,11 @@ auto ClientController::handle_event(const NekoProto::IProto &event) -> ::ilias::
     SPDLOG_INFO("handle event: {}", event.type());
     co_return;
 }
+
+auto ClientController::reconfigure([[maybe_unused]] Settings &settings) -> ::ilias::Task<void>
+{
+    // TODO: 哪些配置可以动态修改？
+    co_return;
+}
+
 MKS_END

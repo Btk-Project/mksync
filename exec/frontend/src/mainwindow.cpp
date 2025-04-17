@@ -37,15 +37,14 @@ MainWindow::MainWindow(QWidget *parent)
     _ui->stackedWidget->setCurrentWidget(_ui->server_page);
     _ui->graphicsView->setScene(&_scene);
 
-    connect(&_scene, &ScreenScene::remove_screen, this, [this](QString screen, QSize size) {
-        auto *item = ScreenListView::make_screen_item(screen, size);
-        _ui->listWidget->addItem(item);
-    });
+    connect(&_scene, &ScreenScene::remove_screen, this, &MainWindow::remove_screen);
     connect(_ui->graphicsView, &ScreenEditView::refresh_screens_request, this,
             &MainWindow::refresh_online_screens);
     connect(&_rpcReconnectTimer, &QTimer::timeout, this, &MainWindow::setup_backend);
     _rpcReconnectTimer.setSingleShot(true);
     _rpcReconnectTimer.start(10);
+
+    connect(&_scene, &ScreenScene::screen_moved, this, &MainWindow::screen_moved);
 }
 
 MainWindow::~MainWindow()
@@ -53,6 +52,7 @@ MainWindow::~MainWindow()
     _process.kill();
     _process.waitForFinished();
     _rpcClient.close();
+    ilias_wait setting_config();
     delete _ui;
 }
 
@@ -407,4 +407,22 @@ auto MainWindow::setting_config() -> ::ilias::QAsyncSlot<void>
     }
 
     co_await _rpcClient->reloadConfigFile(_settingFile.toStdString());
+}
+
+auto MainWindow::screen_moved(QString screen, QPoint pos, QSize size) -> ::ilias::QAsyncSlot<void>
+{
+    co_await _rpcClient->setVirtualScreenConfig(mks::VirtualScreenConfig{
+        .name   = screen.toStdString(),
+        .posX   = pos.x(),
+        .posY   = pos.y(),
+        .width  = size.width(),
+        .height = size.height(),
+    });
+}
+
+auto MainWindow::remove_screen(QString screen, QSize size) -> ::ilias::QAsyncSlot<void>
+{
+    co_await _rpcClient->removeVirtualScreen(screen.toStdString());
+    auto *item = ScreenListView::make_screen_item(screen, size);
+    _ui->listWidget->addItem(item);
 }

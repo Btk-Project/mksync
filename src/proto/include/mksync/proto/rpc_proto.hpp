@@ -38,5 +38,6 @@ struct BaseMethods {
     RpcMethod<void(std::vector<VirtualScreenConfig>), "setVirtualScreenConfigs">
                                                                     setVirtualScreenConfigs;
     RpcMethod<std::vector<VirtualScreenInfo>(), "getOnlineScreens"> getOnlineScreens;
+    RpcMethod<void(std::string), "removeVirtualScreen"> removeVirtualScreen;
 };
 MKS_END

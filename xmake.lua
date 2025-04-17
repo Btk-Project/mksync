@@ -7,7 +7,7 @@ set_configvar("PROJECT_NAME", "mksync")
 
 -- 全局设置
 set_warnings("allextra")
-set_languages("cxx23", "c17")
+set_languages("cxx20", "c17")
 set_exceptions("cxx")
 set_encodings("utf-8")
 
@@ -42,7 +42,7 @@ add_requires(
     "cxxopts"
 )
 add_requires("rapidjson", {configs = {header_only = true}})
-add_requires("ilias", {version = "dev"})
+add_requires("ilias")
 -- normal libraries
 add_requires("spdlog", {version = "1.x.x", configs = {shared = is_config("3rd_kind", "shared"), header_only = false, fmt_external = true, wchar = true, wchar_console = true}})
 add_requires("neko-proto-tools", {version = "dev", configs = {shared = is_config("3rd_kind", "shared"), enable_simdjson = false, enable_rapidjson = true, enable_fmt = true, enable_communication = true}})
@@ -58,7 +58,7 @@ end
 add_requireconfs("**.fmt", {override = true, version = "11.0.x", configs = {shared = is_config("3rd_kind", "shared"), header_only = false}})
 add_requireconfs("**.spdlog", {override = true, version = "1.x.x", configs = {shared = is_config("3rd_kind", "shared"), header_only = false, fmt_external = true, wchar = true, wchar_console = true}})
 add_requireconfs("**.neko-proto-tools", {override = true, version = "dev", configs = {shared = is_config("3rd_kind", "shared"), enable_simdjson = false, enable_rapidjson = true, enable_fmt = true, enable_communication = true}})
-add_requireconfs("**.ilias", {override = true, version = "dev"})
+add_requireconfs("**.ilias", {override = true})
 add_requireconfs("**.rapidjson", {override = true, configs = {header_only = true}})
 if is_plat("linux") then
     add_requireconfs("**.libportal", {system = true, optional = true})

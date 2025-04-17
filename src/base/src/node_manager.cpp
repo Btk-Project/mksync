@@ -72,10 +72,10 @@ private:
     DL_HANDLE _handle = nullptr;
 };
 
-    NodeManager::NodeManager(IApp *app) : _app(app), _taskScope(*app->get_io_context())
-    {
-        _taskScope.spawn(_events_loop());
-    }
+NodeManager::NodeManager(IApp *app) : _app(app), _taskScope(*app->get_io_context())
+{
+    _taskScope.spawn(_events_loop());
+}
 
 NodeManager::~NodeManager()
 {
@@ -141,31 +141,31 @@ auto NodeManager::add_node(std::unique_ptr<NodeBase, void (*)(NodeBase *)> &&nod
     return name;
 }
 
-    auto NodeManager::destroy_node(std::string_view name) -> int
-    {
-        auto item = _nodeMap.find(name);
-        if (item == _nodeMap.end()) {
-            return -2;
-        }
-        if (item->second->status == eNodeStatusRunning) {
-            SPDLOG_ERROR("destroy node: {}<{}> failed! node is running!");
-            return -1;
-        }
-        if (_isInProcess) {
-            item->second->status = eNodeDestroyed;
-        }
-        else {
-            _isInProcess = true;
-            SPDLOG_INFO("destroy node: {}<{}>", item->second->node->name(),
-                        (void *)item->second->node.get());
-            _nodeList.erase(item->second);
-            _nodeMap.erase(item);
-            _isInProcess = false;
-        }
-        // _nodeList.erase(item->second);
-        // _nodeMap.erase(item);
-        return 0;
+auto NodeManager::destroy_node(std::string_view name) -> int
+{
+    auto item = _nodeMap.find(name);
+    if (item == _nodeMap.end()) {
+        return -2;
     }
+    if (item->second->status == eNodeStatusRunning) {
+        SPDLOG_ERROR("destroy node: {}<{}> failed! node is running!");
+        return -1;
+    }
+    if (_isInProcess) {
+        item->second->status = eNodeDestroyed;
+    }
+    else {
+        _isInProcess = true;
+        SPDLOG_INFO("destroy node: {}<{}>", item->second->node->name(),
+                    (void *)item->second->node.get());
+        _nodeList.erase(item->second);
+        _nodeMap.erase(item);
+        _isInProcess = false;
+    }
+    // _nodeList.erase(item->second);
+    // _nodeMap.erase(item);
+    return 0;
+}
 
 auto NodeManager::setup_node(std::string_view name) -> ilias::Task<int>
 {
@@ -175,75 +175,75 @@ auto NodeManager::setup_node(std::string_view name) -> ilias::Task<int>
     co_return -1;
 }
 
-    auto NodeManager::setup_node(NodeData &node) -> ilias::Task<int>
-    {
-        SPDLOG_INFO("start node: {}<{}>", node.node->name(), (void *)node.node.get());
-        if (node.status == NodeStatus::eNodeStatusStopped) {
-            auto ret = co_await node.node->setup();
-            if (ret != 0) {
-                co_return ret;
-            }
-            node.status    = NodeStatus::eNodeStatusRunning;
-            auto *consumer = dynamic_cast<Consumer *>(node.node.get());
-            if (consumer != nullptr) {
-                for (int type : consumer->get_subscribes()) {
-                    subscribe(type, consumer);
-                }
-            }
-            auto *producer = dynamic_cast<Producer *>(node.node.get());
-            if (producer != nullptr) {
-                _cancelHandleMap[node.node->name()] = _taskScope.spawn(_producer_loop(producer));
-            }
-            co_return 0;
+auto NodeManager::setup_node(NodeData &node) -> ilias::Task<int>
+{
+    SPDLOG_INFO("start node: {}<{}>", node.node->name(), (void *)node.node.get());
+    if (node.status == NodeStatus::eNodeStatusStopped) {
+        auto ret = co_await node.node->setup();
+        if (ret != 0) {
+            co_return ret;
         }
-        co_return -2;
+        node.status    = NodeStatus::eNodeStatusRunning;
+        auto *consumer = dynamic_cast<Consumer *>(node.node.get());
+        if (consumer != nullptr) {
+            for (int type : consumer->get_subscribes()) {
+                subscribe(type, consumer);
+            }
+        }
+        auto *producer = dynamic_cast<Producer *>(node.node.get());
+        if (producer != nullptr) {
+            _cancelHandleMap[node.node->name()] = _taskScope.spawn(_producer_loop(producer));
+        }
+        co_return 0;
     }
+    co_return -2;
+}
 
-    auto NodeManager::_producer_loop(Producer *producer) -> ::ilias::Task<void>
-    {
-        while (true) {
-            if (auto ret = co_await producer->get_event(); ret) {
-                if (ret.value() == nullptr) {
-                    SPDLOG_CRITICAL("producer: {}<{}> get event a null proto",
-                                    dynamic_cast<NodeBase *>(producer)->name(),
-                                    (void *)dynamic_cast<NodeBase *>(producer));
-                    break;
-                }
-                co_await dispatch(ret.value(), dynamic_cast<NodeBase *>(producer));
-            }
-            else if (ret.error() != ::ilias::Error::Canceled) {
-                SPDLOG_ERROR("producer: {}<{}> get event failed! exit producer loop!, {}",
-                             dynamic_cast<NodeBase *>(producer)->name(), (void *)producer,
-                             ret.has_value() ? "null proto" : ret.error().message());
+auto NodeManager::_producer_loop(Producer *producer) -> ::ilias::Task<void>
+{
+    while (true) {
+        if (auto ret = co_await producer->get_event(); ret) {
+            if (ret.value() == nullptr) {
+                SPDLOG_CRITICAL("producer: {}<{}> get event a null proto",
+                                dynamic_cast<NodeBase *>(producer)->name(),
+                                (void *)dynamic_cast<NodeBase *>(producer));
                 break;
             }
-            else {
-                SPDLOG_INFO("producer: {}<{}> get event canceled! exit producer loop!",
-                            dynamic_cast<NodeBase *>(producer)->name(),
-                            (void *)dynamic_cast<NodeBase *>(producer));
-                break;
-            }
+            co_await dispatch(ret.value(), dynamic_cast<NodeBase *>(producer));
         }
-        co_return;
+        else if (ret.error() != ::ilias::Error::Canceled) {
+            SPDLOG_ERROR("producer: {}<{}> get event failed! exit producer loop!, {}",
+                         dynamic_cast<NodeBase *>(producer)->name(), (void *)producer,
+                         ret.has_value() ? "null proto" : ret.error().message());
+            break;
+        }
+        else {
+            SPDLOG_INFO("producer: {}<{}> get event canceled! exit producer loop!",
+                        dynamic_cast<NodeBase *>(producer)->name(),
+                        (void *)dynamic_cast<NodeBase *>(producer));
+            break;
+        }
     }
+    co_return;
+}
 
-    auto NodeManager::_events_loop() -> ::ilias::Task<void>
-    {
-        while (true) {
-            EventBase::Event event;
-            if (auto ret = co_await _events.pop(event); ret == ::ilias::Error::Ok) {
-                co_await dispatch(event.data, event.from);
-            }
-            else if (ret != ::ilias::Error::Canceled) {
-                SPDLOG_ERROR("get event failed! exit events loop!, {}", ret.message());
-                break;
-            }
-            else {
-                SPDLOG_INFO("get event canceled! exit events loop!");
-                break;
-            }
+auto NodeManager::_events_loop() -> ::ilias::Task<void>
+{
+    while (true) {
+        EventBase::Event event;
+        if (auto ret = co_await _events.pop(event); ret == ::ilias::Error::Ok) {
+            co_await dispatch(event.data, event.from);
+        }
+        else if (ret != ::ilias::Error::Canceled) {
+            SPDLOG_ERROR("get event failed! exit events loop!, {}", ret.message());
+            break;
+        }
+        else {
+            SPDLOG_INFO("get event canceled! exit events loop!");
+            break;
         }
     }
+}
 
 auto NodeManager::subscribe(int type, Consumer *consumer) -> void
 {
@@ -378,18 +378,44 @@ auto NodeManager::get_nodes() -> std::list<NodeData> &
     return _nodeList;
 }
 
-    auto NodeManager::get_nodes() const -> const std::list<NodeData> &
-    {
-        return _nodeList;
-    }
+auto NodeManager::get_nodes() const -> const std::list<NodeData> &
+{
+    return _nodeList;
+}
 
-    auto NodeManager::get_node(std::string_view name) -> NodeBase *
-    {
-        if (auto item = _nodeMap.find(name); item != _nodeMap.end()) {
-            return item->second->node.get();
-        }
-        return nullptr;
+auto NodeManager::get_node(std::string_view name) -> NodeBase *
+{
+    if (auto item = _nodeMap.find(name); item != _nodeMap.end()) {
+        return item->second->node.get();
     }
+    return nullptr;
+}
+
+auto NodeManager::reconfigure_node(NodeData &node) -> ilias::Task<void>
+{
+    co_await node.node->reconfigure(_app->settings());
+}
+
+auto NodeManager::reconfigure_node(std::string_view name) -> ilias::Task<void>
+{
+    if (auto item = _nodeMap.find(name); item != _nodeMap.end()) {
+        co_await reconfigure_node(*(item->second));
+    }
+}
+
+auto NodeManager::reconfigure_node(std::vector<std::string_view> names) -> ilias::Task<void>
+{
+    for (auto &name : names) {
+        co_await reconfigure_node(name);
+    }
+}
+
+auto NodeManager::reconfigure_node() -> ilias::Task<void>
+{
+    for (auto &node : _nodeList) {
+        co_await reconfigure_node(node);
+    }
+}
 
 auto NodeManager::get_events() -> EventBase &
 {

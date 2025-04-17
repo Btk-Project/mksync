@@ -112,14 +112,14 @@ void ScreenScene::dropEvent(QGraphicsSceneDragDropEvent *event)
 auto ScreenScene::new_screen_item(QString screen, QPoint scenePos, QSize size, int id)
     -> GraphicsScreenItem *
 {
-    GraphicsScreenItem *item =
-        new GraphicsScreenItem(screen, id, {size.width(), size.height()}); // 创建一个新的文本项
+    GraphicsScreenItem *item = new GraphicsScreenItem(screen, id, size); // 创建一个新的文本项
     addItem(item);
     item->setFont(font());
     item->setFlag(QGraphicsItem::ItemIsMovable, true);
     item->update_grid_pos(scenePos - QPoint{size.width(), size.height()} / 2);
     if (item->adsorption_to_grid()) {
         item->fit_font(views().back()->transform());
+        Q_EMIT screen_moved(item->get_screen_name(), item->get_item_geometry().topLeft(), size);
         return item;
     }
     removeItem(item); // 如果无法对齐，则删除该项

@@ -166,6 +166,14 @@ public:
      */
     auto get_nodes() -> std::list<NodeData> &;
     auto get_nodes() const -> const std::list<NodeData> &;
+    /**
+     * @brief 使用全局配置重新配置节点
+     *
+     */
+    auto reconfigure_node(NodeData &node) -> ilias::Task<void>;
+    auto reconfigure_node(std::string_view name) -> ilias::Task<void>;
+    auto reconfigure_node(std::vector<std::string_view> names) -> ilias::Task<void>;
+    auto reconfigure_node() -> ilias::Task<void>;
 
     /**
      * @brief 获取节点

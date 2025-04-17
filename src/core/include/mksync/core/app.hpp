@@ -183,6 +183,8 @@ public:
     auto log_handle(const CommandInvoker::ArgsType    &args,
                     const CommandInvoker::OptionsType &options) -> ::ilias::Task<std::string>;
 
+    auto reconfigure() -> ::ilias::Task<void> override;
+
 private:
     // 主循环控制
     bool           _isRuning = false;

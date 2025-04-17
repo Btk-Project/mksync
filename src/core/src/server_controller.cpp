@@ -262,6 +262,11 @@ auto ServerController::setup() -> ::ilias::Task<int>
                 set_virtual_screen_positions(vsconfig.name, {vsconfig.posX, vsconfig.posY});
             }
         };
+
+        rpcServer->removeVirtualScreen = [this](std::string_view screen) {
+            remove_virtual_screen(screen);
+        };
+
         rpcServer->getOnlineScreens = [this]() -> std::vector<VirtualScreenInfo> {
             std::vector<VirtualScreenInfo> configs;
             for (auto &[peer, vs] : _virtualScreens) {
@@ -271,7 +276,6 @@ auto ServerController::setup() -> ::ilias::Task<int>
             }
             return configs;
         };
-        rpcServer->serverStatus = []() -> int { return 1; };
     }
 
     co_return 0;
@@ -289,7 +293,6 @@ auto ServerController::teardown() -> ::ilias::Task<int>
         rpcServer->setVirtualScreenConfig.clear();
         rpcServer->setVirtualScreenConfigs.clear();
         rpcServer->getOnlineScreens.clear();
-        rpcServer->serverStatus.clear();
     }
     co_await _sender->teardown();
     _app->node_manager().unsubscribe(_subscribes, _self);
@@ -316,6 +319,12 @@ auto ServerController::handle_event(const NekoProto::IProto &event) -> ::ilias::
         co_return co_await item->second(this, event);
     }
     SPDLOG_WARN("ServerController unhandle event {}!", event.protoName());
+    co_return;
+}
+
+auto ServerController::reconfigure([[maybe_unused]] Settings &settings) -> ::ilias::Task<void>
+{
+    // TODO: 哪些配置可以动态修改？
     co_return;
 }
 

@@ -32,6 +32,7 @@ public:
 
 Q_SIGNALS:
     void remove_screen(QString screen, QSize size);
+    void screen_moved(QString screen, QPoint pos, QSize size);
 
 protected:
     void drawBackground(QPainter *painter, const QRectF &rect) override;

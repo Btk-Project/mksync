@@ -196,6 +196,20 @@ ServerCommand::ServerCommand(IApp *app, MKCommunication *self, const char *name)
 
 auto ServerCommand::execute() -> Task<std::string>
 {
+    auto makeErrorStr = [this](int ret) -> std::string {
+        switch (ret) {
+        case -1:
+            return fmt::format("{} is disable", _self->name());
+        case -2:
+            return "server/client is already running";
+        case -3:
+            return "failed to make TcpListener";
+        case -4:
+            return "failed to bind";
+        default:
+            return std::format("Failed to start server, error code: {}", ret);
+        }
+    };
     switch (_operation) {
     case eStart:
         if (auto ret = co_await _self->listen(_ipendpoint); ret == 0) {
@@ -204,7 +218,7 @@ auto ServerCommand::execute() -> Task<std::string>
                                       _self);
         }
         else {
-            co_return std::format("Failed to start server, error code: {}", ret);
+            co_return makeErrorStr(ret);
         }
         break;
     case eStop:
@@ -216,7 +230,7 @@ auto ServerCommand::execute() -> Task<std::string>
     case eRestart:
         co_await _self->close();
         if (auto ret = co_await _self->listen(_ipendpoint); ret != 0) {
-            co_return std::format("Failed to restart server, error code: {}", ret);
+            co_return makeErrorStr(ret);
         }
         break;
     default:
@@ -366,6 +380,22 @@ ClientCommand::ClientCommand(IApp *app, MKCommunication *self) : ServerCommand(a
 
 auto ClientCommand::execute() -> Task<std::string>
 {
+    auto makeErrorStr = [](int ret) -> std::string {
+        switch (ret) {
+        case -1:
+            return "Communication is server mode or disabled.";
+        case -2:
+            return "server/client is already running";
+        case -3:
+            return "Failed to make tcp";
+        case -4:
+            return "Failed to connect to server";
+        case -5:
+            return "Failed to handshake with server";
+        default:
+            return "Failed to connect to server";
+        }
+    };
     switch (_operation) {
     case eStart:
         if (auto ret = co_await _self->connect(_ipendpoint); ret == 0) {
@@ -374,7 +404,7 @@ auto ClientCommand::execute() -> Task<std::string>
                                       _self);
         }
         else {
-            co_return "Failed to connect to server";
+            co_return makeErrorStr(ret);
         }
         break;
     case eStop:
@@ -385,7 +415,7 @@ auto ClientCommand::execute() -> Task<std::string>
     case eRestart:
         co_await _self->close();
         if (auto ret = co_await _self->connect(_ipendpoint); ret != 0) {
-            co_return "Failed to connect to server";
+            co_return makeErrorStr(ret);
         }
         break;
     default:
@@ -620,12 +650,12 @@ auto MKCommunication::listen(ilias::IPEndpoint endpoint) -> ilias::Task<int>
     }
     if (_status == eServer) { // 确保没有正在作为服务端运行
         SPDLOG_ERROR("server/client is already running");
-        co_return -1;
+        co_return -2;
     }
     TcpListener server;
     if (auto ret = co_await TcpListener::make(endpoint.family()); !ret) {
         SPDLOG_ERROR("TcpListener make failed {}", ret.error().message());
-        co_return -1;
+        co_return -3;
     }
     else {
         server = std::move(ret.value());
@@ -633,7 +663,7 @@ auto MKCommunication::listen(ilias::IPEndpoint endpoint) -> ilias::Task<int>
     if (auto res = server.bind(endpoint); !res) {
         SPDLOG_ERROR("TcpListener bind {} failed {}", endpoint.toString(), res.error().message());
         server.close();
-        co_return -1;
+        co_return -4;
     }
     else {
         _status = eServer;
@@ -823,24 +853,24 @@ auto MKCommunication::connect(ilias::IPEndpoint endpoint) -> ilias::Task<int>
     }
     if (_protoStreamClients.size() > 0) { // 确保没有正在作为服务端运行
         SPDLOG_ERROR("server/client is already running");
-        co_return -1;
+        co_return -2;
     }
     TcpClient tcpClient;
     if (auto ret = co_await TcpClient::make(endpoint.family()); !ret) {
         SPDLOG_ERROR("TcpClient make failed {}", ret.error().message());
-        co_return -1;
+        co_return -3;
     }
     else {
         tcpClient = std::move(ret.value());
     }
     if (auto res = co_await tcpClient.connect(endpoint); !res) {
         SPDLOG_ERROR("TcpClient connect {} failed {}", endpoint.toString(), res.error().message());
-        co_return -1;
+        co_return -4;
     }
     auto client = NekoProto::ProtoStreamClient<>(_protofactory, std::move(tcpClient));
     if (auto ret = co_await _client_handshake("self", &client); ret != 0) {
         SPDLOG_ERROR("client handshake failed {}", ret);
-        co_return -1;
+        co_return -5;
     }
     _status      = eClient;
     _currentPeer = _protoStreamClients.emplace_hint(_protoStreamClients.begin(),

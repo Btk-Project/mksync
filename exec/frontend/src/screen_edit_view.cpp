@@ -181,6 +181,7 @@ void ScreenEditView::fit_view_to_scene()
     else {
         qWarning() << "Scene is empty, cannot fit view.";
     }
+    qDebug() << transform();
     auto *mscene = dynamic_cast<ScreenScene *>(scene());
     if (mscene != nullptr) {
         for (auto *item : mscene->items()) {
@@ -293,6 +294,11 @@ void ScreenEditView::contextMenuEvent(QContextMenuEvent *event)
     QGraphicsItem *itemUnderMouse = itemAt(viewPos);
     auto *textItem = dynamic_cast<GraphicsScreenItem *>(itemUnderMouse); // 尝试转换为你的自定义类型
 
+    // 不可移动的节点是自己，暂时不能改名字或者删除。
+    if (textItem != nullptr && (textItem->flags() & QGraphicsItem::ItemIsMovable) == 0) {
+        return;
+    }
+
     QMenu menu(this);
     menu.setStyleSheet(R"(QMenu {
     background-color: white;
@@ -336,11 +342,9 @@ QMenu::indicator {
         qDebug() << "Right click on item:" << textItem->toPlainText();
 
         QAction *renameAction = menu.addAction(tr("rename"));
-        if ((textItem->flags() & QGraphicsItem::ItemIsMovable) != 0) {
-            QAction *deleteAction = menu.addAction(tr("delete"));
-            connect(deleteAction, &QAction::triggered, this,
-                    [this, textItem]() { delete_item(textItem); });
-        }
+        QAction *deleteAction = menu.addAction(tr("delete"));
+        connect(deleteAction, &QAction::triggered, this,
+                [this, textItem]() { delete_item(textItem); });
 
         // 使用 Lambda 捕获 item 指针
         connect(renameAction, &QAction::triggered, this,

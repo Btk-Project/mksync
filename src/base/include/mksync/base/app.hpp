@@ -146,5 +146,6 @@ public:
      */
     [[nodiscard("coroutine function")]]
     virtual auto stop() -> ilias::Task<void> = 0;
+    virtual auto reconfigure() -> ilias::Task<void> = 0;
 };
 MKS_END

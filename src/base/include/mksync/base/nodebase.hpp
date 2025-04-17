@@ -33,6 +33,9 @@
 
 #include <nekoproto/communication/communication_base.hpp>
 
+#include "mksync/base/DETAIL/setting_serializer_help.hpp"
+#include "mksync/base/settings.hpp"
+
 MKS_BEGIN
 
 class IApp;
@@ -63,6 +66,11 @@ public:
     ///> 停用节点。
     [[nodiscard("coroutine function")]]
     virtual auto teardown() -> ::ilias::Task<int> = 0;
+    ///> 重新配置节点。
+    virtual auto reconfigure([[maybe_unused]] Settings &settings) -> ::ilias::Task<void>
+    {
+        co_return;
+    }
     ///> 获取节点名称。
     virtual auto name() -> const char * = 0;
 };
@@ -105,8 +113,7 @@ public:
 MKS_END
 
 #define MKS_MAKE_NODE_FUNC_NAME "mks_make_node"
-#define MKS_MAKE_NODE_FUNC                                                                         \
-    extern "C" ::mks::NodeBase *mks_make_node([[maybe_unused]] void *app)
+#define MKS_MAKE_NODE_FUNC extern "C" ::mks::NodeBase *mks_make_node([[maybe_unused]] void *app)
 #define MKS_DELETE_NODE_FUNC_NAME "mks_delete_node"
 #define MKS_DELETE_NODE_FUNC extern "C" void mks_delete_node(::mks::NodeBase *node)
 ///> 从dll中创建一个NodeBase对象，如果有命令需要注册可以通过app的接口。
