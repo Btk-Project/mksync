@@ -50,4 +50,7 @@ target("mksync")
     set_kind("binary")
     add_packages("ilias")
     add_packages("spdlog")
+    if is_plat("windows") then 
+        add_syslinks("user32")
+    end
     add_files("./src/**.cpp")
