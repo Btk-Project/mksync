@@ -12,7 +12,7 @@ set_exceptions("cxx")
 set_encodings("utf-8")
 
 -- 添加编译选项
-add_rules("mode.release", "mode.mydebug")
+add_rules("mode.release", "mode.debug")
 add_rules("plugin.compile_commands.autoupdate", {lsp = "clangd", outputdir = ".vscode"})
 
 -- 编译设置
@@ -53,4 +53,5 @@ target("mksync")
     if is_plat("windows") then 
         add_syslinks("user32")
     end
+    
     add_files("./src/**.cpp")

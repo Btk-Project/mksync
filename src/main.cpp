@@ -29,7 +29,8 @@ auto loop(InputCapture *capture) -> ilias::Task<void> {
 }
 
 void ilias_main() {
-    auto capture = mksync::platform::createInputCapture();
+    auto platform = mksync::platform::createPlatform();
+    auto capture = platform->createInputCapture();
     if (!capture || !co_await capture->initialize()) {
         spdlog::error("Failed to create input capture");
         co_return;

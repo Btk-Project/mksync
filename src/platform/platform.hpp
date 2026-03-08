@@ -6,6 +6,9 @@
 #include <memory>
 #include <format>
 
+#include "../core/mouse.hpp"
+#include "../core/key.hpp"
+
 namespace mksync::platform {
 
 // Import types
@@ -13,16 +16,9 @@ using ilias::IoTask;
 using ilias::Task;
 using ilias::Err;
 
-/**
- * @brief The mouse button
- * 
- */
-enum class MouseButton {
-    None = 0,
-    Left = 1,
-    Right,
-    Middle,
-};
+using core::MouseButton;
+using core::KeyModifier;
+using core::Key;
 
 /**
  * @brief The raw input event collect from the input capture.
@@ -41,17 +37,32 @@ public:
         KeyRelease,
 
         // Screen
-        ScreenChange, // The screen was changed
+        ScreenChange, // The screen was changed, Not supported in injector
     } type = None;
 
     union {
         struct {
+            // Common fields for mouse events
             uint32_t    screenIndex; // The screen index (mouse on which screen)
             int32_t     x;
             int32_t     y;
+
+            // Mouse press/release
             MouseButton button;
         } mouse;
+
+        struct {
+            Key         key;
+            KeyModifier modifiers;
+        } key;
     };
+};
+
+class ScreenInfo {
+public:
+    int32_t width = 0;
+    int32_t height = 0;
+    int32_t dpi = 72;
 };
 
 /**
@@ -86,33 +97,56 @@ public:
     virtual auto shutdown() -> Task<void> = 0;
 
     /**
-     * @brief Send an event to
+     * @brief Send an event to injector.
+     * @note Only some events are supported, see `InputEvent::Type`.
      * 
      */
     virtual auto sendEvent(InputEvent event) -> IoTask<void> = 0;
 };
 
 /**
- * @brief Create an platform specific input capture
+ * @brief The platform interface, used to manage the screen & other platform specific things.
  * 
- * @return InputCapture::Ptr 
  */
-auto createInputCapture() -> InputCapture::Ptr;
+class Platform {
+public:
+    using Ptr = std::shared_ptr<Platform>;
+
+    virtual ~Platform() = default;
+
+    /**
+     * @brief Get the current all screens info.
+     * 
+     * @return std::vector<ScreenInfo> 
+     */
+    // virtual auto screens() -> std::vector<ScreenInfo> = 0;
+
+    // Factory methods
+    virtual auto createInputCapture() -> InputCapture::Ptr = 0;
+    virtual auto createInputInjector() -> InputInjector::Ptr = 0;
+};
+
+/**
+ * @brief Create a current platform instance.
+ * 
+ * @return Platform::Ptr 
+ */
+auto createPlatform() -> Platform::Ptr;
 
 } // namespace mksync::platform
 
-// Formatter
 template <>
-struct std::formatter<mksync::platform::MouseButton> {
+struct std::formatter<mksync::platform::InputEvent::Type> {
     constexpr auto parse(auto &ctxt) { return ctxt.begin(); }
 
-    auto format(const auto &button, auto &ctxt) const {
-        using enum mksync::platform::MouseButton;
-        switch (button) {
+    auto format(const auto &type, auto &ctxt) const {
+        using enum mksync::platform::InputEvent::Type;
+        switch (type) {
             case None: return std::format_to(ctxt.out(), "None");
-            case Left: return std::format_to(ctxt.out(), "Left");
-            case Right: return std::format_to(ctxt.out(), "Right");
-            case Middle: return std::format_to(ctxt.out(), "Middle");
+            case MouseMove: return std::format_to(ctxt.out(), "MouseMove");
+            case MousePress: return std::format_to(ctxt.out(), "MousePress");
+            case MouseRelease: return std::format_to(ctxt.out(), "MouseRelease");
+            case KeyPress: return std::format_to(ctxt.out(), "KeyPress");
             default: return std::format_to(ctxt.out(), "Unknown");
         }
     }
