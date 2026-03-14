@@ -1,75 +1,117 @@
-#pragma once
+﻿#pragma once
 
 #include <ilias/task.hpp>
 #include <ilias/io.hpp>
-#include <variant>
-#include <memory>
+#include <cstdint>
 #include <format>
+#include <memory>
 #include <span>
+#include <string>
+#include <variant>
+#include <vector>
 
 #include "../core/mouse.hpp"
 #include "../core/key.hpp"
 
 namespace mksync::platform {
 
-// Import types
+using ilias::Err;
 using ilias::IoTask;
 using ilias::Task;
-using ilias::Err;
 
-using core::MouseButton;
-using core::KeyModifier;
 using core::Key;
+using core::KeyModifier;
+using core::MouseButton;
 
-/**
- * @brief The raw input event collect from the input capture.
- * 
- */
 class InputEvent {
 public:
-    enum Type {
-        None      = 0, // Should never happen
-        MouseMove = 1, // The mouse was moved
+    enum class Type {
+        None = 0,
+
+        // Mouse
+        MouseMove,
         MousePress,
         MouseRelease,
+        MouseWheel,
 
         // Keyboard
         KeyPress,
         KeyRelease,
 
-        // Screen
-        ScreenChange, // The screen was changed, Not supported in injector
-    } type = None;
-
-    union {
-        struct {
-            // Common fields for mouse events
-            uint32_t    screenIndex; // The screen index (mouse on which screen)
-            int32_t     x;
-            int32_t     y;
-
-            // Mouse press/release
-            MouseButton button;
-        } mouse;
-
-        struct {
-            Key         key;
-            KeyModifier modifiers;
-        } key;
+        // Screen / topology
+        ScreenChange,
     };
+
+    struct Metadata {
+        uint64_t timestampUs = 0;
+        uint32_t screenIndex = 0;
+        bool injected = false;
+    };
+
+    struct MouseMoveData {
+        int32_t x = 0;
+        int32_t y = 0;
+    };
+
+    struct MouseButtonData {
+        int32_t x = 0;
+        int32_t y = 0;
+        MouseButton button = MouseButton::None;
+    };
+
+    struct MouseWheelData {
+        int32_t x = 0;
+        int32_t y = 0;
+        int32_t deltaX = 0;
+        int32_t deltaY = 0;
+    };
+
+    struct KeyData {
+        Key key = Key::None;
+        KeyModifier modifiers = KeyModifier::None;
+        uint32_t nativeCode = 0;
+        bool repeat = false;
+    };
+
+    struct ScreenChangeData {
+        uint32_t screenCount = 0;
+    };
+
+    using Payload = std::variant<
+        std::monostate,
+        MouseMoveData,
+        MouseButtonData,
+        MouseWheelData,
+        KeyData,
+        ScreenChangeData
+    >;
+
+    Type type = Type::None;
+    Metadata metadata {};
+    Payload payload {};
+
+    template <typename T>
+    auto getIf() -> T * {
+        return std::get_if<T>(&payload);
+    }
+
+    template <typename T>
+    auto getIf() const -> const T * {
+        return std::get_if<T>(&payload);
+    }
 };
 
 class ScreenInfo {
 public:
+    int32_t x = 0;
+    int32_t y = 0;
     int32_t width = 0;
     int32_t height = 0;
     int32_t dpi = 72;
+    std::string name;
+    bool primary = false;
 };
 
-/**
- * @brief The capture interface, capture the mouse and keyboard events.
- * 
- */
 class InputCapture {
 public:
     using Ptr = std::shared_ptr<InputCapture>;
@@ -78,13 +120,6 @@ public:
 
     virtual auto initialize() -> IoTask<void> = 0;
     virtual auto shutdown() -> Task<void> = 0;
-
-    /**
-     * @brief Get the next event from the input capture.
-     * @note It must call the `initialize` method before calling this method.
-     * 
-     * @return IoTask<InputEvent> 
-     */
     virtual auto nextEvent() -> IoTask<InputEvent> = 0;
 };
 
@@ -96,49 +131,30 @@ public:
 
     virtual auto initialize() -> IoTask<void> = 0;
     virtual auto shutdown() -> Task<void> = 0;
-
-    /**
-     * @brief Send an event to injector.
-     * @note Only some events are supported, see `InputEvent::Type`.
-     * 
-     */
     virtual auto sendEvents(std::span<const InputEvent> events) -> IoTask<void> = 0;
 };
 
-/**
- * @brief The platform interface, used to manage the screen & other platform specific things.
- * 
- */
 class Platform {
 public:
     using Ptr = std::shared_ptr<Platform>;
 
     virtual ~Platform() = default;
 
-    /**
-     * @brief Get the current all screens info.
-     * 
-     * @return std::vector<ScreenInfo> 
-     */
-    // virtual auto screens() -> std::vector<ScreenInfo> = 0;
+    virtual auto screens() const -> std::vector<ScreenInfo> = 0;
 
-    // Factory methods
     virtual auto createInputCapture() -> InputCapture::Ptr = 0;
     virtual auto createInputInjector() -> InputInjector::Ptr = 0;
 };
 
-/**
- * @brief Create a current platform instance.
- * 
- * @return Platform::Ptr 
- */
 auto createPlatform() -> Platform::Ptr;
 
 } // namespace mksync::platform
 
 template <>
 struct std::formatter<mksync::platform::InputEvent::Type> {
-    constexpr auto parse(auto &ctxt) { return ctxt.begin(); }
+    constexpr auto parse(auto &ctxt) {
+        return ctxt.begin();
+    }
 
     auto format(const auto &type, auto &ctxt) const {
         using enum mksync::platform::InputEvent::Type;
@@ -147,7 +163,10 @@ struct std::formatter<mksync::platform::InputEvent::Type> {
             case MouseMove: return std::format_to(ctxt.out(), "MouseMove");
             case MousePress: return std::format_to(ctxt.out(), "MousePress");
             case MouseRelease: return std::format_to(ctxt.out(), "MouseRelease");
+            case MouseWheel: return std::format_to(ctxt.out(), "MouseWheel");
             case KeyPress: return std::format_to(ctxt.out(), "KeyPress");
+            case KeyRelease: return std::format_to(ctxt.out(), "KeyRelease");
+            case ScreenChange: return std::format_to(ctxt.out(), "ScreenChange");
             default: return std::format_to(ctxt.out(), "Unknown");
         }
     }
@@ -155,16 +174,66 @@ struct std::formatter<mksync::platform::InputEvent::Type> {
 
 template <>
 struct std::formatter<mksync::platform::InputEvent> {
-    constexpr auto parse(auto &ctxt) { return ctxt.begin(); }
+    constexpr auto parse(auto &ctxt) {
+        return ctxt.begin();
+    }
 
     auto format(const auto &event, auto &ctxt) const {
-        using enum mksync::platform::InputEvent::Type;
+        using Event = mksync::platform::InputEvent;
+        using enum Event::Type;
+
+        auto prefix = std::format(
+            "InputEvent(type: {}, screen: {}, injected: {}, ts_us: {}",
+            event.type,
+            event.metadata.screenIndex,
+            event.metadata.injected,
+            event.metadata.timestampUs
+        );
+
         switch (event.type) {
-            case None: return std::format_to(ctxt.out(), "InputEvent(None)");
-            case MouseMove: return std::format_to(ctxt.out(), "InputEvent(MouseMove(x: {}, y: {})", event.mouse.x, event.mouse.y);
-            case MousePress: return std::format_to(ctxt.out(), "InputEvent(MousePress(button: {}, x: {}, y: {})", event.mouse.button, event.mouse.x, event.mouse.y);
-            case MouseRelease: return std::format_to(ctxt.out(), "InputEvent(MouseRelease(button: {}, x: {}, y: {})", event.mouse.button, event.mouse.x, event.mouse.y);
-            default: return std::format_to(ctxt.out(), "InputEvent({})", event.type);
+            case MouseMove: {
+                if (auto data = event.getIf<Event::MouseMoveData>()) {
+                    return std::format_to(ctxt.out(), "{}, x: {}, y: {})", prefix, data->x, data->y);
+                }
+                break;
+            }
+            case MousePress:
+            case MouseRelease: {
+                if (auto data = event.getIf<Event::MouseButtonData>()) {
+                    return std::format_to(ctxt.out(), "{}, button: {}, x: {}, y: {})", prefix, data->button, data->x, data->y);
+                }
+                break;
+            }
+            case MouseWheel: {
+                if (auto data = event.getIf<Event::MouseWheelData>()) {
+                    return std::format_to(ctxt.out(), "{}, x: {}, y: {}, deltaX: {}, deltaY: {})", prefix, data->x, data->y, data->deltaX, data->deltaY);
+                }
+                break;
+            }
+            case KeyPress:
+            case KeyRelease: {
+                if (auto data = event.getIf<Event::KeyData>()) {
+                    return std::format_to(
+                        ctxt.out(),
+                        "{}, key: 0x{:X}, modifiers: 0x{:X}, native: 0x{:X}, repeat: {})",
+                        prefix,
+                        static_cast<uint32_t>(data->key),
+                        static_cast<uint32_t>(data->modifiers),
+                        data->nativeCode,
+                        data->repeat
+                    );
+                }
+                break;
+            }
+            case ScreenChange: {
+                if (auto data = event.getIf<Event::ScreenChangeData>()) {
+                    return std::format_to(ctxt.out(), "{}, screenCount: {})", prefix, data->screenCount);
+                }
+                break;
+            }
+            case None:
+                return std::format_to(ctxt.out(), "InputEvent(type: None)");
         }
+        return std::format_to(ctxt.out(), "{}, payload: <invalid>)", prefix);
     }
 };
