@@ -71,6 +71,15 @@ auto FocusController::handlePointer(const ScreenId &screen, int32_t x, int32_t y
     }
 
     auto nextTarget = FocusTarget {.screen = *next, .local = mTopology->isLocal(*next)};
+    if (mTarget && mTarget->screen == nextTarget.screen && mTarget->local == nextTarget.local) {
+        return {
+            .action = nextTarget.local ? RouteDecision::Action::KeepLocal : RouteDecision::Action::ForwardToRemote,
+            .nextState = mState,
+            .target = nextTarget,
+            .edge = edge,
+        };
+    }
+
     mTarget = nextTarget;
     mState = nextTarget.local ? FocusState::LocalActive : FocusState::RemoteActive;
 
@@ -105,3 +114,4 @@ auto FocusController::onRemoteDisconnected() -> RouteDecision {
 }
 
 } // namespace mksync::domain
+

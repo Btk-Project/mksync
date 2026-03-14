@@ -116,3 +116,4 @@ auto toInputEvent(MessageType type, const Message &message) -> std::optional<pla
 }
 
 } // namespace mksync::proto
+

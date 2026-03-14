@@ -2,8 +2,8 @@
 
 #include <spdlog/spdlog.h>
 
+#include "../domain/topology.hpp"
 #include "../proto/message.hpp"
-
 namespace mksync::app {
 namespace {
 auto makeScreenInfoFrame(uint32_t index, const platform::ScreenInfo &screen) -> proto::Frame {
@@ -20,6 +20,17 @@ auto makeScreenInfoFrame(uint32_t index, const platform::ScreenInfo &screen) -> 
             .primary = screen.primary,
         },
     };
+}
+
+auto edgeName(uint8_t edge) -> const char * {
+    using Edge = mksync::domain::Edge;
+    switch (static_cast<Edge>(edge)) {
+        case Edge::Left: return "Left";
+        case Edge::Right: return "Right";
+        case Edge::Top: return "Top";
+        case Edge::Bottom: return "Bottom";
+    }
+    return "Unknown";
 }
 } // namespace
 
@@ -124,6 +135,8 @@ auto ClientApp::initialize() -> ilias::IoTask<void> {
 }
 
 auto ClientApp::shutdown() -> ilias::Task<void> {
+    mRemoteFocusActive = false;
+    mRemoteFocusScreen.reset();
     if (mInjector) {
         co_await mInjector->shutdown();
     }
@@ -148,6 +161,28 @@ auto ClientApp::sessionLoop(transport::BufferedTcpStream &stream) -> ilias::IoTa
             continue;
         }
 
+        if (frame->type == proto::MessageType::FocusEnter) {
+            auto focus = std::get_if<proto::FocusEnter>(&frame->payload);
+            if (focus == nullptr) {
+                co_return ilias::Err(make_error_code(std::errc::protocol_error));
+            }
+            mRemoteFocusActive = true;
+            mRemoteFocusScreen = focus->screenIndex;
+            SPDLOG_INFO("Remote focus entered screen {} from edge {}", focus->screenIndex, edgeName(focus->edge));
+            continue;
+        }
+
+        if (frame->type == proto::MessageType::FocusLeave) {
+            auto focus = std::get_if<proto::FocusLeave>(&frame->payload);
+            if (focus == nullptr) {
+                co_return ilias::Err(make_error_code(std::errc::protocol_error));
+            }
+            mRemoteFocusActive = false;
+            mRemoteFocusScreen.reset();
+            SPDLOG_INFO("Remote focus left screen {}", focus->screenIndex);
+            continue;
+        }
+
         if (frame->type == proto::MessageType::ScreenInfo) {
             if (auto screen = std::get_if<proto::ScreenInfo>(&frame->payload)) {
                 SPDLOG_INFO(
@@ -164,7 +199,12 @@ auto ClientApp::sessionLoop(transport::BufferedTcpStream &stream) -> ilias::IoTa
         }
 
         if (auto event = proto::toInputEvent(frame->type, frame->payload); event) {
-            SPDLOG_DEBUG("Client injecting frame {}", frame->type);
+            SPDLOG_DEBUG(
+                "Client injecting frame {} (remote_focus_active={}, screen={})",
+                frame->type,
+                mRemoteFocusActive,
+                mRemoteFocusScreen.value_or(0)
+            );
             if (auto sent = co_await mInjector->sendEvents(std::span<const platform::InputEvent>(&*event, 1)); !sent) {
                 co_return sent;
             }
@@ -176,3 +216,4 @@ auto ClientApp::sessionLoop(transport::BufferedTcpStream &stream) -> ilias::IoTa
 }
 
 } // namespace mksync::app
+

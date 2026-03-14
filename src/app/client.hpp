@@ -3,6 +3,8 @@
 #include <ilias/net.hpp>
 #include <ilias/task.hpp>
 
+#include <optional>
+
 #include "../platform/platform.hpp"
 #include "../transport/session.hpp"
 
@@ -19,6 +21,8 @@ private:
 
     platform::Platform::Ptr mPlatform;
     platform::InputInjector::Ptr mInjector;
+    bool mRemoteFocusActive = false;
+    std::optional<uint32_t> mRemoteFocusScreen;
 };
 
 } // namespace mksync::app

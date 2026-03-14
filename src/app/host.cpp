@@ -360,6 +360,7 @@ auto HostApp::handleEvent(const InputEvent &event) -> void {
 
     auto forwardToRemote = false;
     auto transitionEdge = std::optional<Edge> {};
+    auto focusEntered = false;
 
     if (event.type == InputEvent::Type::MouseMove) {
         auto screen = mTopology.localScreen(event.metadata.screenIndex);
@@ -372,6 +373,10 @@ auto HostApp::handleEvent(const InputEvent &event) -> void {
         auto decision = mFocus.handlePointer(*screen, data->x, data->y);
         switch (decision.action) {
             case RouteDecision::Action::SwitchToRemote:
+                forwardToRemote = true;
+                transitionEdge = decision.edge;
+                focusEntered = true;
+                break;
             case RouteDecision::Action::ForwardToRemote:
                 forwardToRemote = true;
                 transitionEdge = decision.edge;
@@ -383,7 +388,7 @@ auto HostApp::handleEvent(const InputEvent &event) -> void {
                 break;
         }
 
-        if (decision.action != RouteDecision::Action::KeepLocal && decision.action != RouteDecision::Action::Noop) {
+        if (decision.action == RouteDecision::Action::SwitchToRemote || decision.action == RouteDecision::Action::ReturnLocal) {
             if (decision.target) {
                 SPDLOG_INFO(
                     "Focus decision: {} via {} -> {}:{} (local={})",
@@ -416,6 +421,16 @@ auto HostApp::handleEvent(const InputEvent &event) -> void {
         return;
     }
 
+    if (focusEntered) {
+        publishFrame(proto::Frame {
+            .type = proto::MessageType::FocusEnter,
+            .payload = proto::FocusEnter {
+                .screenIndex = remoteEvent->metadata.screenIndex,
+                .edge = static_cast<uint8_t>(transitionEdge.value_or(Edge::Right)),
+            },
+        });
+    }
+
     SPDLOG_DEBUG("Forwarding event to remote target {}: {}", remoteEvent->metadata.screenIndex, *remoteEvent);
     if (auto message = proto::toMessage(*remoteEvent)) {
         publishFrame(proto::Frame {.type = frameTypeForEventType(remoteEvent->type), .payload = std::move(*message)});
@@ -441,7 +456,11 @@ auto HostApp::interceptLocalHotkey(const InputEvent &event) -> bool {
         return false;
     }
 
-    if (currentRemoteTarget()) {
+    if (auto target = currentRemoteTarget()) {
+        publishFrame(proto::Frame {
+            .type = proto::MessageType::FocusLeave,
+            .payload = proto::FocusLeave {.screenIndex = target->screen.index},
+        });
         if (auto local = mTopology.localScreen(0); local) {
             mFocus.activateLocal(*local);
             SPDLOG_INFO("Manual focus return to local via Pause hotkey");
@@ -592,3 +611,4 @@ auto HostApp::linkOrderedScreens(std::span<const ScreenId> ordered, Edge edge) -
 }
 
 } // namespace mksync::app
+

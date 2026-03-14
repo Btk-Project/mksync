@@ -117,6 +117,17 @@ auto encodePayload(MessageType type, const Message &message) -> std::vector<std:
             writer.writeBool(value.primary);
             break;
         }
+        case MessageType::FocusEnter: {
+            const auto &value = std::get<FocusEnter>(message);
+            writer.writeU32(value.screenIndex);
+            writer.writeU8(value.edge);
+            break;
+        }
+        case MessageType::FocusLeave: {
+            const auto &value = std::get<FocusLeave>(message);
+            writer.writeU32(value.screenIndex);
+            break;
+        }
         case MessageType::MouseMove: {
             const auto &value = std::get<MouseMove>(message);
             writer.writeU32(value.screenIndex);
@@ -215,6 +226,18 @@ auto decodePayload(MessageType type, std::span<const std::byte> payload) -> std:
             if (!name) return std::unexpected(name.error());
             if (!primary) return std::unexpected(primary.error());
             return expectConsumed(ScreenInfo {.index = *index, .x = *x, .y = *y, .width = *width, .height = *height, .dpi = *dpi, .name = std::move(*name), .primary = *primary});
+        }
+        case MessageType::FocusEnter: {
+            auto screenIndex = reader.readPod<uint32_t>();
+            auto edge = reader.readPod<uint8_t>();
+            if (!screenIndex) return std::unexpected(screenIndex.error());
+            if (!edge) return std::unexpected(edge.error());
+            return expectConsumed(FocusEnter {.screenIndex = *screenIndex, .edge = *edge});
+        }
+        case MessageType::FocusLeave: {
+            auto screenIndex = reader.readPod<uint32_t>();
+            if (!screenIndex) return std::unexpected(screenIndex.error());
+            return expectConsumed(FocusLeave {.screenIndex = *screenIndex});
         }
         case MessageType::MouseMove: {
             auto screenIndex = reader.readPod<uint32_t>();
@@ -315,5 +338,6 @@ auto decodeFrame(std::span<const std::byte> bytes) -> std::expected<Frame, std::
 }
 
 } // namespace mksync::proto
+
 
 

@@ -17,6 +17,8 @@ enum class MessageType : uint16_t {
     Ping         = 0x0101,
     Pong         = 0x0102,
     ScreenInfo   = 0x0201,
+    FocusEnter   = 0x0202,
+    FocusLeave   = 0x0203,
     MouseMove    = 0x0301,
     MousePress   = 0x0302,
     MouseRelease = 0x0303,
@@ -56,6 +58,15 @@ struct ScreenInfo {
     bool primary = false;
 };
 
+struct FocusEnter {
+    uint32_t screenIndex = 0;
+    uint8_t edge = 0;
+};
+
+struct FocusLeave {
+    uint32_t screenIndex = 0;
+};
+
 struct MouseMove {
     uint32_t screenIndex = 0;
     int32_t x = 0;
@@ -88,7 +99,7 @@ struct Error {
     std::string message;
 };
 
-using Message = std::variant<Hello, HelloAck, Ping, Pong, ScreenInfo, MouseMove, MouseButton, MouseWheel, KeyEvent, Error>;
+using Message = std::variant<Hello, HelloAck, Ping, Pong, ScreenInfo, FocusEnter, FocusLeave, MouseMove, MouseButton, MouseWheel, KeyEvent, Error>;
 
 auto messageType(const Message &message) -> MessageType;
 auto toMessage(const platform::InputEvent &event) -> std::optional<Message>;
@@ -110,6 +121,8 @@ struct std::formatter<mksync::proto::MessageType> {
             case Ping: return std::format_to(ctxt.out(), "Ping");
             case Pong: return std::format_to(ctxt.out(), "Pong");
             case ScreenInfo: return std::format_to(ctxt.out(), "ScreenInfo");
+            case FocusEnter: return std::format_to(ctxt.out(), "FocusEnter");
+            case FocusLeave: return std::format_to(ctxt.out(), "FocusLeave");
             case MouseMove: return std::format_to(ctxt.out(), "MouseMove");
             case MousePress: return std::format_to(ctxt.out(), "MousePress");
             case MouseRelease: return std::format_to(ctxt.out(), "MouseRelease");
@@ -121,5 +134,3 @@ struct std::formatter<mksync::proto::MessageType> {
         }
     }
 };
-
-
