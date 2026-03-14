@@ -1,6 +1,7 @@
 ﻿#include "host.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <span>
 #include <vector>
 
@@ -9,6 +10,7 @@
 namespace mksync::app {
 
 using domain::Edge;
+using domain::FocusTarget;
 using domain::RouteDecision;
 using domain::ScreenBounds;
 using domain::ScreenId;
@@ -91,6 +93,21 @@ auto makeScreenInfoFrame(uint32_t index, const platform::ScreenInfo &screen) -> 
             .primary = screen.primary,
         },
     };
+}
+
+auto clampCoord(int32_t value, int32_t extent) -> int32_t {
+    if (extent <= 0) {
+        return 0;
+    }
+    return std::clamp(value, 0, extent - 1);
+}
+
+auto mapAxis(int32_t value, int32_t fromExtent, int32_t toExtent) -> int32_t {
+    if (fromExtent <= 1 || toExtent <= 1) {
+        return 0;
+    }
+    auto ratio = static_cast<double>(std::clamp(value, 0, fromExtent - 1)) / static_cast<double>(fromExtent - 1);
+    return static_cast<int32_t>(std::lround(ratio * static_cast<double>(toExtent - 1)));
 }
 } // namespace
 
@@ -337,6 +354,13 @@ auto HostApp::handleEvent(const InputEvent &event) -> void {
         return;
     }
 
+    if (interceptLocalHotkey(event)) {
+        return;
+    }
+
+    auto forwardToRemote = false;
+    auto transitionEdge = std::optional<Edge> {};
+
     if (event.type == InputEvent::Type::MouseMove) {
         auto screen = mTopology.localScreen(event.metadata.screenIndex);
         auto data = event.getIf<InputEvent::MouseMoveData>();
@@ -346,6 +370,19 @@ auto HostApp::handleEvent(const InputEvent &event) -> void {
         }
 
         auto decision = mFocus.handlePointer(*screen, data->x, data->y);
+        switch (decision.action) {
+            case RouteDecision::Action::SwitchToRemote:
+            case RouteDecision::Action::ForwardToRemote:
+                forwardToRemote = true;
+                transitionEdge = decision.edge;
+                break;
+            case RouteDecision::Action::ReturnLocal:
+            case RouteDecision::Action::KeepLocal:
+            case RouteDecision::Action::Noop:
+                forwardToRemote = false;
+                break;
+        }
+
         if (decision.action != RouteDecision::Action::KeepLocal && decision.action != RouteDecision::Action::Noop) {
             if (decision.target) {
                 SPDLOG_INFO(
@@ -363,11 +400,25 @@ auto HostApp::handleEvent(const InputEvent &event) -> void {
         }
     }
     else {
-        SPDLOG_INFO("Event: {}", event);
+        forwardToRemote = currentRemoteTarget().has_value();
+        if (!forwardToRemote) {
+            SPDLOG_INFO("Local event: {}", event);
+        }
     }
 
-    if (auto message = proto::toMessage(event)) {
-        publishFrame(proto::Frame {.type = frameTypeForEventType(event.type), .payload = std::move(*message)});
+    if (!forwardToRemote) {
+        return;
+    }
+
+    auto remoteEvent = makeRemoteEvent(event, transitionEdge);
+    if (!remoteEvent) {
+        SPDLOG_WARN("Failed to map event to remote target: {}", event);
+        return;
+    }
+
+    SPDLOG_DEBUG("Forwarding event to remote target {}: {}", remoteEvent->metadata.screenIndex, *remoteEvent);
+    if (auto message = proto::toMessage(*remoteEvent)) {
+        publishFrame(proto::Frame {.type = frameTypeForEventType(remoteEvent->type), .payload = std::move(*message)});
     }
 }
 
@@ -378,6 +429,96 @@ auto HostApp::publishFrame(proto::Frame frame) -> void {
     if (auto sent = mActiveSender.trySend(std::move(frame)); !sent) {
         SPDLOG_WARN("Dropping outbound input frame because client queue is full or closed");
     }
+}
+
+auto HostApp::interceptLocalHotkey(const InputEvent &event) -> bool {
+    if (event.type != InputEvent::Type::KeyPress) {
+        return false;
+    }
+
+    auto data = event.getIf<InputEvent::KeyData>();
+    if (data == nullptr || data->key != core::Key::Pause) {
+        return false;
+    }
+
+    if (currentRemoteTarget()) {
+        if (auto local = mTopology.localScreen(0); local) {
+            mFocus.activateLocal(*local);
+            SPDLOG_INFO("Manual focus return to local via Pause hotkey");
+        }
+    }
+    else {
+        SPDLOG_INFO("Pause hotkey captured locally (reserved for dev focus control)");
+    }
+    return true;
+}
+
+auto HostApp::makeRemoteEvent(const InputEvent &event, std::optional<Edge> edge) const -> std::optional<InputEvent> {
+    auto target = currentRemoteTarget();
+    if (!target) {
+        return std::nullopt;
+    }
+
+    auto remoteBounds = mTopology.screen(target->screen);
+    if (remoteBounds == nullptr) {
+        return std::nullopt;
+    }
+
+    auto mapped = event;
+    mapped.metadata.screenIndex = target->screen.index;
+
+    if (auto data = mapped.getIf<InputEvent::MouseMoveData>()) {
+        data->x = clampCoord(data->x, remoteBounds->width);
+        data->y = clampCoord(data->y, remoteBounds->height);
+
+        if (edge) {
+            auto local = mTopology.localScreen(event.metadata.screenIndex);
+            auto localBounds = local ? mTopology.screen(*local) : nullptr;
+            if (localBounds != nullptr) {
+                switch (*edge) {
+                    case Edge::Left:
+                        data->x = remoteBounds->width - 1;
+                        data->y = mapAxis(data->y, localBounds->height, remoteBounds->height);
+                        break;
+                    case Edge::Right:
+                        data->x = 0;
+                        data->y = mapAxis(data->y, localBounds->height, remoteBounds->height);
+                        break;
+                    case Edge::Top:
+                        data->x = mapAxis(data->x, localBounds->width, remoteBounds->width);
+                        data->y = remoteBounds->height - 1;
+                        break;
+                    case Edge::Bottom:
+                        data->x = mapAxis(data->x, localBounds->width, remoteBounds->width);
+                        data->y = 0;
+                        break;
+                }
+            }
+        }
+        return mapped;
+    }
+
+    if (auto data = mapped.getIf<InputEvent::MouseButtonData>()) {
+        data->x = clampCoord(data->x, remoteBounds->width);
+        data->y = clampCoord(data->y, remoteBounds->height);
+        return mapped;
+    }
+
+    if (auto data = mapped.getIf<InputEvent::MouseWheelData>()) {
+        data->x = clampCoord(data->x, remoteBounds->width);
+        data->y = clampCoord(data->y, remoteBounds->height);
+        return mapped;
+    }
+
+    return mapped;
+}
+
+auto HostApp::currentRemoteTarget() const -> std::optional<FocusTarget> {
+    auto target = mFocus.activeTarget();
+    if (!target || target->local) {
+        return std::nullopt;
+    }
+    return target;
 }
 
 auto HostApp::reloadLocalTopology() -> void {

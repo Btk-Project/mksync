@@ -4,6 +4,7 @@
 #include <ilias/sync.hpp>
 #include <ilias/task.hpp>
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -30,6 +31,9 @@ private:
 
     auto handleEvent(const mksync::platform::InputEvent &event) -> void;
     auto publishFrame(proto::Frame frame) -> void;
+    auto interceptLocalHotkey(const mksync::platform::InputEvent &event) -> bool;
+    auto makeRemoteEvent(const mksync::platform::InputEvent &event, std::optional<domain::Edge> edge = std::nullopt) const -> std::optional<mksync::platform::InputEvent>;
+    auto currentRemoteTarget() const -> std::optional<mksync::domain::FocusTarget>;
     auto reloadLocalTopology() -> void;
     auto updateRemoteTopology(std::string nodeName, std::span<const platform::ScreenInfo> screens) -> void;
     auto clearRemoteTopology() -> void;
