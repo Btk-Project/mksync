@@ -21,6 +21,16 @@ public:
     auto run(const ilias::IPEndpoint &bind = ilias::IPEndpoint("0.0.0.0:24800")) -> ilias::IoTask<void>;
 
 private:
+    struct RemoteCursorState {
+        uint32_t localScreenIndex = 0;
+        uint32_t remoteScreenIndex = 0;
+        domain::Edge entryEdge = domain::Edge::Right;
+        int32_t x = 0;
+        int32_t y = 0;
+        int32_t anchorX = 0;
+        int32_t anchorY = 0;
+    };
+
     auto initialize() -> ilias::IoTask<void>;
     auto shutdown() -> ilias::Task<void>;
     auto eventLoop() -> ilias::IoTask<void>;
@@ -34,6 +44,11 @@ private:
     auto interceptLocalHotkey(const mksync::platform::InputEvent &event) -> bool;
     auto makeRemoteEvent(const mksync::platform::InputEvent &event, std::optional<domain::Edge> edge = std::nullopt) const -> std::optional<mksync::platform::InputEvent>;
     auto currentRemoteTarget() const -> std::optional<mksync::domain::FocusTarget>;
+    auto handleRemotePointerMotion(const mksync::platform::InputEvent &event, const mksync::platform::InputEvent::MouseMoveData &data) -> bool;
+    auto beginRemotePointerCapture(uint32_t localScreenIndex, domain::Edge entryEdge, const mksync::platform::InputEvent &remoteEvent) -> void;
+    auto endRemotePointerCapture(bool restoreLocalCursor) -> void;
+    auto warpLocalCursor(uint32_t screenIndex, int32_t x, int32_t y) -> void;
+
     auto reloadLocalTopology() -> void;
     auto updateRemoteTopology(std::string nodeName, std::span<const platform::ScreenInfo> screens) -> void;
     auto clearRemoteTopology() -> void;
@@ -52,6 +67,7 @@ private:
 
     std::string mRemoteNode;
     std::vector<platform::ScreenInfo> mRemoteScreens;
+    std::optional<RemoteCursorState> mRemoteCursor;
 };
 
 } // namespace mksync::app

@@ -326,9 +326,10 @@ auto HostApp::sessionReadLoop(transport::BufferedTcpStream &stream, ilias::mpsc:
                 if (auto focus = std::get_if<proto::FocusLeave>(&frame->payload)) {
                     auto target = currentRemoteTarget();
                     if (target && target->screen.index == focus->screenIndex) {
-                        if (auto local = mTopology.localScreen(0); local) {
+                        if (auto local = mTopology.localScreen(mRemoteCursor ? mRemoteCursor->localScreenIndex : 0); local) {
                             mFocus.activateLocal(*local);
                         }
+                        endRemotePointerCapture(true);
                         SPDLOG_INFO("Host returned focus to local from remote screen {} on client request", focus->screenIndex);
                     }
                 }
@@ -374,9 +375,17 @@ auto HostApp::handleEvent(const InputEvent &event) -> void {
     auto focusEntered = false;
 
     if (event.type == InputEvent::Type::MouseMove) {
-        auto screen = mTopology.localScreen(event.metadata.screenIndex);
         auto data = event.getIf<InputEvent::MouseMoveData>();
-        if (!screen || data == nullptr) {
+        if (data == nullptr) {
+            return;
+        }
+
+        if (handleRemotePointerMotion(event, *data)) {
+            return;
+        }
+
+        auto screen = mTopology.localScreen(event.metadata.screenIndex);
+        if (!screen) {
             SPDLOG_DEBUG("MouseMove without known local screen: {}", event);
             return;
         }
@@ -390,7 +399,6 @@ auto HostApp::handleEvent(const InputEvent &event) -> void {
                 break;
             case RouteDecision::Action::ForwardToRemote:
                 forwardToRemote = true;
-                transitionEdge = decision.edge;
                 break;
             case RouteDecision::Action::ReturnLocal:
             case RouteDecision::Action::KeepLocal:
@@ -440,6 +448,7 @@ auto HostApp::handleEvent(const InputEvent &event) -> void {
                 .edge = static_cast<uint8_t>(transitionEdge.value_or(Edge::Right)),
             },
         });
+        beginRemotePointerCapture(event.metadata.screenIndex, transitionEdge.value_or(Edge::Right), *remoteEvent);
     }
 
     SPDLOG_DEBUG("Forwarding event to remote target {}: {}", remoteEvent->metadata.screenIndex, *remoteEvent);
@@ -472,10 +481,11 @@ auto HostApp::interceptLocalHotkey(const InputEvent &event) -> bool {
             .type = proto::MessageType::FocusLeave,
             .payload = proto::FocusLeave {.screenIndex = target->screen.index},
         });
-        if (auto local = mTopology.localScreen(0); local) {
+        if (auto local = mTopology.localScreen(mRemoteCursor ? mRemoteCursor->localScreenIndex : 0); local) {
             mFocus.activateLocal(*local);
-            SPDLOG_INFO("Manual focus return to local via Pause hotkey");
         }
+        endRemotePointerCapture(true);
+        SPDLOG_INFO("Manual focus return to local via Pause hotkey");
     }
     else {
         SPDLOG_INFO("Pause hotkey captured locally (reserved for dev focus control)");
@@ -551,6 +561,136 @@ auto HostApp::currentRemoteTarget() const -> std::optional<FocusTarget> {
     return target;
 }
 
+auto HostApp::handleRemotePointerMotion(const InputEvent &event, const InputEvent::MouseMoveData &data) -> bool {
+    if (!mRemoteCursor) {
+        return false;
+    }
+    if (event.metadata.screenIndex != mRemoteCursor->localScreenIndex) {
+        return false;
+    }
+
+    auto remoteId = ScreenId {mRemoteNode, mRemoteCursor->remoteScreenIndex};
+    auto remoteBounds = mTopology.screen(remoteId);
+    if (remoteBounds == nullptr) {
+        return false;
+    }
+
+    auto dx = data.x - mRemoteCursor->anchorX;
+    auto dy = data.y - mRemoteCursor->anchorY;
+    if (dx == 0 && dy == 0) {
+        return true;
+    }
+
+    mRemoteCursor->x = clampCoord(mRemoteCursor->x + dx, remoteBounds->width);
+    mRemoteCursor->y = clampCoord(mRemoteCursor->y + dy, remoteBounds->height);
+
+    auto remoteEvent = InputEvent {
+        .type = InputEvent::Type::MouseMove,
+        .metadata = {.screenIndex = mRemoteCursor->remoteScreenIndex},
+        .payload = InputEvent::MouseMoveData {.x = mRemoteCursor->x, .y = mRemoteCursor->y},
+    };
+
+    if (auto message = proto::toMessage(remoteEvent)) {
+        publishFrame(proto::Frame {.type = proto::MessageType::MouseMove, .payload = std::move(*message)});
+    }
+    warpLocalCursor(mRemoteCursor->localScreenIndex, mRemoteCursor->anchorX, mRemoteCursor->anchorY);
+    return true;
+}
+
+auto HostApp::beginRemotePointerCapture(uint32_t localScreenIndex, Edge entryEdge, const InputEvent &remoteEvent) -> void {
+    auto remoteData = remoteEvent.getIf<InputEvent::MouseMoveData>();
+    auto localId = mTopology.localScreen(localScreenIndex);
+    auto remoteId = ScreenId {mRemoteNode, remoteEvent.metadata.screenIndex};
+    if (!remoteData || !localId) {
+        return;
+    }
+
+    auto localBounds = mTopology.screen(*localId);
+    auto remoteBounds = mTopology.screen(remoteId);
+    if (localBounds == nullptr || remoteBounds == nullptr) {
+        return;
+    }
+
+    mRemoteCursor = RemoteCursorState {
+        .localScreenIndex = localScreenIndex,
+        .remoteScreenIndex = remoteEvent.metadata.screenIndex,
+        .entryEdge = entryEdge,
+        .x = remoteData->x,
+        .y = remoteData->y,
+        .anchorX = clampCoord(localBounds->width / 2, localBounds->width),
+        .anchorY = clampCoord(mapAxis(remoteData->y, remoteBounds->height, localBounds->height), localBounds->height),
+    };
+
+    SPDLOG_INFO(
+        "Host remote capture armed: local screen {} anchor=({}, {}), remote screen {} pos=({}, {})",
+        mRemoteCursor->localScreenIndex,
+        mRemoteCursor->anchorX,
+        mRemoteCursor->anchorY,
+        mRemoteCursor->remoteScreenIndex,
+        mRemoteCursor->x,
+        mRemoteCursor->y
+    );
+    warpLocalCursor(mRemoteCursor->localScreenIndex, mRemoteCursor->anchorX, mRemoteCursor->anchorY);
+}
+
+auto HostApp::endRemotePointerCapture(bool restoreLocalCursor) -> void {
+    if (!mRemoteCursor) {
+        return;
+    }
+
+    auto state = *mRemoteCursor;
+    mRemoteCursor.reset();
+
+    if (!restoreLocalCursor) {
+        return;
+    }
+
+    auto localId = mTopology.localScreen(state.localScreenIndex);
+    auto remoteId = ScreenId {mRemoteNode, state.remoteScreenIndex};
+    auto localBounds = localId ? mTopology.screen(*localId) : nullptr;
+    auto remoteBounds = mTopology.screen(remoteId);
+    if (localBounds == nullptr || remoteBounds == nullptr) {
+        return;
+    }
+
+    auto x = 0;
+    auto y = 0;
+    switch (state.entryEdge) {
+        case Edge::Left:
+            x = 0;
+            y = mapAxis(state.y, remoteBounds->height, localBounds->height);
+            break;
+        case Edge::Right:
+            x = localBounds->width - 1;
+            y = mapAxis(state.y, remoteBounds->height, localBounds->height);
+            break;
+        case Edge::Top:
+            x = mapAxis(state.x, remoteBounds->width, localBounds->width);
+            y = 0;
+            break;
+        case Edge::Bottom:
+            x = mapAxis(state.x, remoteBounds->width, localBounds->width);
+            y = localBounds->height - 1;
+            break;
+    }
+    warpLocalCursor(state.localScreenIndex, x, y);
+}
+
+auto HostApp::warpLocalCursor(uint32_t screenIndex, int32_t x, int32_t y) -> void {
+    if (!mInjector) {
+        return;
+    }
+
+    auto move = InputEvent {
+        .type = InputEvent::Type::MouseMove,
+        .metadata = {.screenIndex = screenIndex, .injected = true},
+        .payload = InputEvent::MouseMoveData {.x = x, .y = y},
+    };
+    if (auto error = mInjector->sendEventsSync(std::span<const InputEvent>(&move, 1)); error) {
+        SPDLOG_WARN("Failed to warp local cursor: {}", error.message());
+    }
+}
+
 auto HostApp::reloadLocalTopology() -> void {
     rebuildTopology();
 }
@@ -562,6 +702,7 @@ auto HostApp::updateRemoteTopology(std::string nodeName, std::span<const platfor
 }
 
 auto HostApp::clearRemoteTopology() -> void {
+    endRemotePointerCapture(false);
     if (mRemoteNode.empty() && mRemoteScreens.empty()) {
         return;
     }
@@ -622,5 +763,3 @@ auto HostApp::linkOrderedScreens(std::span<const ScreenId> ordered, Edge edge) -
 }
 
 } // namespace mksync::app
-
-

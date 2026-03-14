@@ -739,8 +739,15 @@ public:
     }
 
     auto sendEvents(std::span<const InputEvent> events) -> IoTask<void> override {
+        if (auto error = sendEventsSync(events); error) {
+            co_return Err(error);
+        }
+        co_return {};
+    }
+
+    auto sendEventsSync(std::span<const InputEvent> events) -> std::error_code override {
         auto copied = std::vector<InputEvent>(events.begin(), events.end());
-        auto latch = ilias::Latch {1};
+        auto latch = std::latch {1};
         auto error = std::error_code {};
 
         mPlatform->uiCall([this, copied = std::move(copied), &latch, &error]() mutable {
@@ -750,14 +757,11 @@ public:
                     break;
                 }
             }
-            latch.countDown();
+            latch.count_down();
         });
 
-        co_await ilias::unstoppable(latch.wait());
-        if (error) {
-            co_return Err(error);
-        }
-        co_return {};
+        latch.wait();
+        return error;
     }
 
 private:
@@ -1008,6 +1012,7 @@ auto createPlatform() -> Platform::Ptr {
 }
 
 } // namespace mksync::platform
+
 
 
 

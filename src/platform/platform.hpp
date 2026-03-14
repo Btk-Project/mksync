@@ -7,6 +7,7 @@
 #include <memory>
 #include <span>
 #include <string>
+#include <system_error>
 #include <variant>
 #include <vector>
 
@@ -132,6 +133,7 @@ public:
     virtual auto initialize() -> IoTask<void> = 0;
     virtual auto shutdown() -> Task<void> = 0;
     virtual auto sendEvents(std::span<const InputEvent> events) -> IoTask<void> = 0;
+    virtual auto sendEventsSync(std::span<const InputEvent> events) -> std::error_code = 0;
 };
 
 class Platform {
@@ -232,7 +234,7 @@ struct std::formatter<mksync::platform::InputEvent> {
                 break;
             }
             case None:
-                return std::format_to(ctxt.out(), "InputEvent(type: None)");
+                return std::format_to(ctxt.out(), "{})", prefix);
         }
         return std::format_to(ctxt.out(), "{}, payload: <invalid>)", prefix);
     }
