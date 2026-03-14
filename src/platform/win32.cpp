@@ -366,4 +366,4 @@ auto createPlatform() -> Platform::Ptr {
     return std::make_shared<Win32Platform>();
 }
 
-}
+} // namespace ilias::platform

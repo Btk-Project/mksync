@@ -14,17 +14,7 @@ auto loop(InputCapture *capture) -> ilias::Task<void> {
         if (!event) {
             break;
         }
-        switch (event->type) {
-            case InputEvent::MouseMove:
-                spdlog::info("Mouse move: at {}: {}, {}", event->mouse.screenIndex, event->mouse.x, event->mouse.y);
-                break;
-            case InputEvent::MousePress:
-                spdlog::info("Mouse press: at {}: {}", event->mouse.screenIndex, event->mouse.button);
-                break;
-            case InputEvent::MouseRelease:
-                spdlog::info("Mouse release: at {}: {}", event->mouse.screenIndex, event->mouse.button);
-                break;
-        }
+        SPDLOG_INFO("Event: {}", *event);
     }
 }
 

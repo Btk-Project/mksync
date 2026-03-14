@@ -5,6 +5,7 @@
 #include <variant>
 #include <memory>
 #include <format>
+#include <span>
 
 #include "../core/mouse.hpp"
 #include "../core/key.hpp"
@@ -101,7 +102,7 @@ public:
      * @note Only some events are supported, see `InputEvent::Type`.
      * 
      */
-    virtual auto sendEvent(InputEvent event) -> IoTask<void> = 0;
+    virtual auto sendEvents(std::span<const InputEvent> events) -> IoTask<void> = 0;
 };
 
 /**
@@ -148,6 +149,22 @@ struct std::formatter<mksync::platform::InputEvent::Type> {
             case MouseRelease: return std::format_to(ctxt.out(), "MouseRelease");
             case KeyPress: return std::format_to(ctxt.out(), "KeyPress");
             default: return std::format_to(ctxt.out(), "Unknown");
+        }
+    }
+};
+
+template <>
+struct std::formatter<mksync::platform::InputEvent> {
+    constexpr auto parse(auto &ctxt) { return ctxt.begin(); }
+
+    auto format(const auto &event, auto &ctxt) const {
+        using enum mksync::platform::InputEvent::Type;
+        switch (event.type) {
+            case None: return std::format_to(ctxt.out(), "InputEvent(None)");
+            case MouseMove: return std::format_to(ctxt.out(), "InputEvent(MouseMove(x: {}, y: {})", event.mouse.x, event.mouse.y);
+            case MousePress: return std::format_to(ctxt.out(), "InputEvent(MousePress(button: {}, x: {}, y: {})", event.mouse.button, event.mouse.x, event.mouse.y);
+            case MouseRelease: return std::format_to(ctxt.out(), "InputEvent(MouseRelease(button: {}, x: {}, y: {})", event.mouse.button, event.mouse.x, event.mouse.y);
+            default: return std::format_to(ctxt.out(), "InputEvent({})", event.type);
         }
     }
 };
