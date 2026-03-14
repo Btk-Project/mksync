@@ -1,41 +1,40 @@
 ﻿#include <ilias/platform.hpp>
 #include <ilias/signal.hpp>
 #include <ilias/task.hpp>
-#include <spdlog/spdlog.h>
 
-#include "platform/platform.hpp"
+#include <span>
+#include <string_view>
+#include <vector>
 
-using mksync::platform::InputCapture;
+#include "app/client.hpp"
+#include "app/host.hpp"
 
-auto loop(InputCapture *capture) -> ilias::Task<void> {
-    while (true) {
-        auto event = co_await capture->nextEvent();
-        if (!event) {
-            SPDLOG_WARN("Input capture stopped: {}", event.error().message());
-            break;
+void ilias_main(int argc, char **argv) {
+    std::vector<std::string_view> args;
+    args.reserve(argc > 1 ? static_cast<size_t>(argc - 1) : 0);
+    for (int i = 1; i < argc; ++i) {
+        auto value = std::string_view(argv[i]);
+        if (value == "--") {
+            continue;
         }
-        SPDLOG_INFO("Event: {}", *event);
+        args.push_back(value);
     }
-    co_return;
-}
 
-void ilias_main() {
-    auto platform = mksync::platform::createPlatform();
-    if (!platform) {
-        spdlog::error("Failed to create platform backend");
+    if (args.size() >= 2 && args[0] == "client") {
+        auto endpoint = ilias::IPEndpoint(args[1].data());
+        auto app = mksync::app::ClientApp {};
+        auto _ = co_await ilias::whenAny(
+            app.run(endpoint),
+            ilias::signal::ctrlC()
+        );
         co_return;
     }
 
-    auto capture = platform->createInputCapture();
-    if (!capture || !co_await capture->initialize()) {
-        spdlog::error("Failed to create input capture");
-        co_return;
-    }
-
+    auto bind = !args.empty() ? ilias::IPEndpoint(args[0].data()) : ilias::IPEndpoint("0.0.0.0:24800");
+    auto app = mksync::app::HostApp {};
     auto _ = co_await ilias::whenAny(
-        loop(capture.get()),
+        app.run(bind),
         ilias::signal::ctrlC()
     );
-
-    co_await capture->shutdown();
+    co_return;
 }

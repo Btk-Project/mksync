@@ -55,7 +55,28 @@ auto [a, b] = co_await whenAny(taskA(), taskB());
 - UI 线程 hook/unhook 后，等待 `Latch`
 - 避免外部取消把资源释放过程打断
 
-### 2.4 `mpsc`
+### 2.4 `finally(...)`
+用户明确说明：
+- `ilias::finally(task, callback)` 中的 callback **不会收到取消信号**
+- 因此 callback 里通常 **不需要再包 `ilias::unstoppable(...)`**
+- 即使包了通常也没坏处，但语义上是冗余的
+
+推荐心智模型：
+- 主任务可被取消
+- `finally` 的异步清理回调是 guaranteed cleanup path
+- 适合做 async shutdown / unhook / close / flush
+
+这意味着以后写生命周期时可以优先考虑：
+```cpp
+co_return co_await ilias::finally(
+    mainTask(),
+    [this]() -> ilias::Task<void> {
+        co_await shutdown();
+    }
+);
+```
+
+### 2.5 `mpsc`
 已确认存在：
 - `ilias::mpsc::channel<T>(capacity)`
 - `Sender<T>::send(...)`
@@ -73,7 +94,7 @@ auto [a, b] = co_await whenAny(taskA(), taskB());
 - **优先 `trySend()`，避免阻塞输入链路**
 - 除非业务明确接受 hook 回调阻塞
 
-### 2.5 `Latch`
+### 2.6 `Latch`
 `ilias::Latch` 语义接近 `std::latch`：
 - `countDown()`
 - `wait()`（协程等待）
@@ -84,7 +105,7 @@ auto [a, b] = co_await whenAny(taskA(), taskB());
 - UI 线程安装/卸载 hook 的同步点
 - 平台线程初始化完成通知
 
-### 2.6 `TcpStream / TcpListener / BufStream`
+### 2.7 `TcpStream / TcpListener / BufStream`
 已确认可用：
 - `TcpListener::bind(endpoint)`
 - `listener.accept()`
@@ -104,17 +125,21 @@ auto [a, b] = co_await whenAny(taskA(), taskB());
 - `whenAny`
 - `TaskScope::enter`
 - `TaskScope::spawn`
+- `finally`
 
 避免：
 - 无归属的 detached 任务
 - 无法追踪生命周期的后台协程
 
-### 规则 2：收尾逻辑尽量包 `unstoppable`
+### 规则 2：async 收尾优先考虑 `finally`
 典型场景：
-- shutdown
+- Host / Client run loop 退出时 cleanup
 - unhook
 - close socket
 - flush / final notify
+
+如果 cleanup 本身是 async，优先 `finally`；
+如果 cleanup 只是同步释放，直接用 RAII guard 即可。
 
 ### 规则 3：系统回调线程不要做可能阻塞的操作
 例如：
@@ -149,12 +174,13 @@ auto [a, b] = co_await whenAny(taskA(), taskB());
 - 每个连接 `scope.spawn(networkHandle(...))`
 - 断开或 stop 时通过 scope 收尾
 
-### Host / Client 角色
-后续如果做：
-- `HostApp::run()`
-- `ClientApp::run()`
+### Host / Client 生命周期
+建议写法：
+- `initialize()`
+- `finally(eventLoop(), shutdown())`
+- 最外层 `whenAny(run, ctrlC())`
 
-建议都围绕 `whenAny(mainLoop, ctrlC())` 或 `TaskScope::enter(...)` 组织，保持结构化退出。
+这样和 ilias 当前的结构化并发语义最匹配。
 
 ---
 
@@ -177,6 +203,39 @@ auto [a, b] = co_await whenAny(taskA(), taskB());
 - `ilias` 是结构化并发优先的协程库
 - `whenAny` 返回时相关任务都已经结束
 - `TaskScope` 是任务生命周期边界
-- `unstoppable` 适合收尾路径
+- `finally` 是 async cleanup 首选
+- `unstoppable` 更适合 latch / 特定不可中断等待点，而不是所有 finally callback 都包一层
 - `mpsc::trySend` 适合高敏感同步回调线程
 - mksync 现在应按 **0.3.4 实际头文件** 开发，不要默认按 `D:\CodeProject\Ilias` 的 0.4 API 写
+
+## 7. 当前 mksync 项目里额外确认过的实践结论
+
+### 7.1 Host / Client 联机约束
+- 直接运行 `mksync.exe` 在当前环境里可能因为 `ilias.dll` 不在 PATH 而失败
+- 本项目做运行验证时，应优先使用：
+  - `xmake run mksync`
+  - `xmake run mksync -- client 127.0.0.1:24800`
+
+### 7.2 单个 `BufStream` 的写侧应串行化
+- 不要在一个连接上让多个协程直接并发 `writeFrame(...)`
+- 更稳妥的方式是：
+  - 一个读循环负责解析协议
+  - 一个写循环独占 socket 写入
+  - 其他逻辑通过 `mpsc::Sender<Frame>` 投递待发送帧
+- 这对 `Ping/Pong`、输入事件转发、握手后的控制帧都适用
+
+### 7.3 本地双开测试时要过滤 injected 事件
+- Windows 低级 Hook 能识别 `LLMHF_INJECTED / LLKHF_INJECTED`
+- Host 在采集链路里应忽略 `event.metadata.injected == true` 的事件
+- 否则本机 Host + Client 双开时，Client 注入出来的事件可能再次被 Host 捕获并回传，形成反馈环
+
+### 7.4 `whenAny` + `finally` 的会话收尾模型可直接用
+- 会话里让 `readLoop` / `writeLoop` 用 `whenAny(...)` 竞争是安全的
+- 按用户确认的 0.3.4 语义，返回时其余任务也已经结束
+- 再配合 `finally(..., cleanup)` 做 sender 清理 / topology 回滚，模型是成立的
+
+### 7.5 `BufStream::writeAll(...)` 后别忘了 `flush()`
+- 0.3.4 的 `BufStream` 内部是 `BufReader<BufWriter<T>>`
+- `write()/writeAll()` 对小包可能只写入 `BufWriter` 的内存缓冲，不会立即到 socket
+- 对协议帧这种小消息，如果写完马上期待对端读取，必须显式 `co_await stream.flush()`
+- 否则就会出现：TCP 已连接，但握手帧迟迟不到，对端 `readFrame()` 卡住

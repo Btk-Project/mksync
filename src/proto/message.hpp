@@ -1,70 +1,101 @@
-#pragma once
+﻿#pragma once
 
 #include <cstdint>
 #include <format>
-#include <array>
-#include <span>
-#include <bit>
+#include <optional>
+#include <string>
+#include <variant>
+#include <vector>
+
+#include "../platform/platform.hpp"
 
 namespace mksync::proto {
 
-// Network Message format
-// u16 type | u16 len | u8[0..len-2] |
 enum class MessageType : uint16_t {
-    // Handshake
-    Hello        = 0x0001, // Client -> Server
-    HelloAck     = 0x0002, // Server -> Client
-
-    // Heartbeat
+    Hello        = 0x0001,
+    HelloAck     = 0x0002,
     Ping         = 0x0101,
     Pong         = 0x0102,
-
-    // Screen
     ScreenInfo   = 0x0201,
-
-    // Mouse
     MouseMove    = 0x0301,
     MousePress   = 0x0302,
     MouseRelease = 0x0303,
-
-    // Keyboard
+    MouseWheel   = 0x0304,
     KeyPress     = 0x0401,
     KeyRelease   = 0x0402,
-
-    // Error
     Error        = 0xFFFF,
 };
 
-class Hello {
-public:
-    uint32_t    version = 0;
+struct Hello {
+    uint32_t version = 0;
+    uint32_t screenCount = 0;
     std::string deviceName;
 };
 
-class HelloAck {
-public:
-    uint32_t    version = 0;
+struct HelloAck {
+    uint32_t version = 0;
+    uint32_t screenCount = 0;
 };
 
-class Ping {
-public:
-    
+struct Ping {
+    uint64_t timestampUs = 0;
 };
 
-class Pong {
-public:
-
+struct Pong {
+    uint64_t timestampUs = 0;
 };
 
-class Error {
-public:
+struct ScreenInfo {
+    uint32_t index = 0;
+    int32_t x = 0;
+    int32_t y = 0;
+    int32_t width = 0;
+    int32_t height = 0;
+    int32_t dpi = 72;
+    std::string name;
+    bool primary = false;
+};
+
+struct MouseMove {
+    uint32_t screenIndex = 0;
+    int32_t x = 0;
+    int32_t y = 0;
+};
+
+struct MouseButton {
+    uint32_t screenIndex = 0;
+    int32_t x = 0;
+    int32_t y = 0;
+    core::MouseButton button = core::MouseButton::None;
+};
+
+struct MouseWheel {
+    uint32_t screenIndex = 0;
+    int32_t x = 0;
+    int32_t y = 0;
+    int32_t deltaX = 0;
+    int32_t deltaY = 0;
+};
+
+struct KeyEvent {
+    core::Key key = core::Key::None;
+    core::KeyModifier modifiers = core::KeyModifier::None;
+    uint32_t nativeCode = 0;
+    bool repeat = false;
+};
+
+struct Error {
     std::string message;
 };
 
+using Message = std::variant<Hello, HelloAck, Ping, Pong, ScreenInfo, MouseMove, MouseButton, MouseWheel, KeyEvent, Error>;
+
+auto messageType(const Message &message) -> MessageType;
+auto toMessage(const platform::InputEvent &event) -> std::optional<Message>;
+auto toInputEvent(MessageType type, const Message &message) -> std::optional<platform::InputEvent>;
+
 } // namespace mksync::proto
 
-
-// Formatter
 template <>
 struct std::formatter<mksync::proto::MessageType> {
     constexpr auto parse(auto &ctxt) const {
@@ -73,7 +104,6 @@ struct std::formatter<mksync::proto::MessageType> {
 
     auto format(const auto &type, auto &ctxt) const {
         using enum mksync::proto::MessageType;
-
         switch (type) {
             case Hello: return std::format_to(ctxt.out(), "Hello");
             case HelloAck: return std::format_to(ctxt.out(), "HelloAck");
@@ -83,6 +113,7 @@ struct std::formatter<mksync::proto::MessageType> {
             case MouseMove: return std::format_to(ctxt.out(), "MouseMove");
             case MousePress: return std::format_to(ctxt.out(), "MousePress");
             case MouseRelease: return std::format_to(ctxt.out(), "MouseRelease");
+            case MouseWheel: return std::format_to(ctxt.out(), "MouseWheel");
             case KeyPress: return std::format_to(ctxt.out(), "KeyPress");
             case KeyRelease: return std::format_to(ctxt.out(), "KeyRelease");
             case Error: return std::format_to(ctxt.out(), "Error");
@@ -90,3 +121,5 @@ struct std::formatter<mksync::proto::MessageType> {
         }
     }
 };
+
+

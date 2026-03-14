@@ -26,6 +26,7 @@ namespace mksync::platform {
 
 class Win32InputCapture;
 class Win32Platform;
+class Win32InputInjector;
 
 namespace {
     static thread_local constinit Win32InputCapture *gInputCapture = nullptr;
@@ -95,6 +96,18 @@ public:
                 pt.x - rect.left,
                 pt.y - rect.top,
             }
+        };
+    }
+
+    auto localToGlobal(uint32_t screenIndex, POINT pt) const -> std::optional<POINT> {
+        auto lock = std::scoped_lock(mMonitorMutex);
+        if (screenIndex >= mMonitors.size()) {
+            return std::nullopt;
+        }
+        const auto &rect = mMonitors[screenIndex].info.rcMonitor;
+        return POINT {
+            rect.left + pt.x,
+            rect.top + pt.y,
         };
     }
 
@@ -319,6 +332,7 @@ private:
     std::string mStartupError;
 
     std::weak_ptr<Win32InputCapture> mInputCapture;
+    std::weak_ptr<Win32InputInjector> mInputInjector;
 
     mutable std::mutex mMonitorMutex;
     std::vector<Win32Monitor> mMonitors;
@@ -712,6 +726,235 @@ private:
     friend class Win32Platform;
 };
 
+class Win32InputInjector final : public InputInjector {
+public:
+    explicit Win32InputInjector(std::shared_ptr<Win32Platform> platform) : mPlatform(std::move(platform)) {}
+
+    auto initialize() -> IoTask<void> override {
+        co_return {};
+    }
+
+    auto shutdown() -> Task<void> override {
+        co_return;
+    }
+
+    auto sendEvents(std::span<const InputEvent> events) -> IoTask<void> override {
+        auto copied = std::vector<InputEvent>(events.begin(), events.end());
+        auto latch = ilias::Latch {1};
+        auto error = std::error_code {};
+
+        mPlatform->uiCall([this, copied = std::move(copied), &latch, &error]() mutable {
+            for (const auto &event : copied) {
+                if (auto ec = injectEvent(event); ec) {
+                    error = ec;
+                    break;
+                }
+            }
+            latch.countDown();
+        });
+
+        co_await ilias::unstoppable(latch.wait());
+        if (error) {
+            co_return Err(error);
+        }
+        co_return {};
+    }
+
+private:
+    static auto virtualKeyFromKey(Key key) -> WORD {
+        switch (key) {
+            case Key::A: return 'A';
+            case Key::B: return 'B';
+            case Key::C: return 'C';
+            case Key::D: return 'D';
+            case Key::E: return 'E';
+            case Key::F: return 'F';
+            case Key::G: return 'G';
+            case Key::H: return 'H';
+            case Key::I: return 'I';
+            case Key::J: return 'J';
+            case Key::K: return 'K';
+            case Key::L: return 'L';
+            case Key::M: return 'M';
+            case Key::N: return 'N';
+            case Key::O: return 'O';
+            case Key::P: return 'P';
+            case Key::Q: return 'Q';
+            case Key::R: return 'R';
+            case Key::S: return 'S';
+            case Key::T: return 'T';
+            case Key::U: return 'U';
+            case Key::V: return 'V';
+            case Key::W: return 'W';
+            case Key::X: return 'X';
+            case Key::Y: return 'Y';
+            case Key::Z: return 'Z';
+            case Key::Digit0: return '0';
+            case Key::Digit1: return '1';
+            case Key::Digit2: return '2';
+            case Key::Digit3: return '3';
+            case Key::Digit4: return '4';
+            case Key::Digit5: return '5';
+            case Key::Digit6: return '6';
+            case Key::Digit7: return '7';
+            case Key::Digit8: return '8';
+            case Key::Digit9: return '9';
+            case Key::Enter: return VK_RETURN;
+            case Key::Esc: return VK_ESCAPE;
+            case Key::Backspace: return VK_BACK;
+            case Key::Tab: return VK_TAB;
+            case Key::Space: return VK_SPACE;
+            case Key::Minus: return VK_OEM_MINUS;
+            case Key::Equal: return VK_OEM_PLUS;
+            case Key::LeftBrace: return VK_OEM_4;
+            case Key::RightBrace: return VK_OEM_6;
+            case Key::Backslash: return VK_OEM_5;
+            case Key::Semicolon: return VK_OEM_1;
+            case Key::Apostrophe: return VK_OEM_7;
+            case Key::Grave: return VK_OEM_3;
+            case Key::Comma: return VK_OEM_COMMA;
+            case Key::Dot: return VK_OEM_PERIOD;
+            case Key::Slash: return VK_OEM_2;
+            case Key::CapsLock: return VK_CAPITAL;
+            case Key::F1: return VK_F1;
+            case Key::F2: return VK_F2;
+            case Key::F3: return VK_F3;
+            case Key::F4: return VK_F4;
+            case Key::F5: return VK_F5;
+            case Key::F6: return VK_F6;
+            case Key::F7: return VK_F7;
+            case Key::F8: return VK_F8;
+            case Key::F9: return VK_F9;
+            case Key::F10: return VK_F10;
+            case Key::F11: return VK_F11;
+            case Key::F12: return VK_F12;
+            case Key::SysRq: return VK_SNAPSHOT;
+            case Key::ScrollLock: return VK_SCROLL;
+            case Key::Pause: return VK_PAUSE;
+            case Key::Insert: return VK_INSERT;
+            case Key::Home: return VK_HOME;
+            case Key::PageUp: return VK_PRIOR;
+            case Key::Delete: return VK_DELETE;
+            case Key::End: return VK_END;
+            case Key::PageDown: return VK_NEXT;
+            case Key::Right: return VK_RIGHT;
+            case Key::Left: return VK_LEFT;
+            case Key::Down: return VK_DOWN;
+            case Key::Up: return VK_UP;
+            case Key::NumLock: return VK_NUMLOCK;
+            case Key::KeypadSlash: return VK_DIVIDE;
+            case Key::KeypadAsterisk: return VK_MULTIPLY;
+            case Key::KeypadMinus: return VK_SUBTRACT;
+            case Key::KeypadPlus: return VK_ADD;
+            case Key::Keypad0: return VK_NUMPAD0;
+            case Key::Keypad1: return VK_NUMPAD1;
+            case Key::Keypad2: return VK_NUMPAD2;
+            case Key::Keypad3: return VK_NUMPAD3;
+            case Key::Keypad4: return VK_NUMPAD4;
+            case Key::Keypad5: return VK_NUMPAD5;
+            case Key::Keypad6: return VK_NUMPAD6;
+            case Key::Keypad7: return VK_NUMPAD7;
+            case Key::Keypad8: return VK_NUMPAD8;
+            case Key::Keypad9: return VK_NUMPAD9;
+            case Key::KeypadDot: return VK_DECIMAL;
+            case Key::LeftCtrl: return VK_LCONTROL;
+            case Key::RightCtrl: return VK_RCONTROL;
+            case Key::LeftShift: return VK_LSHIFT;
+            case Key::RightShift: return VK_RSHIFT;
+            case Key::LeftAlt: return VK_LMENU;
+            case Key::RightAlt: return VK_RMENU;
+            case Key::LeftMeta: return VK_LWIN;
+            case Key::RightMeta: return VK_RWIN;
+            default: return 0;
+        }
+    }
+
+    static auto mouseFlags(MouseButton button, bool press) -> DWORD {
+        switch (button) {
+            case MouseButton::Left: return press ? MOUSEEVENTF_LEFTDOWN : MOUSEEVENTF_LEFTUP;
+            case MouseButton::Right: return press ? MOUSEEVENTF_RIGHTDOWN : MOUSEEVENTF_RIGHTUP;
+            case MouseButton::Middle: return press ? MOUSEEVENTF_MIDDLEDOWN : MOUSEEVENTF_MIDDLEUP;
+            default: return 0;
+        }
+    }
+
+    auto injectMouseMove(const InputEvent &event, const InputEvent::MouseMoveData &data) -> std::error_code {
+        auto global = mPlatform->localToGlobal(event.metadata.screenIndex, POINT {data.x, data.y});
+        if (!global) {
+            return make_error_code(std::errc::invalid_argument);
+        }
+        if (!::SetCursorPos(global->x, global->y)) {
+            return lastErrorCode();
+        }
+        return {};
+    }
+
+    static auto sendMouseFlag(DWORD flags, DWORD mouseData = 0) -> std::error_code {
+        INPUT input {};
+        input.type = INPUT_MOUSE;
+        input.mi.dwFlags = flags;
+        input.mi.mouseData = mouseData;
+        if (::SendInput(1, &input, sizeof(INPUT)) != 1) {
+            return lastErrorCode();
+        }
+        return {};
+    }
+
+    auto injectEvent(const InputEvent &event) -> std::error_code {
+        switch (event.type) {
+            case InputEvent::Type::None:
+            case InputEvent::Type::ScreenChange:
+                return {};
+            case InputEvent::Type::MouseMove:
+                if (auto data = event.getIf<InputEvent::MouseMoveData>()) {
+                    return injectMouseMove(event, *data);
+                }
+                return make_error_code(std::errc::invalid_argument);
+            case InputEvent::Type::MousePress:
+            case InputEvent::Type::MouseRelease:
+                if (auto data = event.getIf<InputEvent::MouseButtonData>()) {
+                    auto flags = mouseFlags(data->button, event.type == InputEvent::Type::MousePress);
+                    return flags == 0 ? make_error_code(std::errc::invalid_argument) : sendMouseFlag(flags);
+                }
+                return make_error_code(std::errc::invalid_argument);
+            case InputEvent::Type::MouseWheel:
+                if (auto data = event.getIf<InputEvent::MouseWheelData>()) {
+                    if (data->deltaY != 0) {
+                        if (auto ec = sendMouseFlag(MOUSEEVENTF_WHEEL, static_cast<DWORD>(data->deltaY)); ec) {
+                            return ec;
+                        }
+                    }
+                    if (data->deltaX != 0) {
+                        if (auto ec = sendMouseFlag(MOUSEEVENTF_HWHEEL, static_cast<DWORD>(data->deltaX)); ec) {
+                            return ec;
+                        }
+                    }
+                    return {};
+                }
+                return make_error_code(std::errc::invalid_argument);
+            case InputEvent::Type::KeyPress:
+            case InputEvent::Type::KeyRelease:
+                if (auto data = event.getIf<InputEvent::KeyData>()) {
+                    auto vk = virtualKeyFromKey(data->key);
+                    if (vk == 0) {
+                        return make_error_code(std::errc::not_supported);
+                    }
+                    INPUT input {};
+                    input.type = INPUT_KEYBOARD;
+                    input.ki.wVk = vk;
+                    input.ki.dwFlags = event.type == InputEvent::Type::KeyRelease ? KEYEVENTF_KEYUP : 0;
+                    if (::SendInput(1, &input, sizeof(INPUT)) != 1) {
+                        return lastErrorCode();
+                    }
+                    return {};
+                }
+                return make_error_code(std::errc::invalid_argument);
+        }
+        return make_error_code(std::errc::invalid_argument);
+    }
+
+    std::shared_ptr<Win32Platform> mPlatform;
+};
 auto CALLBACK Win32Platform::messageProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) -> LRESULT {
     auto *self = reinterpret_cast<Win32Platform *>(::GetWindowLongPtrW(hwnd, GWLP_USERDATA));
     if (!self) {
@@ -746,7 +989,12 @@ auto Win32Platform::createInputCapture() -> InputCapture::Ptr {
 }
 
 auto Win32Platform::createInputInjector() -> InputInjector::Ptr {
-    return nullptr;
+    if (auto injector = mInputInjector.lock()) {
+        return injector;
+    }
+    auto injector = std::make_shared<Win32InputInjector>(shared_from_this());
+    mInputInjector = injector;
+    return injector;
 }
 
 auto createPlatform() -> Platform::Ptr {
@@ -760,6 +1008,11 @@ auto createPlatform() -> Platform::Ptr {
 }
 
 } // namespace mksync::platform
+
+
+
+
+
 
 
 
