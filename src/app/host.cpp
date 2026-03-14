@@ -322,6 +322,17 @@ auto HostApp::sessionReadLoop(transport::BufferedTcpStream &stream, ilias::mpsc:
             case proto::MessageType::Pong:
                 SPDLOG_DEBUG("Host received Pong");
                 break;
+            case proto::MessageType::FocusLeave:
+                if (auto focus = std::get_if<proto::FocusLeave>(&frame->payload)) {
+                    auto target = currentRemoteTarget();
+                    if (target && target->screen.index == focus->screenIndex) {
+                        if (auto local = mTopology.localScreen(0); local) {
+                            mFocus.activateLocal(*local);
+                        }
+                        SPDLOG_INFO("Host returned focus to local from remote screen {} on client request", focus->screenIndex);
+                    }
+                }
+                break;
             default:
                 SPDLOG_DEBUG("Host ignored inbound frame type {}", frame->type);
                 break;
@@ -611,4 +622,5 @@ auto HostApp::linkOrderedScreens(std::span<const ScreenId> ordered, Edge edge) -
 }
 
 } // namespace mksync::app
+
 
