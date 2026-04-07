@@ -1,0 +1,25 @@
+#pragma once
+#include <mksync/__config/os.hpp>
+#include <mksync/__config/compiler.hpp>
+#include <mksync/__config/platform.hpp>
+
+#define MKS_VERSION                                                                                \
+    ((((uint32_t)(MKS_VERSION_BUILD)) << 29U) | (((uint32_t)(MKS_VERSION_MAJOR)) << 22U) |         \
+     (((uint32_t)(MKS_VERSION_MINOR)) << 12U) | ((uint32_t)(MKS_VERSION_ALTER)))
+#define MKS_VERSION_STR "${VERSION}.${VERSION_BUILD}"
+#define MKS_VERSION_MAJOR ${VERSION_MAJOR}
+#define MKS_VERSION_MINOR ${VERSION_MINOR}
+#define MKS_VERSION_ALTER ${VERSION_ALTER}
+#define MKS_VERSION_BUILD ${VERSION_BUILD}
+#define MKS_PLAT "${PLAT}"
+#define MKS_ARCH "${ARCH}"
+#define MKS_MODE "${MODE}"
+#define MKS_DEBUG ${DEBUG}
+#define MKS_OS "${OS}"
+
+${define MKS_SHARED_BUILD}
+
+#define MKS_BEGIN                                                                                  \
+    namespace mks                                                                                  \
+    {
+#define MKS_END }

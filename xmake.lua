@@ -1,6 +1,6 @@
 -- project configuration
 set_project("mksync")
-set_version("0.0.1", {build = "$(buildversion)"})
+set_version("0.0.1", {build = "$(buildversion)", soname = true})
 set_xmakever("3.0.0")
 option("alias", {showmenu = false, default = "mks"}) -- project abbreviation
 
