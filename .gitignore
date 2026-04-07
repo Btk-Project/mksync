@@ -2,5 +2,9 @@
 /.xmake/
 /bin/
 /build/
+/vs*/
 
-config.h
+config.h*
+!config.h*.in
+
+.clang-format
