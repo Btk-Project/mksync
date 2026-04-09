@@ -32,7 +32,7 @@ option("buildversion", {showmenu = true, type = "number",  default = 0})
 includes("lua/check")
 check_macros("has_std_out_ptr",         "__cpp_lib_out_ptr",            {languages = stdcxx(), includes = "version"})
 check_macros("has_std_expected",        "__cpp_lib_expected",           {languages = stdcxx(), includes = "version"})
-check_macros("has_std_runtime_format",  "__cpp_lib_format >= 202311L",  {languages = stdcxx(), includes = "version"})
+check_macros("has_std_format",          "__cpp_lib_format >= 202207L",  {languages = stdcxx(), includes = "version"})
 
 -- hide options, hide targets, pack targets
 includes("lua/hideoptions.lua")
@@ -45,7 +45,7 @@ add_repositories("btk-repo https://github.com/Btk-Project/xmake-repo.git")
 if not has_config("has_std_out_ptr")  then add_requires("out_ptr") end
 if not has_config("has_std_expected") then add_requires("zeus_expected") end
 -- normal libraries
-if not has_config("has_std_runtime_format") then add_requires("fmt") end
+if not has_config("has_std_format") then add_requires("fmt") end
 add_requires(
     "spdlog",
     "ilias"
@@ -68,7 +68,7 @@ add_requireconfs("**out_ptr",       {override = true, version = "x.x.x"})
 add_requireconfs("**zeus_expected", {override = true, version = "x.x.x"})
 -- normal libraries' dependencies configurations
 add_requireconfs("**fmt",       {override = true, version = "x.x.x", configs = {shared = is_config("3rd_kind", "shared"), debug = is_config("3rd_mode", "debug"), header_only = false}})
-add_requireconfs("**spdlog",    {override = true, version = "x.x.x", configs = {shared = is_config("3rd_kind", "shared"), debug = is_config("3rd_mode", "debug"), header_only = false, fmt_external = not has_config("has_std_runtime_format"), std_format = has_config("has_std_runtime_format"), wchar = true, wchar_console = true}})
+add_requireconfs("**spdlog",    {override = true, version = "x.x.x", configs = {shared = is_config("3rd_kind", "shared"), debug = is_config("3rd_mode", "debug"), header_only = false, fmt_external = not has_config("has_std_format"), std_format = has_config("has_std_format"), wchar = true, wchar_console = true}})
 add_requireconfs("**ilias",     {override = true, version = "x.x.x", configs = {debug = is_config("3rd_mode", "debug")}})
 -- configurations of dependency libraries
 add_requireconfs("**libportal",         {system = true, optional = true})
@@ -88,9 +88,12 @@ target("mksync")
     set_kind("binary")
     add_packages("ilias")
     add_packages("spdlog")
+    add_deps("config")
     if is_plat("windows") then 
         add_syslinks("user32")
     end
     
-    add_files("./src/**.cpp")
+    add_includedirs("src")
+    set_pcxxheader("src/pch.hpp")
+    add_files("src/**.cpp")
 target_end()

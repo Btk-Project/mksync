@@ -1,4 +1,5 @@
-﻿#include "focus.hpp"
+﻿#include "pch.hpp"
+#include "focus.hpp"
 
 namespace mksync::domain {
 

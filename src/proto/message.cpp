@@ -1,4 +1,5 @@
-﻿#include "message.hpp"
+﻿#include "pch.hpp"
+#include "message.hpp"
 
 #include <type_traits>
 
