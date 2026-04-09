@@ -17,15 +17,13 @@ function autofunc.target_autoclean(target)
 end
 
 function autofunc.target_autoname(target)
-    target:set("basename", _Camel(project:name()) .. _Camel(target:name()))
+    target:set("basename", _Camel(get_config("alias")) .. _Camel(target:name()))
 end
 
 function autofunc.library_autodefine(target)
+    local projNameUpper = string.upper(get_config("alias"))
     local targNameUpper = string.upper(target:name())
-    if target:kind() == "shared" then
-        target:add("defines", "MKS_" .. targNameUpper .. "_DLL")
-    end
-    target:add("defines", "MKS_" .. targNameUpper .. "_EXPORTS")
+    target:add("defines", projNameUpper .. "_" .. targNameUpper .. "_COMPILING")
 end
 
 function autofunc.binary_autoluanch(target)
