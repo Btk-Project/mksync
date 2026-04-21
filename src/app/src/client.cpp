@@ -1,4 +1,4 @@
-﻿#include "pch.hpp"
+#include "pch.hpp"
 #include "client.hpp"
 
 #include <spdlog/spdlog.h>

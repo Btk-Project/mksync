@@ -1,36 +1,52 @@
 #pragma once
-
+#include <mksync/_proto/_config.hpp>
+// Standard Library
 #include <cstdint>
 #include <format>
+// System Library
+// Third-Party Library
+// Local Library
 
-namespace mksync::core {
+MKS_BEGIN
+MKS_PROTO_BEGIN
 
 /**
  * @brief The mouse button, platform independent
- * 
+ *
  */
-enum class MouseButton {
-    None = 0,
-    Left = 1,
-    Right,
-    Middle,
+enum class MouseButton : uint8_t
+{
+    eNone   = 0,
+    eLeft   = 1,
+    eRight  = 2,
+    eMiddle = 3,
+    eExtra0 = 4,
+    eExtra1 = 5,
+    eExtra2 = 6,
 };
 
-} // namespace mksync::core
+MKS_PROTO_END
+MKS_END
 
 // MARK: Formatter
 template <>
-struct std::formatter<mksync::core::MouseButton> {
+struct std::formatter<mks::proto::MouseButton> {
     constexpr auto parse(auto &ctxt) { return ctxt.begin(); }
 
-    auto format(const auto &button, auto &ctxt) const {
-        using enum mksync::core::MouseButton;
+    auto format(const auto &button, auto &ctxt) const
+    {
+        using enum mks::proto::MouseButton;
         switch (button) {
-            case None: return std::format_to(ctxt.out(), "None");
-            case Left: return std::format_to(ctxt.out(), "Left");
-            case Right: return std::format_to(ctxt.out(), "Right");
-            case Middle: return std::format_to(ctxt.out(), "Middle");
-            default: return std::format_to(ctxt.out(), "Unknown");
+        case eNone:
+            return std::format_to(ctxt.out(), "None");
+        case eLeft:
+            return std::format_to(ctxt.out(), "Left");
+        case eRight:
+            return std::format_to(ctxt.out(), "Right");
+        case eMiddle:
+            return std::format_to(ctxt.out(), "Middle");
+        default:
+            return std::format_to(ctxt.out(), "Unknown");
         }
     }
 };

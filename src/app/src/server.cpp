@@ -1,4 +1,4 @@
-﻿#include "pch.hpp"
+#include "pch.hpp"
 #include <spdlog/spdlog.h>
 #include <ilias/task.hpp>
 

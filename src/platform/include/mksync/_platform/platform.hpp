@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <ilias/task.hpp>
 #include <ilias/io.hpp>

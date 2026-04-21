@@ -1,4 +1,4 @@
-﻿#include "pch.hpp"
+#include "pch.hpp"
 
 #include <ilias/platform.hpp>
 #include <ilias/signal.hpp>

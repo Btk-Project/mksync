@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <ilias/net.hpp>
 #include <ilias/sync.hpp>
