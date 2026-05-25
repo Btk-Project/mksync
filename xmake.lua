@@ -9,7 +9,7 @@ set_configvar("PROJECT_NAME", "mksync")
 
 -- global configuration
 option("stdc",   {showmenu = true, default = 23, values = {23, 17, 11, 99}})
-option("stdcxx", {showmenu = true, default = 23, values = {26, 23, 17, 11}})
+option("stdcxx", {showmenu = true, default = 26, values = {26, 23, 17, 11}})
 function stdc()   return "c"   .. tostring(get_config("stdc"))   end
 function stdcxx() return "c++" .. tostring(get_config("stdcxx")) end
 
@@ -82,7 +82,7 @@ end
 -- subdirectories
 -- includes("src/*/xmake.lua")
 -- includes("exec/*/xmake.lua")
--- includes("test/*/xmake.lua")
+includes("tests/xmake.lua")
 
 target("mksync")
     set_kind("binary")
@@ -98,6 +98,14 @@ target("mksync")
     -- Pch
     -- set_pcxxheader("src/config/pch.hpp")
     -- add_forceincludes("src/config/pch.hpp", {sourcekinds = "cxx"})
+
+    -- Mingw patch
+    if is_plat("mingw") then
+        add_links("stdc++exp")
+    end
+
+    -- Reflection
+    add_cxxflags("-freflection", {force = true})
 
     -- Config dir
     set_configdir("src/config/")
