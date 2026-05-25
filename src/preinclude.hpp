@@ -10,4 +10,8 @@ using ::ilias::IoTask;
 using ::ilias::Task;
 using ::ilias::Err;
 
+// Overloads
+template <typename ...Ts>
+struct Overloads : Ts... { using Ts::operator()...; };
+
 MKS_END

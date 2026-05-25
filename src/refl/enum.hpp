@@ -38,6 +38,33 @@ inline auto enumToString(T value) -> std::string_view {
 }
 
 /**
+ * @brief Convert a enum flags to string
+ * 
+ * @tparam T 
+ */
+template <typename T> requires (std::is_enum_v<T>)
+inline auto flagsToString(T value) -> std::string {
+    std::string out;
+    if constexpr (std::meta::is_enumerable_type(^^T)) {
+        template for (constexpr auto e : std::define_static_array(std::meta::enumerators_of(^^T))) {
+            if (static_cast<bool>(value & [:e:])) {
+                out += std::meta::identifier_of(e);
+                out += " | ";
+            }
+        }
+    }
+    if (out.empty()) {
+        out = "<empty>";
+    }
+    else { // Remove last " | "
+        out.pop_back();
+        out.pop_back();
+        out.pop_back();
+    }
+    return out;
+}
+
+/**
  * @brief Convert string to enum
  * 
  * @tparam T 

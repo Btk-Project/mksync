@@ -1,4 +1,5 @@
 #include "refl/this_error.hpp"
+#include "refl/formatter.hpp"
 #include "refl/enum.hpp"
 #include <gtest/gtest.h>
 
@@ -26,9 +27,16 @@ enum class TestError {
 THIS_ERROR(TestError);
 THIS_ERROR_IMPL(TestError);
 
+ENUM_FORMATTER(TestError);
+ENUM_FORMATTER_IMPL(TestError);
+
 TEST(Refl, ThisError) {
     std::error_code ec = TestError::Test;
     EXPECT_EQ(ec.message(), "Test");
+}
+
+TEST(Refl, Formatter) {
+    EXPECT_EQ(std::format("Hello {}!", TestError::Test), "Hello Test!");
 }
 
 int main(int argc, char **argv) {

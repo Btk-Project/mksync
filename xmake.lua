@@ -96,7 +96,7 @@ target("mksync")
     add_files("src/**.cpp")
 
     -- Pch
-    -- set_pcxxheader("src/config/pch.hpp")
+    set_pcxxheader("src/config/pch.hpp")
     -- add_forceincludes("src/config/pch.hpp", {sourcekinds = "cxx"})
 
     -- Mingw patch
