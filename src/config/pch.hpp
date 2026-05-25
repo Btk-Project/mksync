@@ -1,7 +1,7 @@
 #pragma once
 
 // Import config
-#include <mksync/config.hpp>
+#include "config.hpp"
 
 // Import std
 #include <algorithm>

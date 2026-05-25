@@ -48,7 +48,7 @@ if not has_config("has_std_expected") then add_requires("zeus_expected") end
 if not has_config("has_std_format") then add_requires("fmt") end
 add_requires(
     "spdlog",
-    "ilias"
+    "ilias dev"
 )
 if is_plat("linux") then
     add_requires(
@@ -69,7 +69,7 @@ add_requireconfs("**zeus_expected", {override = true, version = "x.x.x"})
 -- normal libraries' dependencies configurations
 add_requireconfs("**fmt",       {override = true, version = "x.x.x", configs = {shared = is_config("3rd_kind", "shared"), debug = is_config("3rd_mode", "debug"), header_only = false}})
 add_requireconfs("**spdlog",    {override = true, version = "x.x.x", configs = {shared = is_config("3rd_kind", "shared"), debug = is_config("3rd_mode", "debug"), header_only = false, fmt_external = not has_config("has_std_format"), std_format = has_config("has_std_format"), wchar = true, wchar_console = true}})
-add_requireconfs("**ilias",     {override = true, version = "x.x.x", configs = {debug = is_config("3rd_mode", "debug")}})
+-- add_requireconfs("**ilias",     {override = true, version = "x.x.x", configs = {debug = is_config("3rd_mode", "debug")}})
 -- configurations of dependency libraries
 add_requireconfs("**libportal",         {system = true, optional = true})
 add_requireconfs("**libx11",            {system = true})
@@ -80,7 +80,7 @@ add_requireconfs("**xcb-util-keysyms",  {system = true})
 end
 
 -- subdirectories
-includes("src/*/xmake.lua")
+-- includes("src/*/xmake.lua")
 -- includes("exec/*/xmake.lua")
 -- includes("test/*/xmake.lua")
 
@@ -88,12 +88,19 @@ target("mksync")
     set_kind("binary")
     add_packages("ilias")
     add_packages("spdlog")
-    add_deps("config")
     if is_plat("windows") then 
         add_syslinks("user32")
     end
     
     add_includedirs("src")
-    set_pcxxheader("src/pch.hpp")
     add_files("src/**.cpp")
+
+    -- Pch
+    -- set_pcxxheader("src/config/pch.hpp")
+    -- add_forceincludes("src/config/pch.hpp", {sourcekinds = "cxx"})
+
+    -- Config dir
+    set_configdir("src/config/")
+    set_configvar("MKS_SHARED_BUILD", is_kind("shared") and true or false)
+    add_configfiles("src/config/*.in", {public = true})
 target_end()
