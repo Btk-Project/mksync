@@ -8,6 +8,7 @@ MKS_BEGIN
 using ::ilias::IoResult;
 using ::ilias::IoTask;
 using ::ilias::Task;
+using ::ilias::Result;
 using ::ilias::Err;
 
 // Overloads

@@ -15,7 +15,7 @@ struct MouseMoveEvent {
     int32_t y = 0;            // Y in pixels
     uint32_t screenIndex = 0; // Index of the screen
 };
-STRUCT_FORMATTER(MouseMoveEvent);
+FORMATTER(MouseMoveEvent);
 
 struct MouseButtonEvent {
     int32_t x = 0;            // X in pixels
@@ -24,7 +24,7 @@ struct MouseButtonEvent {
     MouseButton button = MouseButton::None; // Button that was pressed
     bool        release = false;            // Is the button being released
 };
-STRUCT_FORMATTER(MouseButtonEvent);
+FORMATTER(MouseButtonEvent);
 
 struct MouseWheelEvent {
     int32_t x = 0;      // X in pixels
@@ -32,7 +32,7 @@ struct MouseWheelEvent {
     int32_t deltaX = 0;
     int32_t deltaY = 0;
 };
-STRUCT_FORMATTER(MouseWheelEvent);
+FORMATTER(MouseWheelEvent);
 
 struct KeyEvent {
     Key         key = Key::None;               // Key that was pressed
@@ -41,7 +41,7 @@ struct KeyEvent {
     bool        repeat = false;                // Is the key being held down
     bool        release = false;               // Is the key being released
 };
-STRUCT_FORMATTER(KeyEvent);
+FORMATTER(KeyEvent);
 
 // Screen Events
 class ScreenInfo {
@@ -54,11 +54,11 @@ public:
     std::string name;
     bool primary = false;
 };
-STRUCT_FORMATTER(ScreenInfo);
+FORMATTER(ScreenInfo);
 
 struct ScreenChangeEvent {
     std::vector<ScreenInfo> screens;
 };
-STRUCT_FORMATTER(ScreenChangeEvent);
+FORMATTER(ScreenChangeEvent);
 
 MKS_END

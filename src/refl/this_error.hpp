@@ -11,6 +11,7 @@
 #pragma once
 
 #include "config/config.hpp"
+#include "enum.hpp"
 #include <system_error> // std::error_code
 #include <type_traits>
 

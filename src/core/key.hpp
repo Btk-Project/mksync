@@ -47,8 +47,8 @@ FLAGS_FORMATTER(KeyModifier);
 enum class Key : uint32_t {
     None = 0x00,              // No key pressed
     ErrorOverflow = 0x01,     // Keyboard Error Roll Over - used for all slots if too many keys are pressed ("Phantom key")
-    // KeyboardPostFail = 0x02, // Keyboard POST Fail
-    // KeyboardErrorUndefined = 0x03, // Keyboard Error Undefined
+    KeyboardPostFail = 0x02, // Keyboard POST Fail
+    KeyboardErrorUndefined = 0x03, // Keyboard Error Undefined
     
     A = 0x04,                 // Keyboard a and A
     B = 0x05,                 // Keyboard b and B
@@ -185,11 +185,11 @@ enum class Key : uint32_t {
     VolumeUp = 0x80,          // Keyboard Volume Up
     VolumeDown = 0x81,        // Keyboard Volume Down
 
-    // LockingCapsLock = 0x82,  // Keyboard Locking Caps Lock
-    // LockingNumLock = 0x83,   // Keyboard Locking Num Lock
-    // LockingScrollLock = 0x84,// Keyboard Locking Scroll Lock
+    LockingCapsLock = 0x82,  // Keyboard Locking Caps Lock
+    LockingNumLock = 0x83,   // Keyboard Locking Num Lock
+    LockingScrollLock = 0x84,// Keyboard Locking Scroll Lock
     KeypadComma = 0x85,       // Keypad Comma
-    // KeypadEqualSign = 0x86,  // Keypad Equal Sign
+    KeypadEqualSign = 0x86,  // Keypad Equal Sign
     
     Ro = 0x87,                // Keyboard International1
     KatakanaHiragana = 0x88,  // Keyboard International2
@@ -197,78 +197,78 @@ enum class Key : uint32_t {
     Henkan = 0x8a,            // Keyboard International4
     Muhenkan = 0x8b,          // Keyboard International5
     KeypadJpComma = 0x8c,     // Keyboard International6
-    // Intl7 = 0x8d,            // Keyboard International7
-    // Intl8 = 0x8e,            // Keyboard International8
-    // Intl9 = 0x8f,            // Keyboard International9
+    Intl7 = 0x8d,            // Keyboard International7
+    Intl8 = 0x8e,            // Keyboard International8
+    Intl9 = 0x8f,            // Keyboard International9
     
     Hangeul = 0x90,           // Keyboard LANG1
     Hanja = 0x91,             // Keyboard LANG2
     Katakana = 0x92,          // Keyboard LANG3
     Hiragana = 0x93,          // Keyboard LANG4
     ZenkakuHankaku = 0x94,    // Keyboard LANG5
-    // Lang6 = 0x95,            // Keyboard LANG6
-    // Lang7 = 0x96,            // Keyboard LANG7
-    // Lang8 = 0x97,            // Keyboard LANG8
-    // Lang9 = 0x98,            // Keyboard LANG9
-    // AlternateErase = 0x99,   // Keyboard Alternate Erase
-    // SysReqAttention = 0x9a,  // Keyboard SysReq/Attention
-    // Cancel = 0x9b,           // Keyboard Cancel
-    // Clear = 0x9c,            // Keyboard Clear
-    // Prior = 0x9d,            // Keyboard Prior
-    // Return = 0x9e,           // Keyboard Return
-    // Separator = 0x9f,        // Keyboard Separator
-    // Out = 0xa0,              // Keyboard Out
-    // Oper = 0xa1,             // Keyboard Oper
-    // ClearAgain = 0xa2,       // Keyboard Clear/Again
-    // CrSelProps = 0xa3,       // Keyboard CrSel/Props
-    // ExSel = 0xa4,            // Keyboard ExSel
+    Lang6 = 0x95,            // Keyboard LANG6
+    Lang7 = 0x96,            // Keyboard LANG7
+    Lang8 = 0x97,            // Keyboard LANG8
+    Lang9 = 0x98,            // Keyboard LANG9
+    AlternateErase = 0x99,   // Keyboard Alternate Erase
+    SysReqAttention = 0x9a,  // Keyboard SysReq/Attention
+    Cancel = 0x9b,           // Keyboard Cancel
+    Clear = 0x9c,            // Keyboard Clear
+    Prior = 0x9d,            // Keyboard Prior
+    Return = 0x9e,           // Keyboard Return
+    Separator = 0x9f,        // Keyboard Separator
+    Out = 0xa0,              // Keyboard Out
+    Oper = 0xa1,             // Keyboard Oper
+    ClearAgain = 0xa2,       // Keyboard Clear/Again
+    CrSelProps = 0xa3,       // Keyboard CrSel/Props
+    ExSel = 0xa4,            // Keyboard ExSel
 
-    // Keypad00 = 0xb0,         // Keypad 00
-    // Keypad000 = 0xb1,        // Keypad 000
-    // ThousandsSeparator = 0xb2, // Thousands Separator
-    // DecimalSeparator = 0xb3, // Decimal Separator
-    // CurrencyUnit = 0xb4,     // Currency Unit
-    // CurrencySubUnit = 0xb5,  // Currency Sub-unit
+    Keypad00 = 0xb0,         // Keypad 00
+    Keypad000 = 0xb1,        // Keypad 000
+    ThousandsSeparator = 0xb2, // Thousands Separator
+    DecimalSeparator = 0xb3, // Decimal Separator
+    CurrencyUnit = 0xb4,     // Currency Unit
+    CurrencySubUnit = 0xb5,  // Currency Sub-unit
     KeypadLeftParen = 0xb6,   // Keypad (
     KeypadRightParen = 0xb7,  // Keypad )
-    // KeypadLeftBrace = 0xb8,  // Keypad {
-    // KeypadRightBrace = 0xb9, // Keypad }
-    // KeypadTab = 0xba,        // Keypad Tab
-    // KeypadBackspace = 0xbb,  // Keypad Backspace
-    // KeypadA = 0xbc,          // Keypad A
-    // KeypadB = 0xbd,          // Keypad B
-    // KeypadC = 0xbe,          // Keypad C
-    // KeypadD = 0xbf,          // Keypad D
-    // KeypadE = 0xc0,          // Keypad E
-    // KeypadF = 0xc1,          // Keypad F
-    // KeypadXor = 0xc2,        // Keypad XOR
-    // KeypadCaret = 0xc3,      // Keypad ^
-    // KeypadPercent = 0xc4,    // Keypad %
-    // KeypadLess = 0xc5,       // Keypad <
-    // KeypadGreater = 0xc6,    // Keypad >
-    // KeypadAmpersand = 0xc7,  // Keypad &
-    // KeypadDoubleAmp = 0xc8,  // Keypad &&
-    // KeypadPipe = 0xc9,       // Keypad |
-    // KeypadDoublePipe = 0xca, // Keypad ||
-    // KeypadColon = 0xcb,      // Keypad :
-    // KeypadHash = 0xcc,       // Keypad #
-    // KeypadSpace = 0xcd,      // Keypad Space
-    // KeypadAt = 0xce,         // Keypad @
-    // KeypadExclaim = 0xcf,    // Keypad !
-    // KeypadMemStore = 0xd0,   // Keypad Memory Store
-    // KeypadMemRecall = 0xd1,  // Keypad Memory Recall
-    // KeypadMemClear = 0xd2,   // Keypad Memory Clear
-    // KeypadMemAdd = 0xd3,     // Keypad Memory Add
-    // KeypadMemSub = 0xd4,     // Keypad Memory Subtract
-    // KeypadMemMult = 0xd5,    // Keypad Memory Multiply
-    // KeypadMemDiv = 0xd6,     // Keypad Memory Divide
-    // KeypadPlusMinus = 0xd7,  // Keypad +/-
-    // KeypadClear = 0xd8,      // Keypad Clear
-    // KeypadClearEntry = 0xd9, // Keypad Clear Entry
-    // KeypadBinary = 0xda,     // Keypad Binary
-    // KeypadOctal = 0xdb,      // Keypad Octal
-    // KeypadDecimal = 0xdc,    // Keypad Decimal
-    // KeypadHexadecimal = 0xdd,// Keypad Hexadecimal
+    KeypadLeftBrace = 0xb8,  // Keypad {
+    KeypadRightBrace = 0xb9, // Keypad }
+    KeypadTab = 0xba,        // Keypad Tab
+    KeypadBackspace = 0xbb,  // Keypad Backspace
+    KeypadA = 0xbc,          // Keypad A
+    KeypadB = 0xbd,          // Keypad B
+    KeypadC = 0xbe,          // Keypad C
+    KeypadD = 0xbf,          // Keypad D
+    KeypadE = 0xc0,          // Keypad E
+    KeypadF = 0xc1,          // Keypad F
+    KeypadXor = 0xc2,        // Keypad XOR
+    KeypadCaret = 0xc3,      // Keypad ^
+    KeypadPercent = 0xc4,    // Keypad %
+    KeypadLess = 0xc5,       // Keypad <
+    KeypadGreater = 0xc6,    // Keypad >
+    KeypadAmpersand = 0xc7,  // Keypad &
+    KeypadDoubleAmp = 0xc8,  // Keypad &&
+    KeypadPipe = 0xc9,       // Keypad |
+    KeypadDoublePipe = 0xca, // Keypad ||
+    KeypadColon = 0xcb,      // Keypad :
+    KeypadHash = 0xcc,       // Keypad #
+    KeypadSpace = 0xcd,      // Keypad Space
+    KeypadAt = 0xce,         // Keypad @
+    KeypadExclaim = 0xcf,    // Keypad !
+    KeypadMemStore = 0xd0,   // Keypad Memory Store
+    KeypadMemRecall = 0xd1,  // Keypad Memory Recall
+    KeypadMemClear = 0xd2,   // Keypad Memory Clear
+    KeypadMemAdd = 0xd3,     // Keypad Memory Add
+    KeypadMemSub = 0xd4,     // Keypad Memory Subtract
+    KeypadMemMult = 0xd5,    // Keypad Memory Multiply
+    KeypadMemDiv = 0xd6,     // Keypad Memory Divide
+    KeypadPlusMinus = 0xd7,  // Keypad +/-
+    KeypadClear = 0xd8,      // Keypad Clear
+    KeypadClearEntry = 0xd9, // Keypad Clear Entry
+    KeypadBinary = 0xda,     // Keypad Binary
+    KeypadOctal = 0xdb,      // Keypad Octal
+    KeypadDecimal = 0xdc,    // Keypad Decimal
+    KeypadHexadecimal = 0xdd,// Keypad Hexadecimal
 
     LeftCtrl = 0xe0,          // Keyboard Left Control
     LeftShift = 0xe1,         // Keyboard Left Shift
@@ -300,7 +300,7 @@ enum class Key : uint32_t {
     MediaRefresh = 0xfa,
     MediaCalc = 0xfb
 };
-ENUM_FORMATTER(Key);
+FORMATTER(Key);
 
 // Operators for the KeyModfier
 constexpr auto operator |(KeyModifier lhs, KeyModifier rhs) -> KeyModifier {

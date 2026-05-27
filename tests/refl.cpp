@@ -2,6 +2,7 @@
 #include "refl/formatter.hpp"
 #include "refl/enum.hpp"
 #include <gtest/gtest.h>
+#include <string>
 
 namespace refl = mks::refl;
 
@@ -27,8 +28,23 @@ enum class TestError {
 THIS_ERROR(TestError);
 THIS_ERROR_IMPL(TestError);
 
-ENUM_FORMATTER(TestError);
-ENUM_FORMATTER_IMPL(TestError);
+FORMATTER(TestError);
+FORMATTER_IMPL(TestError);
+
+enum class FormatterKind {
+    First,
+    Second,
+};
+FORMATTER(FormatterKind);
+FORMATTER_IMPL(FormatterKind);
+
+struct FormatterValue {
+    int           count;
+    std::string   name;
+    FormatterKind kind;
+};
+FORMATTER(FormatterValue);
+FORMATTER_IMPL(FormatterValue);
 
 TEST(Refl, ThisError) {
     std::error_code ec = TestError::Test;
@@ -37,6 +53,8 @@ TEST(Refl, ThisError) {
 
 TEST(Refl, Formatter) {
     EXPECT_EQ(std::format("Hello {}!", TestError::Test), "Hello Test!");
+    EXPECT_EQ(std::format("{}", FormatterKind::Second), "Second");
+    EXPECT_EQ(std::format("{}", FormatterValue { .count = 7, .name = "main", .kind = FormatterKind::First}), "FormatterValue { count: 7, name: main, kind: First }");
 }
 
 int main(int argc, char **argv) {

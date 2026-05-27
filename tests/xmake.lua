@@ -6,6 +6,9 @@ add_cxxflags("-freflection", {force = true})
 
 target("test_refl")
     set_kind("binary")
+    set_default(false)
     add_files("refl.cpp")
     add_packages("gtest")
+
+    add_tests("test_refl")
 target_end()

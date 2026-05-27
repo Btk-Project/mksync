@@ -48,6 +48,7 @@ if not has_config("has_std_expected") then add_requires("zeus_expected") end
 if not has_config("has_std_format") then add_requires("fmt") end
 add_requires(
     "spdlog",
+    "argparse",
     "ilias dev"
 )
 if is_plat("linux") then
@@ -88,6 +89,7 @@ target("mksync")
     set_kind("binary")
     add_packages("ilias")
     add_packages("spdlog")
+    add_packages("argparse")
     if is_plat("windows") then 
         add_syslinks("user32")
     end

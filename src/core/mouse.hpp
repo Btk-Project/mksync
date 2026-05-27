@@ -18,6 +18,6 @@ enum class MouseButton {
     Right,
     Middle,
 };
-ENUM_FORMATTER(MouseButton);
+FORMATTER(MouseButton);
 
 MKS_END
