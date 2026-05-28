@@ -9,17 +9,6 @@
 
 MKS_BEGIN
 
-/**
- * @brief The event used by capture & injector
- * 
- */
-struct InputEvent : std::variant<
-    KeyEvent,
-    MouseButtonEvent,
-    MouseMoveEvent,
-    MouseWheelEvent
-> {};
-
 class InputCapture {
 public:
     using Ptr = std::shared_ptr<InputCapture>;
@@ -65,18 +54,3 @@ public:
 };
 
 MKS_END
-
-// Formatter for InputEvent
-template <>
-struct std::formatter<mks::InputEvent> {
-    constexpr auto parse(std::format_parse_context &ctxt) -> decltype(ctxt.begin()) {
-        return ctxt.begin();
-    }
-
-    template <typename FormatContext>
-    auto format(const mks::InputEvent &event, FormatContext &ctxt) const -> decltype(ctxt.out()) {
-        return event.visit([&](const auto &e) {
-            return std::format_to(ctxt.out(), "{}", e);
-        });
-    }
-};

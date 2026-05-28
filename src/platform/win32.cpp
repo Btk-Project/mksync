@@ -613,9 +613,9 @@ private:
         }
 
         auto *info = reinterpret_cast<KBDLLHOOKSTRUCT *>(lp);
-        // if (auto event = translateKeyboardEvent(wp, info); event) {
-        //     gInputCapture->tryEnqueue(std::move(*event));
-        // }
+        if (auto event = translateKeyboardEvent(wp, info); event) {
+            gInputCapture->tryEnqueue(std::move(*event));
+        }
         return ::CallNextHookEx(nullptr, code, wp, lp);
     }
 
@@ -686,42 +686,40 @@ private:
         }
     }
 
-    // static auto translateKeyboardEvent(WPARAM wp, const KBDLLHOOKSTRUCT *info) -> std::optional<InputEvent> {
-    //     const bool isPress = wp == WM_KEYDOWN || wp == WM_SYSKEYDOWN;
-    //     const bool isRelease = wp == WM_KEYUP || wp == WM_SYSKEYUP;
-    //     if (!isPress && !isRelease) {
-    //         return std::nullopt;
-    //     }
+    static auto translateKeyboardEvent(WPARAM wp, const KBDLLHOOKSTRUCT *info) -> std::optional<InputEvent> {
+        const bool isPress = wp == WM_KEYDOWN || wp == WM_SYSKEYDOWN;
+        const bool isRelease = wp == WM_KEYUP || wp == WM_SYSKEYUP;
+        if (!isPress && !isRelease) {
+            return std::nullopt;
+        }
 
-    //     auto vkCode = normalizeVirtualKey(info->vkCode, info->scanCode);
-    //     auto key = translateVirtualKey(vkCode);
-    //     auto modifiers = currentModifiers();
-    //     if (auto modifier = keyModifierFor(key); modifier != KeyModifier::None) {
-    //         if (isPress) {
-    //             modifiers |= modifier;
-    //         }
-    //         else {
-    //             modifiers &= ~modifier;
-    //         }
-    //     }
+        auto vkCode = normalizeVirtualKey(info->vkCode, info->scanCode);
+        auto key = translateVirtualKey(vkCode);
+        auto modifiers = currentModifiers();
+        if (auto modifier = keyModifierFor(key); modifier != KeyModifier::None) {
+            if (isPress) {
+                modifiers |= modifier;
+            }
+            else {
+                modifiers &= ~modifier;
+            }
+        }
 
-    //     return InputEvent {
-    //         .type = isPress ? InputEvent::Type::KeyPress : InputEvent::Type::KeyRelease,
-    //         .metadata = makeKeyboardMetadata(info),
-    //         .payload = InputEvent::KeyData {
-    //             .key = key,
-    //             .modifiers = modifiers,
-    //             .nativeCode = vkCode,
-    //             .repeat = false,
-    //         }
-    //     };
-    // }
+        return InputEvent {
+            KeyEvent {
+                .key = key,
+                .modifiers = modifiers,
+                .nativeCode = vkCode,
+                .repeat = false,
+                .release = isRelease,
+            }
+        };
+    }
 
     ilias::mpsc::Sender<InputEvent> mSender;
     ilias::mpsc::Receiver<InputEvent> mReceiver;
     std::shared_ptr<Win32Platform> mPlatform;
     std::atomic<uint64_t> mDroppedEvents {0};
-
 friend class Win32Platform;
 };
 

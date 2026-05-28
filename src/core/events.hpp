@@ -44,8 +44,7 @@ struct KeyEvent {
 FORMATTER(KeyEvent);
 
 // Screen Events
-class ScreenInfo {
-public:
+struct ScreenInfo {
     int32_t x = 0;
     int32_t y = 0;
     int32_t width = 0;
@@ -61,4 +60,30 @@ struct ScreenChangeEvent {
 };
 FORMATTER(ScreenChangeEvent);
 
+/**
+ * @brief The event used by capture & injector
+ * 
+ */
+struct InputEvent : std::variant<
+    KeyEvent,
+    MouseButtonEvent,
+    MouseMoveEvent,
+    MouseWheelEvent
+> {};
+
 MKS_END
+
+// Formatter for InputEvent
+template <>
+struct std::formatter<mks::InputEvent> {
+    constexpr auto parse(std::format_parse_context &ctxt) -> decltype(ctxt.begin()) {
+        return ctxt.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const mks::InputEvent &event, FormatContext &ctxt) const -> decltype(ctxt.out()) {
+        return event.visit([&](const auto &e) {
+            return std::format_to(ctxt.out(), "{}", e);
+        });
+    }
+};

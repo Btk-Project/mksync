@@ -1,3 +1,4 @@
+#include "preinclude.hpp"
 #include <argparse/argparse.hpp>
 #include <ilias/platform.hpp>
 #include <ilias/signal.hpp>
