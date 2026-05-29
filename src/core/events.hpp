@@ -70,20 +70,6 @@ struct InputEvent : std::variant<
     MouseMoveEvent,
     MouseWheelEvent
 > {};
+VARIANT_FORMATTER(InputEvent);
 
 MKS_END
-
-// Formatter for InputEvent
-template <>
-struct std::formatter<mks::InputEvent> {
-    constexpr auto parse(std::format_parse_context &ctxt) -> decltype(ctxt.begin()) {
-        return ctxt.begin();
-    }
-
-    template <typename FormatContext>
-    auto format(const mks::InputEvent &event, FormatContext &ctxt) const -> decltype(ctxt.out()) {
-        return event.visit([&](const auto &e) {
-            return std::format_to(ctxt.out(), "{}", e);
-        });
-    }
-};

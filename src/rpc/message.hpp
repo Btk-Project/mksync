@@ -68,6 +68,7 @@ struct RpcMessage : std::variant<
 > {
     auto toBytes(std::vector<std::byte> &buf) -> size_t;
 };
+VARIANT_FORMATTER(RpcMessage);
 
 
 template <typename T>
@@ -78,18 +79,3 @@ concept MessageLike = requires(T t) {
 };
 
 MKS_END
-
-// Formatter for RpcMessage
-template <>
-struct std::formatter<mks::RpcMessage> {
-    constexpr auto parse(std::format_parse_context &ctxt) -> decltype(ctxt.begin()) {
-        return ctxt.begin();
-    }
-
-    template <typename FormatContext>
-    auto format(const mks::RpcMessage &message, FormatContext &ctxt) const -> decltype(ctxt.out()) {
-        return message.visit([&](const auto &e) {
-            return std::format_to(ctxt.out(), "{}", e);
-        });
-    }
-};

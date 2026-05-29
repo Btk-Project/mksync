@@ -70,6 +70,7 @@ auto Server::waitPlatformEvent(void *_platform, void *_capture) -> Task<void> {
     // Process....
     while (true) {
         auto event = co_await capture->nextEvent();
+        SPDLOG_INFO("{}", event);
         if (auto key = std::get_if<KeyEvent>(&event)) {
             if (key->key == Key::F12 && !key->release) {
                 SPDLOG_INFO("Server F12 pressed");

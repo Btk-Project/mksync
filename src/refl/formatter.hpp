@@ -1,56 +1,156 @@
+/**
+ * @file formatter.hpp
+ * @author BusyStudent (fyw90mc@gmail.com)
+ * @brief Generic formatter for enum and struct
+ * @version 0.1
+ * @date 2026-05-28
+ * 
+ * @copyright Copyright (c) 2026
+ * 
+ */
 #pragma once
 
-#include "config/config.hpp"
-#include "refl/enum.hpp"
-#include <concepts>
-#include <format>
-#include <string_view>
-#include <string>
 #include <type_traits>
+#include <concepts>
+#include <variant>
+#include <string>
+#include <format>
+#include <print>
 #include <meta>
 
+// MARK: Inline
 // Generic Formatter for enums and structs/classes
-#define FORMATTER(TYPE) extern auto _refl_to_string(const TYPE &value) -> std::string
+#define FORMATTER(TYPE)                                          \
+    inline auto _refl_fmt_inline(const TYPE &value, auto it) {   \
+        return ::refl::detail::formatTo(value, it);              \
+    }                                                            \
 
-#define FORMATTER_IMPL(TYPE)                                                               \
-    static_assert(std::formattable<TYPE, char>, "TYPE must be formattable");               \
-    auto _refl_to_string(const TYPE &value) -> std::string {                               \
-        return ::mks::refl::formatToString(value);                                         \
-    }                                                                                      \
-
-    // Formatter for enum flags
-#define FLAGS_FORMATTER(ENUM) \
-    extern auto _refl_to_string(ENUM value) -> std::string
-
-#define FLAGS_FORMATTER_IMPL(ENUM) \
-    static_assert(std::formattable<ENUM, char>, "ENUM must be formattable"); \
-    auto _refl_to_string(ENUM value) -> std::string {                        \
-        return ::mks::refl::flagsToString(value);                            \
+// Formatter for enum flags
+#define FLAGS_FORMATTER(ENUM)                            \
+    inline auto _refl_fmt_inline(ENUM value, auto it) {  \
+        return ::refl::detail::formatFlags(value, it);   \
     }                                                             
+
+// Formatter for variant
+#define VARIANT_FORMATTER(TYPE)                                 \
+    template <char = 0>                                         \
+    inline auto _refl_fmt_inline(const TYPE &value, auto it) {  \
+        return ::refl::detail::formatVariant(value, value, it); \
+    }
+
+// MARK: Extern
+#define EXTERN_FORMATTER(TYPE) \
+    extern auto _refl_fmt_extern(const TYPE &value) -> std::string;
+
+// Temp disable the impl
+#define FORMATTER_IMPL(TYPE)
+#define FLAGS_FORMATTER_IMPL(ENUM)
 
 // Check an type is mark by macro
 template <typename T>
 concept Formattable = requires(T t) {
-    _refl_to_string(t);
+    _refl_fmt_inline(t, std::declval<std::back_insert_iterator<std::string> >());
+} || requires(T t) {
+    _refl_fmt_extern(t);   
 };
 
 // Bridges to reflection formatter
 template <Formattable T>
 struct std::formatter<T> {
-    constexpr auto parse(format_parse_context& ctx) const -> decltype(ctx.begin()) {
-        return ctx.begin();
+    constexpr auto parse(std::format_parse_context &ctxt) const -> decltype(ctxt.begin()) {
+        return ctxt.begin();
     }
 
     template <typename FormatContext>
-    auto format(const T& t, FormatContext& ctx) const -> decltype(ctx.out()) {
-        return format_to(ctx.out(), "{}", _refl_to_string(t));
+    auto format(const T &t, FormatContext &ctxt) const -> decltype(ctxt.out()) {
+        if constexpr (requires { _refl_fmt_inline(t, ctxt.out()); }) { // Inline formatter
+            return _refl_fmt_inline(t, ctxt.out());
+        }
+        else {
+            static_assert(false, "Extern formatter not implemented now"); // 
+        }
     }
 };
 
-// Detail code for struct formatter
-MKS_BEGIN
+template <Formattable T>
+inline constexpr bool std::enable_nonlocking_formatter_optimization<T> = true;
 
-namespace refl {
+// Detail code for struct formatter
+namespace refl::detail {
+
+/**
+ * @brief Convert enum to string
+ * 
+ * @tparam T 
+ */
+template <typename T> requires (std::is_enum_v<T>)
+inline auto enumToString(T value) -> std::string_view {
+    if constexpr (std::meta::is_enumerable_type(^^T)) {
+        template for (constexpr auto e : std::define_static_array(std::meta::enumerators_of(^^T))) {
+            if (value == [:e:]) {
+                return std::meta::identifier_of(e);
+            }
+        }
+    }
+    return "<unknown>";
+}
+
+/**
+ * @brief Convert string to enum
+ * 
+ * @tparam T 
+ */
+template <typename T> requires (std::is_enum_v<T>)
+inline auto enumFromString(std::string_view name) -> std::optional<T> {
+    if constexpr (std::meta::is_enumerable_type(^^T)) {
+        template for (constexpr auto e : std::define_static_array(std::meta::enumerators_of(^^T))) {
+            if (name == std::meta::identifier_of(e)) {
+                return [:e:];
+            }
+        }
+    }
+
+    return std::nullopt;
+}
+
+/**
+ * @brief Format an enum to string
+ * 
+ * @tparam T 
+ * @tparam Context
+ */
+template <typename T> requires (std::is_enum_v<T>)
+inline auto formatFlags(T value, auto it) {
+    auto prev = false;
+    if constexpr (std::meta::is_enumerable_type(^^T)) {
+        template for (constexpr auto e : std::define_static_array(std::meta::enumerators_of(^^T))) {
+            if (static_cast<bool>(value & [:e:])) {
+                if (prev) {
+                    it = std::format_to(it, " | "); // " | "
+                }
+                it = std::format_to(it, "{}", std::meta::identifier_of(e));
+                prev = true;
+            }
+        }
+    }
+    if (!prev) {
+        it = std::format_to(it, "<none>");
+    }
+    return it;
+}
+
+template <typename Raw, typename ...Ts>
+inline auto formatVariant(const Raw &raw, const std::variant<Ts...> &value, auto it) {
+    using T = std::remove_cvref_t<Raw>;
+    return std::visit([&](const auto &element) { // TypeName { InnerType }
+        return std::format_to(
+            it,
+            "{} {{ {} }}",
+            std::meta::identifier_of(std::meta::dealias(^^T)),
+            element
+        );
+    }, value);
+}
 
 /**
  * @brief Convert struct to string
@@ -58,44 +158,37 @@ namespace refl {
  * @tparam T 
  */
 template <typename T> requires(std::is_class_v<T>)
-inline auto structToString(const T &value) -> std::string {
-    auto out = std::string {std::meta::identifier_of(^^T)};
-    auto first = true;
+inline auto formatStruct(const T &value, auto it) {
+    auto prev = false;
 
-    out += " { ";
+    // StructName { elem: value... }
+    it = std::format_to(it, "{} {{ ", std::meta::identifier_of(^^T));
     template for (constexpr auto member : std::define_static_array(std::meta::nonstatic_data_members_of(^^T, std::meta::access_context::current()))) {
-        if (!first) {
-            out += ", ";
+        if (prev) {
+            it = std::format_to(it, ", ");
         }
-        first = false;
+        prev = true;
         if constexpr (std::formattable<decltype(value.[:member:]), char>) {
-            std::format_to(std::back_inserter(out), "{}: {}", std::meta::identifier_of(member), value.[:member:]);
+            it = std::format_to(it, "{}: {}", std::meta::identifier_of(member), value.[:member:]);
         }
         else {
-            std::format_to(std::back_inserter(out), "{}: <unformattavble>", std::meta::identifier_of(member));
+            it = std::format_to(it, "{}: <unformattable>", std::meta::identifier_of(member));
         }
     }
 
-    out += " }";
-    return out;
+    it = std::format_to(it, " }}");
+    return it;
 }
 
-template <typename T>
-inline auto formatToString(const T &value) -> std::string
-{
-    using U = std::remove_cvref_t<T>;
-
-    if constexpr (std::is_enum_v<U>) {
-        return std::string {enumToString(value)};
-    }
-    else if constexpr (std::is_class_v<U>) {
-        return structToString(value);
-    }
-    else {
-        static_assert(std::is_enum_v<U> || std::is_class_v<U>, "FORMATTER only supports enum and struct/class types");
-    }
+// Use overloads to dispatch
+template <typename T> requires(std::is_enum_v<T>)
+inline auto formatTo(const T &value, auto it) {
+    return std::format_to(it, "{}", enumToString(value));
 }
 
-} // namespace refl
+template <typename T> requires(std::is_class_v<T>)
+inline auto formatTo(const T &value, auto it) {
+    return formatStruct(value, it);
+}
 
-MKS_END
+} // namespace refl::detail
