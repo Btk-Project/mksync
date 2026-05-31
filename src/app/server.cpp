@@ -1,10 +1,17 @@
 #include "platform/platform.hpp"
+#include "rpc/transport.hpp"
 #include "rpc/message.hpp"
 #include "server.hpp"
+#include <ilias/sync.hpp>
 
 MKS_BEGIN
 
 using ilias::TaskScope;
+
+struct ClientState {
+    RpcTransport                    transport;
+    ilias::mpsc::Sender<RpcMessage> sender; // Use this to send messages to the client
+};
 
 Server::Server(IPEndpoint endpoint) : mEndpoint(endpoint) {
 
@@ -70,7 +77,7 @@ auto Server::waitPlatformEvent(void *_platform, void *_capture) -> Task<void> {
     // Process....
     while (true) {
         auto event = co_await capture->nextEvent();
-        SPDLOG_INFO("{}", event);
+        // SPDLOG_INFO("{}", event);
         if (auto key = std::get_if<KeyEvent>(&event)) {
             if (key->key == Key::F12 && !key->release) {
                 SPDLOG_INFO("Server F12 pressed");
@@ -94,11 +101,54 @@ auto Server::handleIncoming(TcpStream socket) -> IoTask<void> {
         ~Guard() {
             SPDLOG_INFO("Server closing connection from {}", ep);
             self->removeScreen(ep);
+            self->mClients.erase(ep);
         }
     } guard {this, endpoint};
 
-    // Ok, begin handshake
+    ClientState state {
+        .transport = RpcTransport {std::move(socket)},
+        .sender = {}
+    };
 
+    // Ok, begin handshake
+    {
+        ILIAS_CO_TRY(auto msg, co_await state.transport.readMessage());
+        auto hello = std::get_if<HelloMessage>(&msg);
+        if (!hello) {
+            SPDLOG_ERROR("Server received invalid message");
+            co_return Err(RpcError::ProtocolError);
+        }
+        SPDLOG_INFO("New client connected {}, version: {}, name: {}", endpoint, hello->version, hello->name);
+    }
+
+    // Register it
+    mClients.emplace(endpoint, &state);
+
+    // Handle the reader part and writer part of the connection
+    co_await ilias::whenAny(
+        handleClientRead(&state),
+        handleClientWrite(&state)
+    );
+    co_return {};
+}
+
+auto Server::handleClientRead(ClientState *state) -> IoTask<void> {
+    while (true) {
+        ILIAS_CO_TRY(auto msg, co_await state->transport.readMessage());
+        // TODO: Handle the message
+        SPDLOG_INFO("Server received message {}", msg);
+    }
+    co_return {};
+}
+
+auto Server::handleClientWrite(ClientState *state) -> IoTask<void> {
+    using namespace std::literals;
+    auto [sender, reader] = ilias::mpsc::channel<RpcMessage>(10);
+    state->sender = sender;
+    while (true) {
+        auto msg = (co_await reader.recv()).value(); // The channel cannot be closed, use .value() to unwrap the value
+        ILIAS_CO_TRYV(co_await state->transport.writeMessage(std::move(msg)));
+    }
     co_return {};
 }
 

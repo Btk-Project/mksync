@@ -25,7 +25,7 @@
     static_assert(std::is_enum_v<ENUM>, "ENUM must be an enum type");             \
     extern auto _this_error_get_category_##ENUM() -> const std::error_category &; \
     extern auto _this_error_message(ENUM e) -> std::string_view;                  \
-    inline auto _this_error_make_code(ENUM e) -> std::error_code {                \
+    inline auto make_error_code(ENUM e) -> std::error_code {                      \
         return { static_cast<int>(e), _this_error_get_category_##ENUM() };        \
     }
 
@@ -62,14 +62,8 @@
 // ADL Lookup
 template <typename T>
 concept ThisError = requires(T t) {
-    { _this_error_make_code(t) } -> std::convertible_to<std::error_code>;
+    { _this_error_message(t) } -> std::convertible_to<std::string_view>;
 };
-
-// ADL Bridge for std::error_code
-template <ThisError T>
-inline auto make_error_code(T e) -> std::error_code {
-    return _this_error_make_code(e);
-}
 
 // Enable ErrorCode for enum types
 template <ThisError T>

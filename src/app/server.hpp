@@ -31,9 +31,7 @@ FORMATTER(VirtualScreen);
  * @brief The state of client, manage the outcoming queue
  * 
  */
-struct ClientState {
-
-};
+struct ClientState;
 
 /**
  * @brief The server, collection event and dispatch to another client
@@ -58,6 +56,8 @@ private:
 
     // Handle client
     auto handleIncoming(TcpStream stream) -> IoTask<void>;
+    auto handleClientRead(ClientState *state) -> IoTask<void>;
+    auto handleClientWrite(ClientState *state) -> IoTask<void>;
 
     // Screen Manage
     auto addScreen(IPEndpoint endpoint, ScreenInfo info) -> VirtualScreen *;

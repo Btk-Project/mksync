@@ -35,7 +35,7 @@
 #define VARIANT_FORMATTER(TYPE)                                 \
     template <char = 0>                                         \
     inline auto _refl_fmt_inline(const TYPE &value, auto it) {  \
-        return ::refl::detail::formatVariant(value, value, it); \
+        return ::refl::detail::formatVariant(value, it);        \
     }
 
 // MARK: Extern
@@ -139,8 +139,8 @@ inline auto formatFlags(T value, auto it) {
     return it;
 }
 
-template <typename Raw, typename ...Ts>
-inline auto formatVariant(const Raw &raw, const std::variant<Ts...> &value, auto it) {
+template <typename Raw>
+inline auto formatVariant(const Raw &value, auto it) {
     using T = std::remove_cvref_t<Raw>;
     return std::visit([&](const auto &element) { // TypeName { InnerType }
         return std::format_to(

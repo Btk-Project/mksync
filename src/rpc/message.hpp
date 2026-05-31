@@ -26,8 +26,12 @@ enum class MessageId : uint16_t {
     Hello = 0,
     Screens,
 
+    Ping,
+    Pong,
+
     Error = 0xFFFF
 };
+FORMATTER(MessageId);
 
 /**
  * @brief Hello message, the first message sent by client to server
@@ -58,19 +62,28 @@ struct ErrorMessage {
 FORMATTER(ErrorMessage);
 
 /**
+ * @brief The message sent <-> received by client and server
+ * 
+ */
+struct PingMessage {};
+struct PongMessage {};
+FORMATTER(PingMessage);
+FORMATTER(PongMessage);
+
+/**
  * @brief The message transmitted between client and server
  * 
  */
 struct RpcMessage : std::variant<
     HelloMessage,
     ScreensMessage,
+    PingMessage,
+    PongMessage,
     ErrorMessage
-> {
-    auto toBytes(std::vector<std::byte> &buf) -> size_t;
-};
+> {};
 VARIANT_FORMATTER(RpcMessage);
 
-
+// TODO: 
 template <typename T>
 concept MessageLike = requires(T t) {
     { t.toBytes(std::declval<std::vector<std::byte> &>()) } -> std::same_as<void>;

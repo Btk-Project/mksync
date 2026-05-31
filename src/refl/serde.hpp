@@ -15,6 +15,8 @@
 #include <utility>
 #include <string>
 #include <ranges>
+#include <meta>
+#include <bit>
 
 template <typename T>
 concept Serializer = requires(T t) {
@@ -28,6 +30,9 @@ concept Serializer = requires(T t) {
 
     // Array
     t.serializeArray();
+
+    // Range
+    t.serializeRange();
 };
 
 namespace serde {

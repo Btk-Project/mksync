@@ -3,6 +3,7 @@
 #include <ilias/platform.hpp>
 #include <ilias/signal.hpp>
 #include "app/server.hpp"
+#include "app/client.hpp"
 #include "core.hpp"
 #include <stacktrace>
 #include <csignal>
@@ -80,7 +81,22 @@ void ilias_main(int argc, char **argv) {
         }
     } 
     else if (auto value = program.present<std::string>("--connect")) {
-        SPDLOG_WARN("connect mode not implemented");
+        auto endpoint = ilias::IPEndpoint::fromString(*value);
+        if (!endpoint) {
+            SPDLOG_ERROR("Invalid endpoint: {}", *value);
+            co_return;
+        }
+        mks::Client client {*endpoint};
+        auto [err, ctrlc] = co_await ilias::whenAny(
+            client.run(),
+            ilias::signal::ctrlC()
+        );
+        if (ctrlc) {
+            SPDLOG_WARN("Ctrl-C received, shutting down...");
+        }
+        if (err) {
+            SPDLOG_ERROR("Client error: {}", err->error().message());
+        }
     }
     co_return;
 }

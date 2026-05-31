@@ -1,7 +1,6 @@
 #pragma once
 
 #include "preinclude.hpp"
-#include "refl/formatter.hpp"
 #include "core.hpp"
 #include <ilias/task.hpp>
 #include <ilias/net.hpp>
@@ -15,13 +14,16 @@ using ilias::TcpStream;
 
 class Client {
 public:
-    Client() = default;
+    Client(IPEndpoint endpoint);
     Client(const Client &) = delete;
-    ~Client();
+    ~Client() = default;
 
-    auto run(IPEndpoint server) -> IoTask<void>;
+    auto run() -> IoTask<void>;
 private:
+    auto handleWrite(void *platform, void *transport) -> IoTask<void>;
+    auto handleRead(void *transport) -> IoTask<void>;
 
+    IPEndpoint mEndpoint;
 };
 
 MKS_END
