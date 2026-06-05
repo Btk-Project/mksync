@@ -12,11 +12,10 @@
 
 #include "preinclude.hpp"
 #include "refl/formatter.hpp"
+#include "refl/serde.hpp"
 #include "core.hpp"
 #include <variant>
 #include <format>
-
-#include "refl/serde.hpp"
 
 MKS_BEGIN
 
@@ -40,7 +39,7 @@ FORMATTER(MessageId);
  * 
  */
 struct HelloMessage {
-    static consteval auto messageId() { return MessageId::Hello; }
+    static constexpr auto Id = MessageId::Hello;
     uint16_t    version = 0;
     std::string name;
 };
@@ -51,7 +50,7 @@ FORMATTER(HelloMessage);
  * 
  */
 struct ScreensMessage {
-    static consteval auto messageId() { return MessageId::Screens; }
+    static constexpr auto Id = MessageId::Screens;
     std::vector<ScreenInfo> screens;
 };
 FORMATTER(ScreensMessage);
@@ -61,7 +60,7 @@ FORMATTER(ScreensMessage);
  * 
  */
 struct ErrorMessage {
-    static consteval auto messageId() { return MessageId::Error; }
+    static constexpr auto Id = MessageId::Error;
     std::string message;
 };
 FORMATTER(ErrorMessage);
@@ -71,10 +70,12 @@ FORMATTER(ErrorMessage);
  * 
  */
 struct PingMessage {
-    static consteval auto messageId() { return MessageId::Ping; }
+    static constexpr auto Id = MessageId::Ping;
+    uint32_t pad = 0;
 };
 struct PongMessage {
-    static consteval auto messageId() { return MessageId::Pong; }
+    static constexpr auto Id = MessageId::Pong;
+    uint32_t pad = 0;
 };
 FORMATTER(PingMessage);
 FORMATTER(PongMessage);
@@ -85,6 +86,7 @@ struct VariantBase : std::variant<Ts...> {
     using Base = std::variant<Ts...>;
     using Base::Base;
 };
+
 /**
  * @brief The message transmitted between client and server
  * 
@@ -103,7 +105,7 @@ template <typename T>
 concept MessageLike = requires(T t, Serializer sr, Deserializer ds) {
     { sr(t) } -> std::same_as<bool>;
     { ds(t) } -> std::same_as<bool>;
-    { T::messageId() } -> std::same_as<MessageId>;
+    { T::Id } -> std::same_as<MessageId>;
 };
 
 MKS_END

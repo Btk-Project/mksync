@@ -44,22 +44,18 @@ includes("lua/pack.lua")
 
 -- some of the required libraries use our own repository
 add_repositories("btk-repo https://github.com/Btk-Project/xmake-repo.git")
+
 -- header-only libraries
 if not has_config("has_std_out_ptr")  then add_requires("out_ptr") end
 if not has_config("has_std_expected") then add_requires("zeus_expected") end
+if not has_config("has_std_format")  then add_requires("fmt") end
+
 -- normal libraries
-local useSystemSpdlog = has_config("has_system_spdlog")
-local useSystemFmt = has_config("has_system_fmt") or useSystemSpdlog
-local requireFmt = useSystemSpdlog or not has_config("has_std_format")
-if useSystemSpdlog and not has_config("has_system_fmt") then
-    raise(system_fmt_missing_message())
-end
-if requireFmt then add_requires("fmt") end
 add_requires(
     "spdlog",
     "argparse",
-    "ilias dev",
-    "neko-proto-tools dev"
+    "ilias",
+    "neko-proto-tools"
 )
 if is_plat("linux") then
     add_requires(
@@ -71,6 +67,9 @@ if is_plat("linux") then
     )
     -- sudo apt install libx11-dev libxi-dev libxcb-keysyms1-dev libxcb-util0-dev libxcb-xtest0-dev
 end
+
+-- msvc flags
+add_cxxflags("cl::/Zc:preprocessor")
 
 
 if not has_config("3rd_custom") then
@@ -101,20 +100,23 @@ target("mksync")
     set_kind("binary")
     set_installdir(path.join(os.projectdir(), "build", "install"))
     add_packages("ilias")
-    if requireFmt then
-        add_packages("fmt")
-    end
     add_packages("spdlog")
     add_packages("neko-proto-tools")
     add_packages("argparse")
+    
     if is_plat("linux") then
         add_packages("libx11")
         add_packages("libxcb")
         add_packages("libxi")
         add_packages("xcb-util-keysyms")
     end
+
     if is_plat("windows") then 
         add_syslinks("user32")
+    end
+
+    if not has_config("has_std_format") then
+        add_packages("fmt")
     end
     
     add_includedirs("src")
@@ -129,6 +131,7 @@ target("mksync")
     if is_plat("mingw", "linux") then
         add_links("stdc++exp")
     end
+
     if is_plat("linux") then
         set_policy("install.strip_packagelibs", true)
         add_rpathdirs("$ORIGIN/../lib", {installonly = true})

@@ -14,14 +14,15 @@
 #include <concepts>
 #include <variant>
 #include <string>
+
 #if __cpp_lib_format >= 202207L
 #include <format>
-#define fmtlib std
+namespace fmtlib = std;
 #else
 #include <fmt/core.h>
 #include <fmt/format.h>
 #include <fmt/ranges.h>
-#define fmtlib fmt
+namespace fmtlib = fmt;
 #if FMT_VERSION < 110000
 namespace fmtlib {
     template<typename T, typename Char = char>
@@ -29,8 +30,8 @@ namespace fmtlib {
         fmt::formatter<std::remove_cvref_t<T>, Char>().format(t, ctx);
     };
 }
-#endif
-#endif
+#endif // FMT_VERSION < 110000
+#endif // __cpp_lib_format >= 202207L
 #include <print>
 #include <map>
 
@@ -124,11 +125,11 @@ inline auto enumToString(T value) -> std::string_view {
  */
 template <typename T> requires (std::is_enum_v<T>)
 inline auto enumFromString(std::string_view name) -> std::optional<T> {
-    auto& namesMap = ::NekoProto::Reflect<T>::nameMap();
+    auto &namesMap = ::NekoProto::Reflect<T>::nameMap();
     if (namesMap.empty()) {
         return std::nullopt;
     }
-    std::string nameWithNs = std::string(name);
+    auto nameWithNs = std::string {name};
     auto begin = namesMap.begin()->first;
     // get namespace
     auto pos = begin.find_last_of(':');
@@ -195,7 +196,8 @@ inline auto formatStruct(const T &value, auto it) {
     // StructName { elem: value... }
     if constexpr (::NekoProto::detail::member_count_v<T> == 0) {
         it = fmtlib::format_to(it, "{} {{ }}", ::NekoProto::Reflect<T>::className());
-    } else {
+    }
+    else {
         it = fmtlib::format_to(it, "{} {{ ", ::NekoProto::Reflect<T>::className());
         ::NekoProto::Reflect<T>::forEach(value, [&](const auto& member, std::string_view name) {
             if (prev) {
