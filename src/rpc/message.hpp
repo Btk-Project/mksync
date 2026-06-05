@@ -16,6 +16,8 @@
 #include <variant>
 #include <format>
 
+#include "refl/serde.hpp"
+
 MKS_BEGIN
 
 /**
@@ -38,6 +40,7 @@ FORMATTER(MessageId);
  * 
  */
 struct HelloMessage {
+    static consteval auto messageId() { return MessageId::Hello; }
     uint16_t    version = 0;
     std::string name;
 };
@@ -48,6 +51,7 @@ FORMATTER(HelloMessage);
  * 
  */
 struct ScreensMessage {
+    static consteval auto messageId() { return MessageId::Screens; }
     std::vector<ScreenInfo> screens;
 };
 FORMATTER(ScreensMessage);
@@ -57,6 +61,7 @@ FORMATTER(ScreensMessage);
  * 
  */
 struct ErrorMessage {
+    static consteval auto messageId() { return MessageId::Error; }
     std::string message;
 };
 FORMATTER(ErrorMessage);
@@ -65,16 +70,26 @@ FORMATTER(ErrorMessage);
  * @brief The message sent <-> received by client and server
  * 
  */
-struct PingMessage {};
-struct PongMessage {};
+struct PingMessage {
+    static consteval auto messageId() { return MessageId::Ping; }
+};
+struct PongMessage {
+    static consteval auto messageId() { return MessageId::Pong; }
+};
 FORMATTER(PingMessage);
 FORMATTER(PongMessage);
 
+
+template<typename... Ts>
+struct VariantBase : std::variant<Ts...> {
+    using Base = std::variant<Ts...>;
+    using Base::Base;
+};
 /**
  * @brief The message transmitted between client and server
  * 
  */
-struct RpcMessage : std::variant<
+struct RpcMessage : VariantBase<
     HelloMessage,
     ScreensMessage,
     PingMessage,
@@ -85,10 +100,10 @@ VARIANT_FORMATTER(RpcMessage);
 
 // TODO: 
 template <typename T>
-concept MessageLike = requires(T t) {
-    { t.toBytes(std::declval<std::vector<std::byte> &>()) } -> std::same_as<void>;
-    { t.fromBytes() } -> std::same_as<IoResult<T> >;
-    { T::Id } -> std::same_as<MessageId>;
+concept MessageLike = requires(T t, Serializer sr, Deserializer ds) {
+    { sr(t) } -> std::same_as<bool>;
+    { ds(t) } -> std::same_as<bool>;
+    { T::messageId() } -> std::same_as<MessageId>;
 };
 
 MKS_END

@@ -1,6 +1,19 @@
 includes("@builtin/xpack")
 
-xpack("test")
+local package_basename = "mksync-$(version)-$(plat)-$(arch)-$(mode)"
+
+xpack("mksync")
+    set_title("mksync")
+    set_author("Btk-Project")
+    set_maintainer("Btk-Project")
+    set_description("Mouse and keyboard synchronization tool")
+    set_license("GPL-3.0-or-later")
+    set_licensefile("LICENSE")
+    set_basename(package_basename)
+    add_targets("mksync")
+    set_bindir("bin")
+    set_libdir("lib")
+
     if is_plat("windows", "mingw") then
         set_formats("zip")
         add_installfiles(path.join(os.projectdir(), get_config("outputdir")) .. "/(**)|**.pdb|**.lib")

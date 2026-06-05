@@ -1,3 +1,4 @@
+#ifdef _WIN32
 #include "preinclude.hpp"
 #include <Windows.h>
 
@@ -768,3 +769,4 @@ auto Platform::create() -> Platform::Ptr {
 }
 
 MKS_END
+#endif

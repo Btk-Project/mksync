@@ -9,9 +9,8 @@ set_configvar("PROJECT_NAME", "mksync")
 
 -- global configuration
 option("stdc",   {showmenu = true, default = 23, values = {23, 17, 11, 99}})
-option("stdcxx", {showmenu = true, default = 26, values = {26, 23, 17, 11}})
-function stdc()   return "c"   .. tostring(get_config("stdc"))   end
-function stdcxx() return "c++" .. tostring(get_config("stdcxx")) end
+option("stdcxx", {showmenu = true, default = 23, values = {26, 23, 17, 11}})
+includes("lua/config_helpers.lua")
 
 set_languages(stdc(), stdcxx())
 set_warnings("allextra")
@@ -33,6 +32,10 @@ includes("lua/check")
 check_macros("has_std_out_ptr",         "__cpp_lib_out_ptr",            {languages = stdcxx(), includes = "version"})
 check_macros("has_std_expected",        "__cpp_lib_expected",           {languages = stdcxx(), includes = "version"})
 check_macros("has_std_format",          "__cpp_lib_format >= 202207L",  {languages = stdcxx(), includes = "version"})
+check_system_pkgconfig_package("has_system_fmt",              "fmt")
+check_system_pkgconfig_package("has_system_spdlog",           "spdlog")
+check_system_pkgconfig_package("has_system_argparse",         "argparse")
+check_system_pkgconfig_package("has_system_gtest",            {"gtest", "gmock"})
 
 -- hide options, hide targets, pack targets
 includes("lua/hideoptions.lua")
@@ -45,11 +48,18 @@ add_repositories("btk-repo https://github.com/Btk-Project/xmake-repo.git")
 if not has_config("has_std_out_ptr")  then add_requires("out_ptr") end
 if not has_config("has_std_expected") then add_requires("zeus_expected") end
 -- normal libraries
-if not has_config("has_std_format") then add_requires("fmt") end
+local useSystemSpdlog = has_config("has_system_spdlog")
+local useSystemFmt = has_config("has_system_fmt") or useSystemSpdlog
+local requireFmt = useSystemSpdlog or not has_config("has_std_format")
+if useSystemSpdlog and not has_config("has_system_fmt") then
+    raise(system_fmt_missing_message())
+end
+if requireFmt then add_requires("fmt") end
 add_requires(
     "spdlog",
     "argparse",
-    "ilias dev"
+    "ilias dev",
+    "neko-proto-tools dev"
 )
 if is_plat("linux") then
     add_requires(
@@ -68,9 +78,11 @@ if not has_config("3rd_custom") then
 add_requireconfs("**out_ptr",       {override = true, version = "x.x.x"})
 add_requireconfs("**zeus_expected", {override = true, version = "x.x.x"})
 -- normal libraries' dependencies configurations
-add_requireconfs("**fmt",       {override = true, version = "x.x.x", configs = {shared = is_config("3rd_kind", "shared"), debug = is_config("3rd_mode", "debug"), header_only = false}})
-add_requireconfs("**spdlog",    {override = true, version = "x.x.x", configs = {shared = is_config("3rd_kind", "shared"), debug = is_config("3rd_mode", "debug"), header_only = false, fmt_external = not has_config("has_std_format"), std_format = has_config("has_std_format"), wchar = true, wchar_console = true}})
--- add_requireconfs("**ilias",     {override = true, version = "x.x.x", configs = {debug = is_config("3rd_mode", "debug")}})
+add_requireconfs("**fmt",      {override = true, system = useSystemFmt, version = "x.x.x", configs = {shared = is_config("3rd_kind", "shared"), debug = is_config("3rd_mode", "debug"), header_only = false}})
+add_requireconfs("**spdlog",    {override = true, system = useSystemSpdlog, version = "x.x.x", configs = {shared = is_config("3rd_kind", "shared"), debug = is_config("3rd_mode", "debug"), header_only = false, fmt_external = useSystemSpdlog or not has_config("has_std_format"), std_format = not useSystemSpdlog and has_config("has_std_format"), wchar = true, wchar_console = true}})
+add_requireconfs("**argparse",  {override = true, system = has_config("has_system_argparse"), version = "x.x.x"})
+add_requireconfs("**ilias",     {override = true, version = "x.x.x", configs = {debug = is_config("3rd_mode", "debug"), stdcxx = get_config("stdcxx"), fmt = not has_config("has_std_format")}})
+add_requireconfs("**neko-proto-tools", {override = true, version = "x.x.x", configs = {debug = is_config("3rd_mode", "debug"), enable_simdjson = false, enable_rapidjson = true, enable_communication = false, enable_fmt = false, enable_spdlog = false, enable_rapidxml = false, enable_jsonrpc = false, enable_protocol = false}})
 -- configurations of dependency libraries
 add_requireconfs("**libportal",         {system = true, optional = true})
 add_requireconfs("**libx11",            {system = true})
@@ -87,27 +99,45 @@ includes("tests/xmake.lua")
 
 target("mksync")
     set_kind("binary")
+    set_installdir(path.join(os.projectdir(), "build", "install"))
     add_packages("ilias")
+    if requireFmt then
+        add_packages("fmt")
+    end
     add_packages("spdlog")
+    add_packages("neko-proto-tools")
     add_packages("argparse")
+    if is_plat("linux") then
+        add_packages("libx11")
+        add_packages("libxcb")
+        add_packages("libxi")
+        add_packages("xcb-util-keysyms")
+    end
     if is_plat("windows") then 
         add_syslinks("user32")
     end
     
     add_includedirs("src")
     add_files("src/**.cpp")
+    add_installfiles("LICENSE", "README.md", "README_zh.md", {prefixdir = "share/doc/mksync"})
 
     -- Pch
     set_pcxxheader("src/config/pch.hpp")
     -- add_forceincludes("src/config/pch.hpp", {sourcekinds = "cxx"})
 
-    -- Mingw patch
-    if is_plat("mingw") then
+    -- GCC's std::stacktrace implementation is provided by libstdc++exp.
+    if is_plat("mingw", "linux") then
         add_links("stdc++exp")
+    end
+    if is_plat("linux") then
+        set_policy("install.strip_packagelibs", true)
+        add_rpathdirs("$ORIGIN/../lib", {installonly = true})
     end
 
     -- Reflection
-    add_cxxflags("-freflection", {force = true})
+    if get_config("stdcxx") == 26 then
+        add_cxxflags("-freflection", {force = true})
+    end
 
     -- Config dir
     set_configdir("src/config/")

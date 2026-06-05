@@ -15,26 +15,13 @@
 #include <utility>
 #include <string>
 #include <ranges>
-#include <meta>
 #include <bit>
+#include <nekoproto/serialization/json_serializer.hpp>
+#include <nekoproto/serialization/types/types.hpp>
 
-template <typename T>
-concept Serializer = requires(T t) {
-    // Primitive types
-    t.serializeFloat();
-    t.serializeInt();
-    t.serializeBool();
+MKS_BEGIN
 
-    // String
-    t.serializeString();
+using Serializer = ::NekoProto::JsonSerializer::OutputSerializer;
+using Deserializer = ::NekoProto::JsonSerializer::InputSerializer;
 
-    // Array
-    t.serializeArray();
-
-    // Range
-    t.serializeRange();
-};
-
-namespace serde {
-
-} // namespace serde
+MKS_END

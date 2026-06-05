@@ -14,9 +14,28 @@
 #include <concepts>
 #include <variant>
 #include <string>
+#if __cpp_lib_format >= 202207L
 #include <format>
+#define fmtlib std
+#else
+#include <fmt/core.h>
+#include <fmt/format.h>
+#include <fmt/ranges.h>
+#define fmtlib fmt
+#if FMT_VERSION < 110000
+namespace fmtlib {
+    template<typename T, typename Char = char>
+    concept formattable = requires (T&& t, fmt::format_context ctx) {
+        fmt::formatter<std::remove_cvref_t<T>, Char>().format(t, ctx);
+    };
+}
+#endif
+#endif
 #include <print>
-#include <meta>
+#include <map>
+
+#define NEKO_ENUM_SEARCH_DEPTH 256
+#include <nekoproto/serialization/reflection.hpp>
 
 // MARK: Inline
 // Generic Formatter for enums and structs/classes
@@ -56,8 +75,8 @@ concept Formattable = requires(T t) {
 
 // Bridges to reflection formatter
 template <Formattable T>
-struct std::formatter<T> {
-    constexpr auto parse(std::format_parse_context &ctxt) const -> decltype(ctxt.begin()) {
+struct fmtlib::formatter<T> {
+    constexpr auto parse(fmtlib::format_parse_context &ctxt) const -> decltype(ctxt.begin()) {
         return ctxt.begin();
     }
 
@@ -72,8 +91,10 @@ struct std::formatter<T> {
     }
 };
 
+#if defined(__cpp_lib_print) && __cpp_lib_print >= 202406L
 template <Formattable T>
 inline constexpr bool std::enable_nonlocking_formatter_optimization<T> = true;
+#endif
 
 // Detail code for struct formatter
 namespace refl::detail {
@@ -85,12 +106,13 @@ namespace refl::detail {
  */
 template <typename T> requires (std::is_enum_v<T>)
 inline auto enumToString(T value) -> std::string_view {
-    if constexpr (std::meta::is_enumerable_type(^^T)) {
-        template for (constexpr auto e : std::define_static_array(std::meta::enumerators_of(^^T))) {
-            if (value == [:e:]) {
-                return std::meta::identifier_of(e);
-            }
+    auto name = ::NekoProto::Reflect<T>::name(value);
+    if (name != "") {
+        auto pos = name.find_last_of(':');
+        if (pos != std::string_view::npos) {
+            return name.substr(pos + 1);
         }
+        return name;
     }
     return "<unknown>";
 }
@@ -102,12 +124,23 @@ inline auto enumToString(T value) -> std::string_view {
  */
 template <typename T> requires (std::is_enum_v<T>)
 inline auto enumFromString(std::string_view name) -> std::optional<T> {
-    if constexpr (std::meta::is_enumerable_type(^^T)) {
-        template for (constexpr auto e : std::define_static_array(std::meta::enumerators_of(^^T))) {
-            if (name == std::meta::identifier_of(e)) {
-                return [:e:];
-            }
+    auto& namesMap = ::NekoProto::Reflect<T>::nameMap();
+    if (namesMap.empty()) {
+        return std::nullopt;
+    }
+    std::string nameWithNs = std::string(name);
+    auto begin = namesMap.begin()->first;
+    // get namespace
+    auto pos = begin.find_last_of(':');
+    if (pos != std::string_view::npos) {
+        begin = begin.substr(0, pos + 1);
+        if (name.find(begin) == std::string_view::npos) {
+            nameWithNs = std::string(begin) + nameWithNs;
         }
+    }
+    auto value = namesMap.find(nameWithNs);
+    if (value != namesMap.end()) {
+        return value->second;
     }
 
     return std::nullopt;
@@ -122,19 +155,18 @@ inline auto enumFromString(std::string_view name) -> std::optional<T> {
 template <typename T> requires (std::is_enum_v<T>)
 inline auto formatFlags(T value, auto it) {
     auto prev = false;
-    if constexpr (std::meta::is_enumerable_type(^^T)) {
-        template for (constexpr auto e : std::define_static_array(std::meta::enumerators_of(^^T))) {
-            if (static_cast<bool>(value & [:e:])) {
-                if (prev) {
-                    it = std::format_to(it, " | "); // " | "
-                }
-                it = std::format_to(it, "{}", std::meta::identifier_of(e));
-                prev = true;
+    auto values = ::NekoProto::Reflect<T>::values();
+    for (const auto &e : values) {
+        if (static_cast<bool>(value & e)) {
+            if (prev) {
+                it = fmtlib::format_to(it, " | "); // " | "
             }
+            it = fmtlib::format_to(it, "{}", enumToString(e));
+            prev = true;
         }
     }
     if (!prev) {
-        it = std::format_to(it, "<none>");
+        it = fmtlib::format_to(it, "<none>");
     }
     return it;
 }
@@ -143,10 +175,10 @@ template <typename Raw>
 inline auto formatVariant(const Raw &value, auto it) {
     using T = std::remove_cvref_t<Raw>;
     return std::visit([&](const auto &element) { // TypeName { InnerType }
-        return std::format_to(
+        return fmtlib::format_to(
             it,
             "{} {{ {} }}",
-            std::meta::identifier_of(std::meta::dealias(^^T)),
+            ::NekoProto::Reflect<T>::className(),
             element
         );
     }, value);
@@ -160,30 +192,33 @@ inline auto formatVariant(const Raw &value, auto it) {
 template <typename T> requires(std::is_class_v<T>)
 inline auto formatStruct(const T &value, auto it) {
     auto prev = false;
-
     // StructName { elem: value... }
-    it = std::format_to(it, "{} {{ ", std::meta::identifier_of(^^T));
-    template for (constexpr auto member : std::define_static_array(std::meta::nonstatic_data_members_of(^^T, std::meta::access_context::current()))) {
-        if (prev) {
-            it = std::format_to(it, ", ");
-        }
-        prev = true;
-        if constexpr (std::formattable<decltype(value.[:member:]), char>) {
-            it = std::format_to(it, "{}: {}", std::meta::identifier_of(member), value.[:member:]);
-        }
-        else {
-            it = std::format_to(it, "{}: <unformattable>", std::meta::identifier_of(member));
-        }
+    if constexpr (::NekoProto::detail::member_count_v<T> == 0) {
+        it = fmtlib::format_to(it, "{} {{ }}", ::NekoProto::Reflect<T>::className());
+    } else {
+        it = fmtlib::format_to(it, "{} {{ ", ::NekoProto::Reflect<T>::className());
+        ::NekoProto::Reflect<T>::forEach(value, [&](const auto& member, std::string_view name) {
+            if (prev) {
+                it = fmtlib::format_to(it, ", ");
+            }
+            prev = true;
+            if constexpr (fmtlib::formattable<decltype(member), char>) {
+                it = fmtlib::format_to(it, "{}: {}", name == "" ? "<unnamed>" : name, member);
+            }
+            else {
+                it = fmtlib::format_to(it, "{}: <unformattable>", name == "" ? "<unnamed>" : name);
+            }
+        });
     }
 
-    it = std::format_to(it, " }}");
+    it = fmtlib::format_to(it, " }}");
     return it;
 }
 
 // Use overloads to dispatch
 template <typename T> requires(std::is_enum_v<T>)
 inline auto formatTo(const T &value, auto it) {
-    return std::format_to(it, "{}", enumToString(value));
+    return fmtlib::format_to(it, "{}", enumToString(value));
 }
 
 template <typename T> requires(std::is_class_v<T>)

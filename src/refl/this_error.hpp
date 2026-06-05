@@ -13,10 +13,12 @@
 #include <system_error> // std::error_code
 #include <type_traits>
 #include <string>
-#include <format>
 #include <print>
-#include <meta>
 
+#define NEKO_ENUM_SEARCH_DEPTH 256
+#include <nekoproto/serialization/reflection.hpp>
+
+#include "formatter.hpp"
 /**
  * @brief Declare a enum is a error code type
  * 
@@ -44,7 +46,7 @@
                 return std::string {_this_error_message(e)};                        \
             }                                                                       \
         };                                                                          \
-        static constinit Category c {};                                             \
+        static Category c {};                                             \
         return c;                                                                   \
     }                                                                               \
     auto _this_error_message(ENUM e) -> std::string_view {                          \
@@ -57,6 +59,7 @@
     #define THIS_ERROR_MESSAGE(str) [[=this_error::detail::Message{std::define_static_string(str)}]]
 #else
     #define THIS_ERROR_MESSAGE(str) 
+    #define NO_THIS_ERROR_MESSAGE
 #endif // __cpp_reflection
 
 // ADL Lookup
@@ -71,10 +74,10 @@ struct std::is_error_code_enum<T> : std::true_type {};
 
 // Enable Format for enum types
 template <ThisError T>
-struct std::formatter<T> {
-    std::formatter<std::string_view> inner;
+struct fmtlib::formatter<T> {
+    fmtlib::formatter<std::string_view> inner;
 
-    constexpr auto parse(std::format_parse_context &ctxt) -> decltype(ctxt.begin()) {
+    constexpr auto parse(fmtlib::format_parse_context &ctxt) -> decltype(ctxt.begin()) {
         return inner.parse(ctxt);
     }
 
@@ -84,9 +87,10 @@ struct std::formatter<T> {
     }
 };
 
+#if defined(__cpp_lib_print) && __cpp_lib_print >= 202406L
 template <ThisError T>
 inline constexpr bool std::enable_nonlocking_formatter_optimization<T> = true;
-
+#endif
 // Detail for this_error
 namespace this_error::detail {
 
@@ -95,32 +99,25 @@ struct Message {
     const char *text;
 };
 
-consteval auto annotationOf(auto meta) -> std::string_view {
-    auto annotations = std::meta::annotations_of_with_type(meta, ^^Message);
-    if (annotations.empty()) {
-        return {};
-    }
-    else {
-        return std::meta::extract<Message>(annotations[0]).text;
-    }
-}
+// consteval auto annotationOf(auto meta) -> std::string_view {
+//     auto annotations = std::meta::annotations_of_with_type(meta, ^^Message);
+//     if (annotations.empty()) {
+//         return {};
+//     }
+//     else {
+//         return std::meta::extract<Message>(annotations[0]).text;
+//     }
+// }
 
 template <ThisError T>
 inline auto enumToString(T value) -> std::string_view {
-    if constexpr (std::meta::is_enumerable_type(^^T)) {
-        template for (constexpr auto e : std::define_static_array(std::meta::enumerators_of(^^T))) {
-            if (value != [:e:]) {
-                continue;
-            }
-            // Check annotations
-            constexpr auto annotation = annotationOf(e);
-            if constexpr(annotation.empty()) {
-                return std::meta::identifier_of(e);             
-            }
-            else {
-                return annotation;
-            }
+    auto name = ::NekoProto::Reflect<T>::name(value);
+    if (name != "") {
+        auto pos = name.find_last_of(':');
+        if (pos != std::string_view::npos) {
+            return name.substr(pos + 1);
         }
+        return name;
     }
     return "<unknown>";
 }
