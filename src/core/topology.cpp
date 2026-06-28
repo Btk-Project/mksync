@@ -13,6 +13,8 @@ auto isValidRect(const ScreenInfo &info) -> bool {
 }
 
 auto neighborCell(GridPosition cell, Edge edge) -> GridPosition {
+    // The square grid only answers adjacency. The real monitor rect is handled
+    // later when mapping the entry point into the target screen.
     switch (edge) {
         case Edge::Left:
             --cell.x;
@@ -31,6 +33,8 @@ auto neighborCell(GridPosition cell, Edge edge) -> GridPosition {
 }
 
 auto entryCoordinate(int32_t source, int32_t sourceExtent, int32_t targetExtent) -> int32_t {
+    // Normalize only for this one edge-crossing calculation, then immediately
+    // convert back to a target pixel. Runtime cursor state stays in pixels.
     if (sourceExtent <= 1 || targetExtent <= 1) {
         return 0;
     }
@@ -114,6 +118,8 @@ auto ScreenTopology::hitEdge(const ScreenPoint &point) const -> std::optional<Ed
     }
 
     const auto &info = screen->info;
+    // Current policy: exact border means "try to cross".
+    // Sticky edges or a 1-2 px threshold can be added above this layer later.
     if (point.x <= 0) {
         return Edge::Left;
     }
@@ -153,6 +159,8 @@ auto ScreenTopology::mapEntryPoint(const ScreenPoint &from, Edge edge) const -> 
         .y = 0,
     };
 
+    // Grid adjacency chooses which screen receives the cursor. Source/target
+    // rects choose the exact entry pixel on that screen.
     switch (edge) {
         case Edge::Left:
             result.x = targetInfo.width - 1;

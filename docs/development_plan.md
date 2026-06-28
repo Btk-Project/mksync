@@ -56,7 +56,7 @@ v0.1 的目标是跑通最小可用的跨机器输入链路：
 - [x] 用 Mock Platform 跑通 Server -> Client -> MockInjector 测试。
 - [x] 实现 Win32 `InputInjector`。
 - [x] 实现 XCB/Linux `InputInjector`。
-- [ ] XCB/XInput2 capture 改为使用 ilias poll，不再使用独立线程。
+- [x] XCB/XInput2 capture 改为使用 ilias poll，不再使用独立线程。
 - [x] 远端 active screen 上按本机 `MouseMoveEvent` delta 连续发送远端鼠标移动。
 - [x] 处理远端屏幕切回本机屏幕。
 - [x] 处理跨多个远端屏幕。

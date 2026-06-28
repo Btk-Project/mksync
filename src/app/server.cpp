@@ -13,7 +13,10 @@ struct ClientState {
     RpcTransport                    transport;
     ilias::mpsc::Sender<RpcMessage> sender; // Use this to send messages to the client
     IPEndpoint                      endpoint;
+    // Raw value from HelloMessage. Empty is allowed for older clients.
     std::string                     machineId;
+    // Stable screen owner used by topology/config. Prefer machineId; fall back
+    // to endpoint only when the client has not learned to send machineId yet.
     std::string                     ownerId;
     std::string                     name;
 };
@@ -162,6 +165,8 @@ auto Server::handleIncoming(TcpStream socket) -> IoTask<void> {
 
         ~Guard() {
             SPDLOG_INFO("Server closing connection from {}", ep);
+            // A disconnect invalidates both the routing map and topology cells
+            // owned by this endpoint. Persisted config is intentionally kept.
             self->removeScreen(ep);
             self->mClientSenders.erase(ep);
             self->mEndpointOwners.erase(ep);
@@ -185,6 +190,8 @@ auto Server::handleIncoming(TcpStream socket) -> IoTask<void> {
             SPDLOG_ERROR("Server received invalid message");
             co_return Err(RpcError::ProtocolError);
         }
+        // machineId is what lets a remote screen keep the same layout even
+        // after reconnecting from a different port/address.
         state.machineId = hello->machineId;
         state.ownerId = state.machineId.empty() ? ownerId(endpoint) : state.machineId;
         mEndpointOwners[endpoint] = state.ownerId;
@@ -222,6 +229,8 @@ auto Server::isClientTrusted(const HelloMessage &hello) const -> bool {
 
 auto Server::handleClientWrite(ClientState *state) -> IoTask<void> {
     using namespace std::literals;
+    // The server keeps this sender in mClientSenders so input routing can enqueue
+    // messages without owning the transport writer coroutine.
     auto [sender, reader] = ilias::mpsc::channel<RpcMessage>(10);
     state->sender = sender;
     mClientSenders[state->endpoint] = sender;
@@ -234,6 +243,9 @@ auto Server::handleClientWrite(ClientState *state) -> IoTask<void> {
 
 auto Server::handleInputEvent(const InputEvent &event) -> void {
     if (mActiveScreen && !mActiveScreen->local) {
+        // While a remote screen is active, all non-mouse input belongs to that
+        // client. Mouse movement still needs special handling because the local
+        // capture backend reports absolute local pixels, not remote pixels.
         if (auto mouse = std::get_if<MouseMoveEvent>(&event)) {
             handleRemoteMouseMove(*mouse);
         }
@@ -264,6 +276,8 @@ auto Server::handleMouseMove(const MouseMoveEvent &event) -> void {
         return;
     }
 
+    // Local capture events carry a screenIndex from the local platform. Rebuild
+    // the key so multi-monitor local hosts can cross from any local screen.
     auto point = ScreenPoint {
         .key = mActiveScreen->local
             ? ScreenKey {
@@ -274,6 +288,8 @@ auto Server::handleMouseMove(const MouseMoveEvent &event) -> void {
         .x = event.x,
         .y = event.y,
     };
+    // Keep the latest local sample even if we do not cross yet. If the next
+    // event is handled as remote motion, this becomes the delta baseline.
     mLastLocalMouse = event;
     mActivePoint = point;
 
@@ -294,6 +310,8 @@ auto Server::handleRemoteMouseMove(const MouseMoveEvent &event) -> void {
     if (!mActiveScreen || mActiveScreen->local) {
         return;
     }
+    // A remote active screen has no local OS cursor to query. mActivePoint is
+    // the server-side virtual cursor in the remote screen's real pixel space.
     if (!mActivePoint || mActivePoint->key != mActiveScreen->key) {
         mActivePoint = ScreenPoint {
             .key = mActiveScreen->key,
@@ -302,6 +320,9 @@ auto Server::handleRemoteMouseMove(const MouseMoveEvent &event) -> void {
         };
     }
 
+    // The capture backend reports absolute coordinates on the local machine.
+    // For v0.1 we use the change between local samples as the remote movement
+    // delta. More advanced DPI/speed policy can replace only this block later.
     auto deltaX = 0;
     auto deltaY = 0;
     if (mLastLocalMouse) {
@@ -318,6 +339,8 @@ auto Server::handleRemoteMouseMove(const MouseMoveEvent &event) -> void {
     nextPoint.x += deltaX;
     nextPoint.y += deltaY;
 
+    // Check crossing before clamping so an overshoot past the remote edge can
+    // move into the neighbor instead of getting stuck at the border pixel.
     if (auto edge = mTopology.hitEdge(nextPoint)) {
         if (auto target = mTopology.mapEntryPoint(nextPoint, *edge)) {
             switchActiveScreen(*target);
@@ -327,6 +350,8 @@ auto Server::handleRemoteMouseMove(const MouseMoveEvent &event) -> void {
 
     const auto maxX = std::max(0, mActiveScreen->info.width - 1);
     const auto maxY = std::max(0, mActiveScreen->info.height - 1);
+    // No neighbor accepted the movement, so keep the virtual cursor inside the
+    // active remote screen and send an absolute pixel position to the client.
     mActivePoint->x = std::clamp(nextPoint.x, 0, maxX);
     mActivePoint->y = std::clamp(nextPoint.y, 0, maxY);
 
@@ -350,6 +375,8 @@ auto Server::switchActiveScreen(ScreenPoint point) -> void {
     mActivePoint = std::move(point);
 
     if (!screen->local) {
+        // Entering a remote screen needs an immediate absolute move so the
+        // client-side injector starts from the mapped entry pixel.
         queueInputForScreen(*screen, InputEvent {MouseMoveEvent {
             .x = mActivePoint->x,
             .y = mActivePoint->y,
@@ -387,6 +414,8 @@ auto Server::registerScreens(
     const std::vector<ScreenInfo> &screens,
     bool local
 ) -> void {
+    // A peer may re-send ScreensMessage after reconnect or monitor changes.
+    // Treat it as a full replacement for that endpoint to avoid stale cells.
     removeScreen(endpoint);
 
     auto primaryIndex = 0U;
@@ -406,20 +435,27 @@ auto Server::registerScreens(
         };
         auto cell = GridPosition {};
         if (auto configured = configuredCell(key)) {
+            // Persisted layout wins over auto placement so machineId-based
+            // screen identity remains stable across reconnects and restarts.
             cell = *configured;
             if (local && (info.primary || index == primaryIndex)) {
                 primaryRegistered = true;
             }
         }
         else if (local && info.primary && !primaryRegistered) {
+            // The local primary is the anchor for the default topology.
             cell = {0, 0};
             primaryRegistered = true;
         }
         else if (local && index == primaryIndex && !primaryRegistered) {
+            // Some platforms may not mark a primary screen. Keep the first
+            // reported local screen as the anchor in that case.
             cell = {0, 0};
             primaryRegistered = true;
         }
         else {
+            // Temporary fallback for first run: pack new screens to the right.
+            // Formal layout editing should write explicit cells into config.
             cell = nextFreeCell(local ? 1 : 1);
         }
 
@@ -431,6 +467,8 @@ auto Server::registerScreens(
             local
         );
         if (screen && local && (info.primary || (!mActiveScreen && index == 0))) {
+            // Startup begins on a local screen. Remote screens become active
+            // only after an explicit edge transition.
             mActiveScreen = screen;
             mActivePoint = ScreenPoint {
                 .key = screen->key,
@@ -450,6 +488,8 @@ auto Server::addScreen(
     ScreenInfo info,
     bool local
 ) -> VirtualScreen * {
+    // Register in topology first: if the cell/key is invalid, do not create a
+    // routeable VirtualScreen that can later receive input messages.
     auto topologyResult = mTopology.addScreen(TopologyScreen {
         .key = key,
         .cell = cell,
@@ -473,6 +513,8 @@ auto Server::addScreen(
         .local = local,
         .info = info
     }});
+    // Only successful registrations are persisted; failed topology mutations
+    // would otherwise corrupt the remembered layout.
     rememberScreenLayout(it->second.key, it->second.cell);
     SPDLOG_INFO("Server current screens {}", mScreens);
     return &it->second;
@@ -482,10 +524,14 @@ auto Server::removeScreen(IPEndpoint endpoint) -> void {
     auto range = mScreens.equal_range(endpoint);
     auto ownerIds = std::vector<std::string> {};
     for (auto it = range.first; it != range.second; ++it) {
+        // One endpoint can own multiple screens. removeOwner works by stable
+        // owner id, so collect each id once before erasing mScreens.
         if (std::ranges::find(ownerIds, it->second.key.ownerId) == ownerIds.end()) {
             ownerIds.push_back(it->second.key.ownerId);
         }
         if (&it->second == mActiveScreen) {
+            // The active pointer refers into mScreens, so clear all dependent
+            // cursor state before erasing the map range.
             mActiveScreen = nullptr;
             mActivePoint.reset();
             mLastLocalMouse.reset();
@@ -521,6 +567,8 @@ auto Server::configuredCell(const ScreenKey &key) const -> std::optional<GridPos
 }
 
 auto Server::rememberScreenLayout(const ScreenKey &key, GridPosition cell) -> void {
+    // Persist every registered screen so auto-assigned cells become stable on
+    // the next startup. Configured cells are updated in-place by owner+index.
     upsertScreenLayout(mConfig, ScreenLayoutConfig {
         .ownerId = key.ownerId,
         .screenIndex = key.screenIndex,
@@ -543,6 +591,8 @@ auto Server::saveConfigIfNeeded() -> void {
 auto Server::nextFreeCell(int32_t startX) const -> GridPosition {
     auto cell = GridPosition {.x = startX, .y = 0};
     while (true) {
+        // Auto layout is deliberately simple for now: scan to the right until
+        // a free grid cell exists. Persisted config should replace it later.
         auto occupied = false;
         for (const auto &screen : mTopology.screens()) {
             if (screen.cell == cell) {
@@ -563,6 +613,8 @@ auto Server::ownerId(IPEndpoint endpoint) const -> std::string {
 
 auto Server::defaultOwnerId(IPEndpoint endpoint, bool local) const -> std::string {
     if (local && !mConfig.machineId.empty()) {
+        // The server's own screens should also use a stable owner id so a saved
+        // layout survives binding to a different local port.
         return mConfig.machineId;
     }
 

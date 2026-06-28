@@ -47,6 +47,8 @@ auto generateMachineId() -> std::string {
 
 auto ensureMachineId(AppConfig &config) -> std::string_view {
     if (config.machineId.empty()) {
+        // Generate once and then keep it stable. Screen layout and trust rules
+        // use this id instead of transient TCP endpoints.
         config.machineId = generateMachineId();
     }
     return config.machineId;
@@ -67,6 +69,8 @@ auto findScreenLayout(
 }
 
 auto upsertScreenLayout(AppConfig &config, ScreenLayoutConfig layout) -> void {
+    // ownerId + screenIndex is the persistent identity for a screen. Endpoint
+    // and connection order are intentionally not part of this key.
     auto it = std::ranges::find_if(config.screens, [&](const auto &current) {
         return current.ownerId == layout.ownerId && current.screenIndex == layout.screenIndex;
     });
@@ -84,6 +88,8 @@ auto isTrustedClient(
     std::string_view name
 ) -> bool {
     if (config.trustedClients.empty()) {
+        // Development/default mode: no whitelist means accept all clients.
+        // A non-empty list switches to allow-list behavior.
         return true;
     }
 

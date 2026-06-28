@@ -15,25 +15,18 @@
     #undef None
 #endif
 
-#include <atomic>
-#include <array>
 #include <cerrno>
-#include <chrono>
 #include <cmath>
-#include <cstring>
-#include <latch>
 #include <limits>
 #include <memory>
 #include <mutex>
 #include <optional>
-#include <span>
 #include <string>
 #include <system_error>
-#include <thread>
 #include <utility>
 #include <vector>
 
-#include <ilias/sync.hpp>
+#include <ilias/net/poller.hpp>
 #include <ilias/task.hpp>
 #include <spdlog/spdlog.h>
 
@@ -112,6 +105,9 @@ public:
             return {0, {x, y}};
         }
 
+        // XQueryPointer gives root/global coordinates. The rest of mksync uses
+        // screen-local pixels plus screenIndex, so choose the containing screen
+        // or the nearest one if the pointer is just outside every rect.
         const auto *best = &mScreens.front();
         auto bestDistance = std::numeric_limits<int64_t>::max();
         for (const auto &screen : mScreens) {
@@ -153,6 +149,8 @@ public:
             return std::nullopt;
         }
 
+        // Injection APIs take root/global coordinates, while RPC events carry
+        // target screen-local coordinates.
         const auto &info = mScreens[screenIndex].screen;
         return std::pair {
             info.x + x,
@@ -267,117 +265,84 @@ public:
     explicit XcbInputCapture(std::shared_ptr<XcbPlatform> platform) : mPlatform(std::move(platform)) {}
 
     ~XcbInputCapture() override {
-        stopThread();
+        closeDisplay();
     }
 
     auto initialize() -> IoTask<void> override {
-        auto [sender, receiver] = ilias::mpsc::channel<InputEvent>(512);
-        auto latch = ilias::Latch {1};
-        auto error = std::error_code {};
+        closeDisplay();
 
-        stopThread();
-        mDroppedEvents.store(0, std::memory_order_relaxed);
-        mSender = std::move(sender);
-        mReceiver = std::move(receiver);
+        mDisplay = ::XOpenDisplay(mPlatform->displayName().empty() ? nullptr : mPlatform->displayName().c_str());
+        if (!mDisplay) {
+            co_return Err(makeIoError(std::errc::no_such_device));
+        }
 
-        mThread = std::jthread([this, &latch, &error](std::stop_token token) {
-            run(token, &latch, &error);
-        });
-
-        co_await ilias::unstoppable(latch.wait());
-        if (error) {
-            stopThread();
+        if (!selectRawInput(mDisplay)) {
+            auto error = systemError();
+            if (!error) {
+                error = makeIoError(std::errc::operation_not_supported);
+            }
+            closeDisplay();
             co_return Err(error);
         }
+
+        // The X display owns the actual socket fd. Poller only borrows it so ilias can wait
+        // for readability; shutdown must close the poller before XCloseDisplay closes the fd.
+        const auto fd = ::XConnectionNumber(mDisplay);
+        ILIAS_CO_TRY(auto poller, co_await ilias::Poller::make(fd, ilias::IoDescriptor::Socket));
+        mPoller = std::move(poller);
+
+        SPDLOG_INFO("XInput2 capture started");
         co_return {};
     }
 
     auto shutdown() -> Task<void> override {
-        stopThread();
-        mSender = {};
-        mReceiver = {};
+        closeDisplay();
         co_return;
     }
 
     auto nextEvent() -> Task<InputEvent> override {
-        if (!mReceiver) {
+        if (!mDisplay || !mPoller) {
             throw std::runtime_error("InputCapture::nextEvent called after shutdown");
         }
 
-        if (auto dropped = mDroppedEvents.exchange(0, std::memory_order_relaxed); dropped != 0) {
-            SPDLOG_WARN("Dropped {} input events because the capture queue was full", dropped);
-        }
-
-        if (auto res = co_await mReceiver.recv(); res) {
-            co_return std::move(*res);
-        }
-        throw std::runtime_error("InputCapture::nextEvent called after shutdown");
-    }
-private:
-    auto stopThread() -> void {
-        if (mThread.joinable()) {
-            mThread.request_stop();
-            mThread.join();
-        }
-    }
-
-    auto run(std::stop_token token, ilias::Latch *latch, std::error_code *error) -> void {
-        auto startupSignaled = false;
-        auto signalStartup = [&]() {
-            if (!startupSignaled) {
-                startupSignaled = true;
-                latch->countDown();
-            }
-        };
-
-        auto *display = ::XOpenDisplay(mPlatform->displayName().empty() ? nullptr : mPlatform->displayName().c_str());
-        if (!display) {
-            *error = makeIoError(std::errc::no_such_device);
-            signalStartup();
-            return;
-        }
-        auto displayGuard = std::unique_ptr<Display, decltype(&XCloseDisplay)> {display, &XCloseDisplay};
-
-        if (!selectRawInput(display)) {
-            *error = systemError();
-            if (!*error) {
-                *error = makeIoError(std::errc::operation_not_supported);
-            }
-            signalStartup();
-            return;
-        }
-
-        SPDLOG_INFO("XInput2 capture started");
-        signalStartup();
-
-        auto fd = ::XConnectionNumber(display);
-        while (!token.stop_requested()) {
-            pollfd pollInfo {
-                .fd = fd,
-                .events = POLLIN,
-                .revents = 0,
-            };
-
-            const auto ready = ::poll(&pollInfo, 1, 100);
-            if (ready < 0) {
-                if (errno == EINTR) {
-                    continue;
+        while (true) {
+            // XPending may drain bytes from the fd into Xlib's internal queue, so always
+            // consume queued X events before waiting on the fd again.
+            while (::XPending(mDisplay) > 0) {
+                XEvent event {};
+                ::XNextEvent(mDisplay, &event);
+                if (auto translated = translateEvent(mDisplay, &event)) {
+                    co_return std::move(*translated);
                 }
-                SPDLOG_ERROR("poll failed while waiting for X events: {}", std::strerror(errno));
-                break;
             }
-            if (ready == 0) {
+
+            auto pollResult = co_await mPoller.poll(POLLIN);
+            if (!pollResult) {
+                throw std::system_error(pollResult.error(), "XInput2 capture poll failed");
+            }
+
+            const auto events = *pollResult;
+            if ((events & (POLLERR | POLLHUP | POLLNVAL)) != 0) {
+                throw std::runtime_error("XInput2 capture fd closed or failed");
+            }
+            if ((events & POLLIN) == 0) {
                 continue;
             }
-
-            while (::XPending(display) > 0) {
-                XEvent event {};
-                ::XNextEvent(display, &event);
-                handleEvent(display, &event);
-            }
         }
-
-        SPDLOG_INFO("XInput2 capture stopped");
+    }
+private:
+    auto closeDisplay() -> void {
+        // Cancel first to wake any coroutine currently suspended in poll(); then unregister
+        // the borrowed fd from ilias before XCloseDisplay closes the underlying socket.
+        if (mPoller) {
+            auto _ = mPoller.cancel();
+            mPoller.close();
+        }
+        if (mDisplay) {
+            ::XCloseDisplay(mDisplay);
+            mDisplay = nullptr;
+            SPDLOG_INFO("XInput2 capture stopped");
+        }
     }
 
     auto selectRawInput(Display *display) const -> bool {
@@ -403,13 +368,15 @@ private:
         return true;
     }
 
-    auto handleEvent(Display *display, XEvent *event) -> void {
+    auto translateEvent(Display *display, XEvent *event) -> std::optional<InputEvent> {
         if (event->xcookie.type != GenericEvent || event->xcookie.extension != mPlatform->xiOpcode()) {
-            return;
+            return std::nullopt;
         }
         if (::XGetEventData(display, &event->xcookie) == 0) {
-            return;
+            return std::nullopt;
         }
+        // XGetEventData attaches extension-owned memory to the cookie. The cookie must be
+        // released on every return path, otherwise raw input events leak steadily.
         auto guard = std::unique_ptr<XGenericEventCookie, EventCookieDeleter> {
             &event->xcookie,
             EventCookieDeleter {display}
@@ -417,33 +384,15 @@ private:
 
         switch (event->xcookie.evtype) {
             case XI_RawMotion:
-                if (auto translated = translateMouseMove(display); translated) {
-                    tryEnqueue(std::move(*translated));
-                }
-                break;
+                return translateMouseMove(display);
             case XI_RawButtonPress:
             case XI_RawButtonRelease:
-                if (auto translated = translateButtonEvent(display, event->xcookie); translated) {
-                    tryEnqueue(std::move(*translated));
-                }
-                break;
+                return translateButtonEvent(display, event->xcookie);
             case XI_RawKeyPress:
             case XI_RawKeyRelease:
-                if (auto translated = translateKeyEvent(display, event->xcookie); translated) {
-                    tryEnqueue(std::move(*translated));
-                }
-                break;
+                return translateKeyEvent(display, event->xcookie);
             default:
-                break;
-        }
-    }
-
-    auto tryEnqueue(InputEvent event) -> void {
-        if (!mSender) {
-            return;
-        }
-        if (auto result = mSender.trySend(std::move(event)); !result) {
-            mDroppedEvents.fetch_add(1, std::memory_order_relaxed);
+                return std::nullopt;
         }
     }
 
@@ -462,6 +411,9 @@ private:
     }
 
     auto translateMouseMove(Display *display) const -> std::optional<InputEvent> {
+        // XI_RawMotion carries device deltas, while the rest of the pipeline currently
+        // expects absolute pixels in the target screen. Query the pointer once per raw
+        // motion event and keep relative-motion policy outside this platform layer.
         auto pointer = queryPointer(display);
         if (!pointer) {
             return std::nullopt;
@@ -513,6 +465,8 @@ private:
                 if (release) {
                     return std::nullopt;
                 }
+                // X11 reports wheel steps as virtual buttons: 4/5 are vertical, 6/7 are
+                // horizontal. Keep the 120-unit wheel delta convention used by Win32.
                 return InputEvent {
                     MouseWheelEvent {
                         .x = local.first,
@@ -533,6 +487,9 @@ private:
         const auto release = cookie.evtype == XI_RawKeyRelease;
         auto modifiers = currentModifiers(display);
 
+        // XQueryKeymap observes the state before/around this raw event depending on server
+        // timing. Adjust the modifier represented by the event itself so forwarded key
+        // events have a stable post-event modifier view.
         if (auto modifier = keyModifierFor(key); modifier != KeyModifier::None) {
             if (release) {
                 modifiers &= ~modifier;
@@ -682,11 +639,9 @@ private:
         }
     };
 
-    ilias::mpsc::Sender<InputEvent> mSender;
-    ilias::mpsc::Receiver<InputEvent> mReceiver;
+    Display *mDisplay = nullptr;
+    ilias::Poller mPoller;
     std::shared_ptr<XcbPlatform> mPlatform;
-    std::jthread mThread;
-    std::atomic<uint64_t> mDroppedEvents {0};
 };
 
 class XcbInputInjector final : public InputInjector {
@@ -774,6 +729,8 @@ private:
             return std::make_error_code(std::errc::invalid_argument);
         }
 
+        // XWarpPointer wants root coordinates. The server already mapped the
+        // target screen entry point, so this is only a coordinate-space bridge.
         if (::XWarpPointer(mDisplay, 0, mPlatform->root(), 0, 0, 0, 0, global->first, global->second) == 0) {
             return inputError();
         }
@@ -887,6 +844,8 @@ private:
     }
 
     auto keyCodeFor(const KeyEvent &event) const -> std::optional<KeyCode> {
+        // Prefer the portable Key enum. nativeCode is only a fallback for keys
+        // we have not mapped yet, and may not be portable across platforms.
         if (auto keySym = keySymFor(event.key)) {
             const auto keyCode = ::XKeysymToKeycode(mDisplay, *keySym);
             if (keyCode != 0) {

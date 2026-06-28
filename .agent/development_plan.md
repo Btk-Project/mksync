@@ -14,7 +14,7 @@
 - 归一化比例只允许作为边缘入口映射的临时计算，不作为运行时坐标系统。
 - 当前阶段不做复杂手感或移速统一；鼠标 delta/DPI/DPS 策略留到最小链路跑通后。
 - 优先实现 Mock Platform，以便拓扑和跨端输入流程可自动化测试。
-- XCB/XInput2 capture 后续应使用 ilias poll 监听 X connection fd，不再使用独立线程。
+- XCB/XInput2 capture 已使用 ilias poll 监听 X connection fd，不再使用独立线程。
 
 当前进度：
 
@@ -57,9 +57,10 @@
 - [x] M7 Server 注册屏幕后回写并保存当前屏幕布局到配置文件。
 - [x] M7 重启加载配置后，拓扑布局按 `machineId` 恢复且不依赖连接顺序。
 - [x] M5 实现 XCB/Linux 最小 `InputInjector`，使用 XTest/Xlib 注入鼠标和键盘事件。
+- [x] XCB/XInput2 capture 改为使用 ilias poll 后端，不再创建独立线程。
 - [ ] M5 XCB/Linux 注入器尚未做 Linux 真机编译和注入验收。
 
 下一步：
 
-- [ ] 将 XCB/XInput2 capture 改为 ilias poll 后端。
+- [ ] 做 Linux 真机编译，验证 XCB capture 和 injector。
 - [ ] 完成真实 Server/Client 联调验收。

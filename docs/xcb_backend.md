@@ -1,16 +1,16 @@
 # XCB 后端设计讨论
 
 本文档只讨论 Linux/X11 后端。当前 `src/platform/xcb.cpp` 已经能用 XInput2 捕获输入，
-但捕获循环目前在独立 `std::jthread` 中调用 `poll()`。后续应调整为直接使用 ilias 的
-IO 后端监听 X connection fd。
+并且捕获循环已经改为直接使用 ilias 的 IO 后端监听 X connection fd，不再创建独立
+`std::jthread`。
 
 ## 目标
 
-- [ ] XCB/XInput2 capture 不再创建独立线程。
-- [ ] X connection fd 通过 ilias `Poller` 或 `IoHandle` 注册到当前运行时。
-- [ ] `InputCapture::initialize()` 完成 XInput2 事件选择并建立 poller。
-- [ ] `InputCapture::nextEvent()` 在协程里等待 fd 可读并解析事件。
-- [ ] `InputCapture::shutdown()` 取消 poller，关闭 display，清理队列。
+- [x] XCB/XInput2 capture 不再创建独立线程。
+- [x] X connection fd 通过 ilias `Poller` 注册到当前运行时。
+- [x] `InputCapture::initialize()` 完成 XInput2 事件选择并建立 poller。
+- [x] `InputCapture::nextEvent()` 在协程里等待 fd 可读并解析事件。
+- [x] `InputCapture::shutdown()` 取消 poller，关闭 display，清理队列。
 - [x] 保留 `Platform` / `InputCapture` / `InputInjector` 的跨平台抽象边界。
 
 ## 当前注入器状态
@@ -22,9 +22,9 @@ IO 后端监听 X connection fd。
 - [x] Xmake Linux 依赖增加 `libxtst`。
 - [ ] 尚未做 Linux 真机编译和注入验收。
 
-## 当前问题
+## 已移除的问题
 
-当前实现的核心流程是：
+旧实现的核心流程是：
 
 1. `XcbInputCapture::initialize()` 创建 `mpsc` channel。
 2. 启动 `std::jthread`。
@@ -33,23 +33,23 @@ IO 后端监听 X connection fd。
 5. 收到事件后翻译为 `InputEvent`，再写入 channel。
 6. `nextEvent()` 从 channel 读取事件。
 
-这个方案能工作，但和项目框架不完全一致：
+这个方案已移除，原因是它和项目框架不完全一致：
 
 - X display connection 本质是 fd/socket，可由 ilias 原生 poll。
 - 独立线程绕开了结构化并发，取消和 shutdown 更难统一。
 - 线程内 `poll(..., 100)` 存在固定唤醒周期，不如运行时事件驱动。
 - channel 变成线程和协程之间的桥，但 capture 本身其实可以直接是协程。
 
-## 推荐方案
+## 当前方案
 
-XCB/XInput2 后端应把 X connection fd 当成 pollable fd：
+XCB/XInput2 后端把 X connection fd 当成 pollable fd：
 
 ```cpp
-auto fd = ::XConnectionNumber(display);
-ILIAS_CO_TRY(auto poller, co_await ilias::Poller::make(fd, ilias::IoDescriptor::Pollable));
+const auto fd = ::XConnectionNumber(display);
+ILIAS_CO_TRY(auto poller, co_await ilias::Poller::make(fd, ilias::IoDescriptor::Socket));
 ```
 
-事件读取循环放在 `nextEvent()` 或内部协程中：
+事件读取循环放在 `nextEvent()` 中：
 
 ```cpp
 while (::XPending(display) == 0) {
@@ -63,19 +63,19 @@ XEvent event {};
 ::XNextEvent(display, &event);
 ```
 
-`nextEvent()` 可以直接循环读取并返回第一个可翻译的 `InputEvent`。这样 capture 不再需要
+`nextEvent()` 直接循环读取并返回第一个可翻译的 `InputEvent`。这样 capture 不再需要
 独立线程，也不需要用 channel 把事件从线程送回运行时。
 
 ## fd 所有权
 
-推荐由 `XcbInputCapture` 持有捕获用 `Display *`：
+由 `XcbInputCapture` 持有捕获用 `Display *`：
 
 - `initialize()` 打开 display。
 - `initialize()` 调用 `XISelectEvents`。
 - `initialize()` 用 `XConnectionNumber(display)` 创建 ilias poller。
 - `shutdown()` 先 cancel/close poller，再 `XCloseDisplay`。
 
-注意：`Poller::make(fd, Pollable)` 只负责把 fd 注册到 ilias，不应接管 Xlib display 的关闭。
+注意：`Poller::make(fd, Socket)` 只负责把 fd 注册到 ilias，不应接管 Xlib display 的关闭。
 X display 的生命周期仍然由 `XCloseDisplay` 管理。
 
 ## 取消语义
@@ -109,15 +109,15 @@ if (mPoller) {
 
 ## 实现步骤
 
-- [ ] 移除 `XcbInputCapture::mThread`。
-- [ ] 移除 `XcbInputCapture::run()`。
-- [ ] 移除 `std::stop_token` 和 `std::latch` 启动同步。
-- [ ] `initialize()` 打开 capture display，并保存到成员。
-- [ ] `initialize()` 选择 XInput2 raw events。
-- [ ] `initialize()` 创建 `ilias::Poller`。
-- [ ] `nextEvent()` 循环 `poll(POLLIN)` + `XPending` + `XNextEvent`。
-- [ ] `shutdown()` 取消 poller 并关闭 display。
-- [ ] 保留事件翻译函数：`translateMouseMove`、`translateButtonEvent`、`translateKeyEvent`。
+- [x] 移除 `XcbInputCapture::mThread`。
+- [x] 移除 `XcbInputCapture::run()`。
+- [x] 移除 `std::stop_token` 和 `std::latch` 启动同步。
+- [x] `initialize()` 打开 capture display，并保存到成员。
+- [x] `initialize()` 选择 XInput2 raw events。
+- [x] `initialize()` 创建 `ilias::Poller`。
+- [x] `nextEvent()` 循环 `poll(POLLIN)` + `XPending` + `XNextEvent`。
+- [x] `shutdown()` 取消 poller 并关闭 display。
+- [x] 保留事件翻译函数：`translateMouseMove`、`translateButtonEvent`、`translateKeyEvent`。
 - [ ] 补 Linux 可编译检查。
 
 ## 暂不处理
