@@ -1,0 +1,83 @@
+#pragma once
+
+#include "preinclude.hpp"
+#include "events.hpp"
+#include "refl/this_error.hpp"
+#include <compare>
+#include <map>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
+MKS_BEGIN
+
+enum class TopologyError {
+    Ok = 0,
+    InvalidScreenRect,
+    DuplicateScreen,
+    CellOccupied,
+    UnknownScreen,
+    MissingNeighbor,
+};
+THIS_ERROR(TopologyError);
+
+enum class Edge {
+    Left,
+    Right,
+    Top,
+    Bottom,
+};
+FORMATTER(Edge);
+
+struct GridPosition {
+    int32_t x = 0;
+    int32_t y = 0;
+
+    auto operator<=>(const GridPosition &) const = default;
+};
+FORMATTER(GridPosition);
+
+struct ScreenKey {
+    std::string ownerId;
+    uint32_t screenIndex = 0;
+
+    auto operator<=>(const ScreenKey &) const = default;
+};
+FORMATTER(ScreenKey);
+
+struct TopologyScreen {
+    ScreenKey key;
+    GridPosition cell;
+    ScreenInfo info;
+    bool local = false;
+};
+FORMATTER(TopologyScreen);
+
+struct ScreenPoint {
+    ScreenKey key;
+    int32_t x = 0;
+    int32_t y = 0;
+
+    auto operator==(const ScreenPoint &) const -> bool = default;
+};
+FORMATTER(ScreenPoint);
+
+class ScreenTopology {
+public:
+    auto addScreen(TopologyScreen screen) -> IoResult<void>;
+    auto removeOwner(std::string_view ownerId) -> void;
+
+    auto findScreen(const ScreenKey &key) const -> const TopologyScreen *;
+    auto screens() const -> std::vector<TopologyScreen>;
+
+    auto findNeighbor(const ScreenKey &key, Edge edge) const -> std::optional<ScreenKey>;
+    auto hitEdge(const ScreenPoint &point) const -> std::optional<Edge>;
+    auto mapEntryPoint(const ScreenPoint &from, Edge edge) const -> IoResult<ScreenPoint>;
+
+private:
+    std::map<ScreenKey, TopologyScreen> mScreens;
+    std::map<GridPosition, ScreenKey> mCells;
+};
+
+MKS_END

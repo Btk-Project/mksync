@@ -26,6 +26,7 @@ MKS_BEGIN
 enum class MessageId : uint16_t {
     Hello = 0,
     Screens,
+    Input,
 
     Ping,
     Pong,
@@ -41,6 +42,7 @@ FORMATTER(MessageId);
 struct HelloMessage {
     static constexpr auto Id = MessageId::Hello;
     uint16_t    version = 0;
+    std::string machineId;
     std::string name;
 };
 FORMATTER(HelloMessage);
@@ -54,6 +56,16 @@ struct ScreensMessage {
     std::vector<ScreenInfo> screens;
 };
 FORMATTER(ScreensMessage);
+
+/**
+ * @brief The message used by server to forward an input event to a client.
+ *
+ */
+struct InputMessage {
+    static constexpr auto Id = MessageId::Input;
+    InputEvent event;
+};
+FORMATTER(InputMessage);
 
 /**
  * @brief The message server <-> client when an error occurs
@@ -94,6 +106,7 @@ struct VariantBase : std::variant<Ts...> {
 struct RpcMessage : VariantBase<
     HelloMessage,
     ScreensMessage,
+    InputMessage,
     PingMessage,
     PongMessage,
     ErrorMessage

@@ -52,10 +52,10 @@ namespace fmtlib {
     }                                                             
 
 // Formatter for variant
-#define VARIANT_FORMATTER(TYPE)                                 \
-    template <char = 0>                                         \
-    inline auto _refl_fmt_inline(const TYPE &value, auto it) {  \
-        return ::refl::detail::formatVariant(value, it);        \
+#define VARIANT_FORMATTER(TYPE)                                       \
+    template <char = 0>                                               \
+    inline auto _refl_fmt_inline(const TYPE &value, auto it) {        \
+        return ::refl::detail::formatVariant(#TYPE, value, it);       \
     }
 
 // MARK: Extern
@@ -173,13 +173,12 @@ inline auto formatFlags(T value, auto it) {
 }
 
 template <typename Raw>
-inline auto formatVariant(const Raw &value, auto it) {
-    using T = std::remove_cvref_t<Raw>;
+inline auto formatVariant(std::string_view name, const Raw &value, auto it) {
     return std::visit([&](const auto &element) { // TypeName { InnerType }
         return fmtlib::format_to(
             it,
             "{} {{ {} }}",
-            ::NekoProto::Reflect<T>::className(),
+            name,
             element
         );
     }, value);

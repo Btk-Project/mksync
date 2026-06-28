@@ -4,7 +4,9 @@
 
 #include <X11/XKBlib.h>
 #include <X11/Xlib.h>
+#include <X11/XF86keysym.h>
 #include <X11/extensions/XInput2.h>
+#include <X11/extensions/XTest.h>
 #include <X11/keysym.h>
 #include <poll.h>
 #include <xcb/xcb.h>
@@ -14,14 +16,17 @@
 #endif
 
 #include <atomic>
+#include <array>
 #include <cerrno>
 #include <chrono>
 #include <cmath>
 #include <cstring>
 #include <latch>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <span>
 #include <string>
 #include <system_error>
 #include <thread>
@@ -142,6 +147,19 @@ public:
         return mRoot;
     }
 
+    auto localToGlobal(uint32_t screenIndex, int32_t x, int32_t y) const -> std::optional<std::pair<int32_t, int32_t>> {
+        auto lock = std::scoped_lock(mScreenMutex);
+        if (screenIndex >= mScreens.size()) {
+            return std::nullopt;
+        }
+
+        const auto &info = mScreens[screenIndex].screen;
+        return std::pair {
+            info.x + x,
+            info.y + y,
+        };
+    }
+
     auto xiOpcode() const -> int {
         return mXiOpcode;
     }
@@ -239,6 +257,7 @@ private:
     std::string mDisplayName;
 
     std::weak_ptr<XcbInputCapture> mInputCapture;
+    std::weak_ptr<XcbInputInjector> mInputInjector;
     mutable std::mutex mScreenMutex;
     std::vector<XcbScreen> mScreens;
 };
@@ -670,6 +689,279 @@ private:
     std::atomic<uint64_t> mDroppedEvents {0};
 };
 
+class XcbInputInjector final : public InputInjector {
+public:
+    explicit XcbInputInjector(std::shared_ptr<XcbPlatform> platform) : mPlatform(std::move(platform)) {}
+
+    ~XcbInputInjector() override {
+        closeDisplay();
+    }
+
+    auto initialize() -> IoTask<void> override {
+        closeDisplay();
+
+        mDisplay = ::XOpenDisplay(mPlatform->displayName().empty() ? nullptr : mPlatform->displayName().c_str());
+        if (!mDisplay) {
+            co_return Err(makeIoError(std::errc::no_such_device));
+        }
+
+        auto eventBase = 0;
+        auto errorBase = 0;
+        auto major = 0;
+        auto minor = 0;
+        if (::XTestQueryExtension(mDisplay, &eventBase, &errorBase, &major, &minor) == 0) {
+            closeDisplay();
+            co_return Err(makeIoError(std::errc::operation_not_supported));
+        }
+
+        SPDLOG_INFO("Using XTest {}.{} for input injection", major, minor);
+        co_return {};
+    }
+
+    auto shutdown() -> Task<void> override {
+        closeDisplay();
+        co_return;
+    }
+
+    auto inject(const InputEvent &event) -> IoTask<void> override {
+        if (!mDisplay) {
+            co_return Err(std::make_error_code(std::errc::not_connected));
+        }
+
+        auto error = std::error_code {};
+        std::visit([&](const auto &value) {
+            error = injectOne(value);
+        }, event);
+
+        if (error) {
+            co_return Err(error);
+        }
+        co_return {};
+    }
+private:
+    auto closeDisplay() -> void {
+        if (!mDisplay) {
+            return;
+        }
+        ::XCloseDisplay(mDisplay);
+        mDisplay = nullptr;
+    }
+
+    static auto inputError() -> std::error_code {
+        return makeIoError(std::errc::io_error);
+    }
+
+    static auto buttonFor(MouseButton button) -> std::optional<unsigned int> {
+        switch (button) {
+            case MouseButton::Left: return 1U;
+            case MouseButton::Middle: return 2U;
+            case MouseButton::Right: return 3U;
+            case MouseButton::None: return std::nullopt;
+        }
+        return std::nullopt;
+    }
+
+    auto flush() -> std::error_code {
+        if (::XFlush(mDisplay) != 0) {
+            return inputError();
+        }
+        return {};
+    }
+
+    auto moveCursor(uint32_t screenIndex, int32_t x, int32_t y) -> std::error_code {
+        auto global = mPlatform->localToGlobal(screenIndex, x, y);
+        if (!global) {
+            return std::make_error_code(std::errc::invalid_argument);
+        }
+
+        if (::XWarpPointer(mDisplay, 0, mPlatform->root(), 0, 0, 0, 0, global->first, global->second) == 0) {
+            return inputError();
+        }
+        return flush();
+    }
+
+    auto fakeButton(unsigned int button, bool press) -> std::error_code {
+        if (::XTestFakeButtonEvent(mDisplay, button, press ? True : False, CurrentTime) == 0) {
+            return inputError();
+        }
+        return {};
+    }
+
+    auto fakeButtonClick(unsigned int button, uint32_t count) -> std::error_code {
+        for (auto index = 0U; index < count; ++index) {
+            if (auto error = fakeButton(button, true); error) {
+                return error;
+            }
+            if (auto error = fakeButton(button, false); error) {
+                return error;
+            }
+        }
+        return flush();
+    }
+
+    static auto wheelClickCount(int32_t delta) -> uint32_t {
+        const auto magnitude = static_cast<uint32_t>(std::abs(delta));
+        return std::max(1U, (magnitude + 119U) / 120U);
+    }
+
+    static auto keySymFor(Key key) -> std::optional<KeySym> {
+        using enum Key;
+
+        if (key >= A && key <= Z) {
+            return static_cast<KeySym>(XK_a + (static_cast<uint32_t>(key) - static_cast<uint32_t>(A)));
+        }
+        if (key >= Digit1 && key <= Digit9) {
+            return static_cast<KeySym>(XK_1 + (static_cast<uint32_t>(key) - static_cast<uint32_t>(Digit1)));
+        }
+        if (key >= F1 && key <= F12) {
+            return static_cast<KeySym>(XK_F1 + (static_cast<uint32_t>(key) - static_cast<uint32_t>(F1)));
+        }
+        if (key >= F13 && key <= F24) {
+            return static_cast<KeySym>(XK_F13 + (static_cast<uint32_t>(key) - static_cast<uint32_t>(F13)));
+        }
+        if (key >= Keypad1 && key <= Keypad9) {
+            return static_cast<KeySym>(XK_KP_1 + (static_cast<uint32_t>(key) - static_cast<uint32_t>(Keypad1)));
+        }
+
+        switch (key) {
+            case Digit0: return XK_0;
+            case Enter: return XK_Return;
+            case KeypadEnter: return XK_KP_Enter;
+            case Esc: return XK_Escape;
+            case Backspace: return XK_BackSpace;
+            case Tab: return XK_Tab;
+            case Space: return XK_space;
+            case Minus: return XK_minus;
+            case Equal: return XK_equal;
+            case LeftBrace: return XK_bracketleft;
+            case RightBrace: return XK_bracketright;
+            case Backslash: return XK_backslash;
+            case Semicolon: return XK_semicolon;
+            case Apostrophe: return XK_apostrophe;
+            case Grave: return XK_grave;
+            case Comma: return XK_comma;
+            case Dot: return XK_period;
+            case Slash: return XK_slash;
+            case CapsLock: return XK_Caps_Lock;
+            case SysRq: return XK_Print;
+            case ScrollLock: return XK_Scroll_Lock;
+            case Pause: return XK_Pause;
+            case Insert: return XK_Insert;
+            case Home: return XK_Home;
+            case PageUp: return XK_Page_Up;
+            case Delete: return XK_Delete;
+            case End: return XK_End;
+            case PageDown: return XK_Page_Down;
+            case Right: return XK_Right;
+            case Left: return XK_Left;
+            case Down: return XK_Down;
+            case Up: return XK_Up;
+            case NumLock: return XK_Num_Lock;
+            case KeypadSlash: return XK_KP_Divide;
+            case KeypadAsterisk: return XK_KP_Multiply;
+            case KeypadMinus: return XK_KP_Subtract;
+            case KeypadPlus: return XK_KP_Add;
+            case Keypad0: return XK_KP_0;
+            case KeypadDot: return XK_KP_Decimal;
+            case LeftCtrl: return XK_Control_L;
+            case RightCtrl: return XK_Control_R;
+            case LeftShift: return XK_Shift_L;
+            case RightShift: return XK_Shift_R;
+            case LeftAlt: return XK_Alt_L;
+            case RightAlt: return XK_Alt_R;
+            case LeftMeta: return XK_Super_L;
+            case RightMeta: return XK_Super_R;
+            case VolumeUp:
+            case MediaVolumeUp: return XF86XK_AudioRaiseVolume;
+            case VolumeDown:
+            case MediaVolumeDown: return XF86XK_AudioLowerVolume;
+            case Mute:
+            case MediaMute: return XF86XK_AudioMute;
+            case MediaPlayPause: return XF86XK_AudioPlay;
+            case MediaStopCd:
+            case MediaStop: return XF86XK_AudioStop;
+            case MediaPreviousSong: return XF86XK_AudioPrev;
+            case MediaNextSong: return XF86XK_AudioNext;
+            default: return std::nullopt;
+        }
+    }
+
+    auto keyCodeFor(const KeyEvent &event) const -> std::optional<KeyCode> {
+        if (auto keySym = keySymFor(event.key)) {
+            const auto keyCode = ::XKeysymToKeycode(mDisplay, *keySym);
+            if (keyCode != 0) {
+                return keyCode;
+            }
+        }
+
+        if (event.nativeCode > 0 && event.nativeCode <= std::numeric_limits<KeyCode>::max()) {
+            return static_cast<KeyCode>(event.nativeCode);
+        }
+        return std::nullopt;
+    }
+
+    auto injectOne(const MouseMoveEvent &event) -> std::error_code {
+        return moveCursor(event.screenIndex, event.x, event.y);
+    }
+
+    auto injectOne(const MouseButtonEvent &event) -> std::error_code {
+        if (auto error = moveCursor(event.screenIndex, event.x, event.y); error) {
+            return error;
+        }
+
+        auto button = buttonFor(event.button);
+        if (!button) {
+            return std::make_error_code(std::errc::invalid_argument);
+        }
+
+        if (auto error = fakeButton(*button, !event.release); error) {
+            return error;
+        }
+        return flush();
+    }
+
+    auto injectOne(const MouseWheelEvent &event) -> std::error_code {
+        if (event.deltaY > 0) {
+            if (auto error = fakeButtonClick(4, wheelClickCount(event.deltaY)); error) {
+                return error;
+            }
+        }
+        else if (event.deltaY < 0) {
+            if (auto error = fakeButtonClick(5, wheelClickCount(event.deltaY)); error) {
+                return error;
+            }
+        }
+
+        if (event.deltaX < 0) {
+            if (auto error = fakeButtonClick(6, wheelClickCount(event.deltaX)); error) {
+                return error;
+            }
+        }
+        else if (event.deltaX > 0) {
+            if (auto error = fakeButtonClick(7, wheelClickCount(event.deltaX)); error) {
+                return error;
+            }
+        }
+
+        return {};
+    }
+
+    auto injectOne(const KeyEvent &event) -> std::error_code {
+        auto keyCode = keyCodeFor(event);
+        if (!keyCode) {
+            return std::make_error_code(std::errc::invalid_argument);
+        }
+
+        if (::XTestFakeKeyEvent(mDisplay, *keyCode, event.release ? False : True, CurrentTime) == 0) {
+            return inputError();
+        }
+        return flush();
+    }
+
+    Display *mDisplay = nullptr;
+    std::shared_ptr<XcbPlatform> mPlatform;
+};
+
 auto XcbPlatform::createCapture() -> InputCapture::Ptr {
     if (!mInputCapture.expired()) {
         throw std::runtime_error("InputCapture already created");
@@ -680,7 +972,12 @@ auto XcbPlatform::createCapture() -> InputCapture::Ptr {
 }
 
 auto XcbPlatform::createInjector() -> InputInjector::Ptr {
-    return {};
+    if (!mInputInjector.expired()) {
+        throw std::runtime_error("InputInjector already created");
+    }
+    auto injector = std::make_shared<XcbInputInjector>(shared_from_this());
+    mInputInjector = injector;
+    return injector;
 }
 
 auto Platform::create() -> Platform::Ptr {

@@ -4,7 +4,9 @@
 #include <ilias/signal.hpp>
 #include "app/server.hpp"
 #include "app/client.hpp"
+#include "config/app_config.hpp"
 #include "core.hpp"
+#include <filesystem>
 #include <stacktrace>
 #include <csignal>
 #include <print>
@@ -49,6 +51,11 @@ void ilias_main(int argc, char **argv) {
         .help("connect to address, e.g. 127.0.0.1:1145")
         .metavar("HOST:PORT");
 
+    program.add_argument("-c", "--config")
+        .help("configuration file path")
+        .default_value(std::string {"mksync.json"})
+        .metavar("PATH");
+
     try {
         program.parse_args(argc, argv);
     }
@@ -61,6 +68,15 @@ void ilias_main(int argc, char **argv) {
         co_return;
     }
 
+    auto configPath = std::filesystem::path {program.get<std::string>("--config")};
+    auto configResult = mks::loadOrCreateConfig(configPath);
+    if (!configResult) {
+        SPDLOG_ERROR("Failed to load config {}: {}", configPath.string(), configResult.error().message());
+        co_return;
+    }
+    auto config = std::move(*configResult);
+    SPDLOG_INFO("Using config {} with machineId {}", configPath.string(), config.machineId);
+
     // Server mode
     if (auto value = program.present<std::string>("--listen")) {
         auto endpoint = ilias::IPEndpoint::fromString(*value);
@@ -68,7 +84,7 @@ void ilias_main(int argc, char **argv) {
             SPDLOG_ERROR("Invalid endpoint: {}", *value);
             co_return;
         }
-        mks::Server server {*endpoint};
+        mks::Server server {*endpoint, config, configPath};
         auto [err, ctrlc] = co_await ilias::whenAny(
             server.run(),
             ilias::signal::ctrlC()
@@ -80,13 +96,13 @@ void ilias_main(int argc, char **argv) {
             SPDLOG_ERROR("Server error: {}", err->error().message());
         }
     } 
-    else if (auto value = program.present<std::string>("--connect")) {
-        auto endpoint = ilias::IPEndpoint::fromString(*value);
+    else if (auto connectValue = program.present<std::string>("--connect")) {
+        auto endpoint = ilias::IPEndpoint::fromString(*connectValue);
         if (!endpoint) {
-            SPDLOG_ERROR("Invalid endpoint: {}", *value);
+            SPDLOG_ERROR("Invalid endpoint: {}", *connectValue);
             co_return;
         }
-        mks::Client client {*endpoint};
+        mks::Client client {*endpoint, config};
         auto [err, ctrlc] = co_await ilias::whenAny(
             client.run(),
             ilias::signal::ctrlC()

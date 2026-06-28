@@ -6,7 +6,7 @@
 
 TEST(Refl, Enum) {
     enum Hello {
-        A, B, C
+        A, B, C, HelloMax = 255
     };
 
     EXPECT_EQ(refl::detail::enumToString(Hello::A), "A");
