@@ -64,12 +64,12 @@ FORMATTER(ScreenChangeEvent);
  * @brief The event used by capture & injector
  * 
  */
-struct InputEvent : std::variant<
+using InputEvent = std::variant<
     KeyEvent,
     MouseButtonEvent,
     MouseMoveEvent,
     MouseWheelEvent
-> {};
+>;
 VARIANT_FORMATTER(InputEvent);
 
 MKS_END

@@ -1,5 +1,6 @@
 #include "transport.hpp"
 #include <ilias/io.hpp>
+#include <limits>
 
 #include "message.hpp"
 
@@ -22,7 +23,11 @@ auto RpcTransport::writeMessage(const RpcMessage &message) -> IoTask<void> {
                 co_return Err(RpcError::UnknownMessageType);
             }
         }
-        ILIAS_CO_TRYV(co_await writeHeader(buffer.size(), wr.Id));
+        if (buffer.size() > std::numeric_limits<uint16_t>::max()) {
+            SPDLOG_ERROR("RpcTransport::writeMessage: Message too large: {} bytes", buffer.size());
+            co_return Err(RpcError::MessageTooLarge);
+        }
+        ILIAS_CO_TRYV(co_await writeHeader(static_cast<uint16_t>(buffer.size()), wr.Id));
         ILIAS_CO_TRYV(co_await mStream.writeAll(ilias::makeBuffer(buffer)));
         co_return {};
     }, message));
@@ -37,7 +42,7 @@ auto findByIdImpl(MessageId targetId, Func&& func, std::index_sequence<Is...>) -
         return Err(RpcError::UnknownMessageType);
     }
     else {
-        ((std::variant_alternative_t<Is, typename Variant::Base>::Id == targetId ? (result = std::invoke([&]()-> IoResult<Variant> {
+        (void)((std::variant_alternative_t<Is, typename Variant::Base>::Id == targetId ? (result = std::invoke([&]()-> IoResult<Variant> {
             auto opt = func.template operator()<std::variant_alternative_t<Is, typename Variant::Base>>();
             if (opt.has_value()) {
                 return Variant(std::move(*opt));

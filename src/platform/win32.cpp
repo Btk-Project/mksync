@@ -2,12 +2,15 @@
 #include "preinclude.hpp"
 #include <Windows.h>
 
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <latch>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -213,11 +216,10 @@ private:
     auto initializeWindow() -> bool {
         try {
             std::call_once(gWindowRegistry, []() {
-                WNDCLASSEXW wc {
-                    .cbSize = sizeof(wc),
-                    .lpfnWndProc = Win32Platform::messageProc,
-                    .lpszClassName = L"mksync::win32::Win32Platform"
-                };
+                WNDCLASSEXW wc {};
+                wc.cbSize = sizeof(wc);
+                wc.lpfnWndProc = Win32Platform::messageProc;
+                wc.lpszClassName = L"mksync::win32::Win32Platform";
                 if (!::RegisterClassExW(&wc)) {
                     throw std::system_error(lastErrorCode(), "Failed to register Win32Platform class");
                 }
@@ -724,6 +726,278 @@ private:
 friend class Win32Platform;
 };
 
+class Win32InputInjector final : public InputInjector {
+public:
+    explicit Win32InputInjector(std::shared_ptr<Win32Platform> platform) : mPlatform(std::move(platform)) {}
+
+    auto initialize() -> IoTask<void> override {
+        mInitialized.store(true, std::memory_order_release);
+        co_return {};
+    }
+
+    auto shutdown() -> Task<void> override {
+        mInitialized.store(false, std::memory_order_release);
+        co_return;
+    }
+
+    auto inject(const InputEvent &event) -> IoTask<void> override {
+        if (!mInitialized.load(std::memory_order_acquire)) {
+            co_return Err(std::make_error_code(std::errc::not_connected));
+        }
+
+        auto error = std::error_code {};
+        std::visit([&](const auto &value) {
+            error = injectOne(value);
+        }, event);
+
+        if (error) {
+            co_return Err(error);
+        }
+        co_return {};
+    }
+private:
+    struct Win32Key {
+        WORD virtualKey = 0;
+        bool extended = false;
+    };
+
+    static auto fallbackError() -> std::error_code {
+        auto error = lastErrorCode();
+        if (error) {
+            return error;
+        }
+        return {ERROR_GEN_FAILURE, std::system_category()};
+    }
+
+    static auto sendInputs(std::span<INPUT> inputs) -> std::error_code {
+        if (inputs.empty()) {
+            return {};
+        }
+
+        auto count = ::SendInput(
+            static_cast<UINT>(inputs.size()),
+            inputs.data(),
+            static_cast<int>(sizeof(INPUT))
+        );
+        if (count != inputs.size()) {
+            return fallbackError();
+        }
+        return {};
+    }
+
+    static auto isExtendedKey(Key key) -> bool {
+        switch (key) {
+            case Key::RightCtrl:
+            case Key::RightAlt:
+            case Key::Insert:
+            case Key::Delete:
+            case Key::Home:
+            case Key::End:
+            case Key::PageUp:
+            case Key::PageDown:
+            case Key::Right:
+            case Key::Left:
+            case Key::Down:
+            case Key::Up:
+            case Key::KeypadSlash:
+            case Key::KeypadEnter:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    static auto translateKey(Key key, uint32_t nativeCode) -> std::optional<Win32Key> {
+        using enum Key;
+
+        if (key >= A && key <= Z) {
+            return Win32Key {
+                .virtualKey = static_cast<WORD>('A' + (static_cast<uint32_t>(key) - static_cast<uint32_t>(A))),
+                .extended = false,
+            };
+        }
+        if (key >= Digit1 && key <= Digit9) {
+            return Win32Key {
+                .virtualKey = static_cast<WORD>('1' + (static_cast<uint32_t>(key) - static_cast<uint32_t>(Digit1))),
+                .extended = false,
+            };
+        }
+        if (key >= F1 && key <= F12) {
+            return Win32Key {
+                .virtualKey = static_cast<WORD>(VK_F1 + (static_cast<uint32_t>(key) - static_cast<uint32_t>(F1))),
+                .extended = false,
+            };
+        }
+        if (key >= F13 && key <= F24) {
+            return Win32Key {
+                .virtualKey = static_cast<WORD>(VK_F13 + (static_cast<uint32_t>(key) - static_cast<uint32_t>(F13))),
+                .extended = false,
+            };
+        }
+        if (key >= Keypad1 && key <= Keypad9) {
+            return Win32Key {
+                .virtualKey = static_cast<WORD>(VK_NUMPAD1 + (static_cast<uint32_t>(key) - static_cast<uint32_t>(Keypad1))),
+                .extended = false,
+            };
+        }
+
+        auto virtualKey = WORD {};
+        switch (key) {
+            case Digit0: virtualKey = '0'; break;
+            case Enter: virtualKey = VK_RETURN; break;
+            case Esc: virtualKey = VK_ESCAPE; break;
+            case Backspace: virtualKey = VK_BACK; break;
+            case Tab: virtualKey = VK_TAB; break;
+            case Space: virtualKey = VK_SPACE; break;
+            case Minus: virtualKey = VK_OEM_MINUS; break;
+            case Equal: virtualKey = VK_OEM_PLUS; break;
+            case LeftBrace: virtualKey = VK_OEM_4; break;
+            case RightBrace: virtualKey = VK_OEM_6; break;
+            case Backslash: virtualKey = VK_OEM_5; break;
+            case Semicolon: virtualKey = VK_OEM_1; break;
+            case Apostrophe: virtualKey = VK_OEM_7; break;
+            case Grave: virtualKey = VK_OEM_3; break;
+            case Comma: virtualKey = VK_OEM_COMMA; break;
+            case Dot: virtualKey = VK_OEM_PERIOD; break;
+            case Slash: virtualKey = VK_OEM_2; break;
+            case CapsLock: virtualKey = VK_CAPITAL; break;
+            case SysRq: virtualKey = VK_SNAPSHOT; break;
+            case ScrollLock: virtualKey = VK_SCROLL; break;
+            case Pause: virtualKey = VK_PAUSE; break;
+            case Insert: virtualKey = VK_INSERT; break;
+            case Home: virtualKey = VK_HOME; break;
+            case PageUp: virtualKey = VK_PRIOR; break;
+            case Delete: virtualKey = VK_DELETE; break;
+            case End: virtualKey = VK_END; break;
+            case PageDown: virtualKey = VK_NEXT; break;
+            case Right: virtualKey = VK_RIGHT; break;
+            case Left: virtualKey = VK_LEFT; break;
+            case Down: virtualKey = VK_DOWN; break;
+            case Up: virtualKey = VK_UP; break;
+            case NumLock: virtualKey = VK_NUMLOCK; break;
+            case KeypadSlash: virtualKey = VK_DIVIDE; break;
+            case KeypadAsterisk: virtualKey = VK_MULTIPLY; break;
+            case KeypadMinus: virtualKey = VK_SUBTRACT; break;
+            case KeypadPlus: virtualKey = VK_ADD; break;
+            case KeypadEnter: virtualKey = VK_RETURN; break;
+            case Keypad0: virtualKey = VK_NUMPAD0; break;
+            case KeypadDot: virtualKey = VK_DECIMAL; break;
+            case LeftCtrl: virtualKey = VK_LCONTROL; break;
+            case LeftShift: virtualKey = VK_LSHIFT; break;
+            case LeftAlt: virtualKey = VK_LMENU; break;
+            case LeftMeta: virtualKey = VK_LWIN; break;
+            case RightCtrl: virtualKey = VK_RCONTROL; break;
+            case RightShift: virtualKey = VK_RSHIFT; break;
+            case RightAlt: virtualKey = VK_RMENU; break;
+            case RightMeta: virtualKey = VK_RWIN; break;
+            case VolumeUp:
+            case MediaVolumeUp: virtualKey = VK_VOLUME_UP; break;
+            case VolumeDown:
+            case MediaVolumeDown: virtualKey = VK_VOLUME_DOWN; break;
+            case Mute:
+            case MediaMute: virtualKey = VK_VOLUME_MUTE; break;
+            case MediaPlayPause: virtualKey = VK_MEDIA_PLAY_PAUSE; break;
+            case MediaStopCd: virtualKey = VK_MEDIA_STOP; break;
+            case MediaPreviousSong: virtualKey = VK_MEDIA_PREV_TRACK; break;
+            case MediaNextSong: virtualKey = VK_MEDIA_NEXT_TRACK; break;
+            default:
+                if (nativeCode != 0 && nativeCode <= std::numeric_limits<WORD>::max()) {
+                    return Win32Key {
+                        .virtualKey = static_cast<WORD>(nativeCode),
+                        .extended = isExtendedKey(key),
+                    };
+                }
+                return std::nullopt;
+        }
+
+        return Win32Key {
+            .virtualKey = virtualKey,
+            .extended = isExtendedKey(key),
+        };
+    }
+
+    auto moveCursor(uint32_t screenIndex, int32_t x, int32_t y) -> std::error_code {
+        auto point = mPlatform->localToGlobal(screenIndex, POINT {.x = x, .y = y});
+        if (!point) {
+            return std::make_error_code(std::errc::invalid_argument);
+        }
+        if (!::SetCursorPos(point->x, point->y)) {
+            return fallbackError();
+        }
+        return {};
+    }
+
+    auto injectOne(const MouseMoveEvent &event) -> std::error_code {
+        return moveCursor(event.screenIndex, event.x, event.y);
+    }
+
+    auto injectOne(const MouseButtonEvent &event) -> std::error_code {
+        if (auto error = moveCursor(event.screenIndex, event.x, event.y); error) {
+            return error;
+        }
+
+        auto input = INPUT {};
+        input.type = INPUT_MOUSE;
+        switch (event.button) {
+            case MouseButton::Left:
+                input.mi.dwFlags = event.release ? MOUSEEVENTF_LEFTUP : MOUSEEVENTF_LEFTDOWN;
+                break;
+            case MouseButton::Right:
+                input.mi.dwFlags = event.release ? MOUSEEVENTF_RIGHTUP : MOUSEEVENTF_RIGHTDOWN;
+                break;
+            case MouseButton::Middle:
+                input.mi.dwFlags = event.release ? MOUSEEVENTF_MIDDLEUP : MOUSEEVENTF_MIDDLEDOWN;
+                break;
+            case MouseButton::None:
+                return std::make_error_code(std::errc::invalid_argument);
+        }
+
+        auto inputs = std::array {input};
+        return sendInputs(inputs);
+    }
+
+    auto injectOne(const MouseWheelEvent &event) -> std::error_code {
+        std::array<INPUT, 2> inputs {};
+        auto count = size_t {0};
+
+        if (event.deltaY != 0) {
+            auto &input = inputs[count++];
+            input.type = INPUT_MOUSE;
+            input.mi.dwFlags = MOUSEEVENTF_WHEEL;
+            input.mi.mouseData = static_cast<DWORD>(event.deltaY);
+        }
+        if (event.deltaX != 0) {
+            auto &input = inputs[count++];
+            input.type = INPUT_MOUSE;
+            input.mi.dwFlags = MOUSEEVENTF_HWHEEL;
+            input.mi.mouseData = static_cast<DWORD>(event.deltaX);
+        }
+
+        return sendInputs(std::span {inputs.data(), count});
+    }
+
+    auto injectOne(const KeyEvent &event) -> std::error_code {
+        auto key = translateKey(event.key, event.nativeCode);
+        if (!key) {
+            return std::make_error_code(std::errc::invalid_argument);
+        }
+
+        auto input = INPUT {};
+        input.type = INPUT_KEYBOARD;
+        input.ki.wVk = key->virtualKey;
+        input.ki.dwFlags = event.release ? KEYEVENTF_KEYUP : 0;
+        if (key->extended) {
+            input.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+        }
+
+        auto inputs = std::array {input};
+        return sendInputs(inputs);
+    }
+
+    std::shared_ptr<Win32Platform> mPlatform;
+    std::atomic_bool mInitialized {false};
+};
+
 auto CALLBACK Win32Platform::messageProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) -> LRESULT {
     auto *self = reinterpret_cast<Win32Platform *>(::GetWindowLongPtrW(hwnd, GWLP_USERDATA));
     if (!self) {
@@ -755,7 +1029,12 @@ auto Win32Platform::createCapture() -> InputCapture::Ptr {
 }
 
 auto Win32Platform::createInjector() -> InputInjector::Ptr {
-    return {};
+    if (!mInputInjector.expired()) {
+        throw std::runtime_error("InputInjector already created");
+    }
+    auto injector = std::make_shared<Win32InputInjector>(shared_from_this());
+    mInputInjector = injector;
+    return injector;
 }
 
 auto Platform::create() -> Platform::Ptr {

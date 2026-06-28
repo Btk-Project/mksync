@@ -1,0 +1,6 @@
+target("test_topology")
+    local test_file = path.join(os.scriptdir(), "test_topology.cpp")
+    mks_apply_test_settings(test_file)
+    add_files(test_file)
+    add_files(path.join(os.projectdir(), "src/core/topology.cpp"))
+target_end()

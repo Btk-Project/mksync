@@ -1,3 +1,11 @@
+option("enable_tests")
+    set_default(true)
+    set_showmenu(true)
+    set_description("Enable test targets")
+    set_category("enable test")
+option_end()
+
+if get_config("enable_tests") ~= false then
 add_requires("gtest")
 add_packages("gtest")
 add_requireconfs("**gtest", {
@@ -6,32 +14,56 @@ add_requireconfs("**gtest", {
     version = "x.x.x"
 })
 
-add_includedirs("../src")
-if get_config("stdcxx") == 26 then
-    add_cxxflags("-freflection", {force = true})
+local test_root = os.scriptdir()
+
+local function test_group(file)
+    local relative = path.relative(path.directory(file), test_root)
+    local group = path.filename(relative)
+    if group == nil or group == "" or group == "." then
+        return "core"
+    end
+    return group
 end
 
-target("test_refl")
-    set_kind("binary")
-    set_default(false)
-    add_files("refl.cpp")
+local function add_common_test_packages()
     add_packages("gtest", "neko-proto-tools", "fmt", "ilias", "spdlog")
     if not has_config("has_std_format") then
         add_packages("fmt")
     end
+end
 
-    add_tests("test_refl")
-target_end()
-
-target("test_rpc_transport")
+function mks_apply_test_settings(file)
+    local group = test_group(file)
     set_kind("binary")
     set_default(false)
-    add_files("rpc_transport.cpp")
-    add_files("../src/rpc/message.cpp", "../src/rpc/transport.cpp")
-    add_packages("gtest", "neko-proto-tools", "fmt", "ilias", "spdlog")
-    if not has_config("has_std_format") then
-        add_packages("fmt")
+    set_group("tests/" .. group)
+    add_includedirs(path.join(os.projectdir(), "src"))
+    add_includedirs(test_root)
+    if get_config("stdcxx") == 26 then
+        add_cxxflags("-freflection", {force = true})
     end
+    add_common_test_packages()
+    add_tests(stdcxx():gsub("%+", "p", 2), {group = group, kind = "binary", languages = stdcxx()})
+end
 
-    add_tests("test_rpc_transport")
-target_end()
+function mks_add_default_test(file)
+    target(path.basename(file))
+        mks_apply_test_settings(file)
+        add_files(file)
+    target_end()
+end
+
+for _, file in ipairs(os.files(path.join(test_root, "**.cpp"))) do
+    local dir = path.directory(file)
+    local name = path.basename(file)
+    local conf = path.join(dir, name .. ".lua")
+
+    if name:sub(1, 5) == "test_" then
+        if os.exists(conf) then
+            includes(conf)
+        else
+            mks_add_default_test(file)
+        end
+    end
+end
+end
