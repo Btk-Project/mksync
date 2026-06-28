@@ -146,9 +146,15 @@ private:
     std::map<IPEndpoint, ilias::mpsc::Sender<RpcMessage>> mClientSenders;
     std::map<IPEndpoint, std::string> mEndpointOwners;
 
-    // Current active screen, which take the input
+    // Current active screen that owns keyboard/mouse input.
     VirtualScreen *mActiveScreen = nullptr;
+
+    // Pixel position on mActiveScreen. When the active screen is remote this is
+    // a virtual cursor owned by the server, not the local OS cursor position.
     std::optional<ScreenPoint> mActivePoint;
+
+    // Last absolute local capture sample. Remote motion currently uses
+    // targetDelta = sourceDelta, so this sample is the source delta baseline.
     std::optional<MouseMoveEvent> mLastLocalMouse;
 };
 

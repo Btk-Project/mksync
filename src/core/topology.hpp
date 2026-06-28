@@ -31,6 +31,8 @@ enum class Edge {
 FORMATTER(Edge);
 
 struct GridPosition {
+    // Integer topology cell. This is not a pixel coordinate and does not
+    // encode the real size of the monitor.
     int32_t x = 0;
     int32_t y = 0;
 
@@ -39,6 +41,8 @@ struct GridPosition {
 FORMATTER(GridPosition);
 
 struct ScreenKey {
+    // Stable owner id. Prefer the peer machineId; endpoint strings are only a
+    // fallback for clients that do not send one yet.
     std::string ownerId;
     uint32_t screenIndex = 0;
 
@@ -56,6 +60,8 @@ FORMATTER(TopologyScreen);
 
 struct ScreenPoint {
     ScreenKey key;
+    // Real pixel coordinate inside the screen identified by key.
+    // We intentionally do not keep a long-lived normalized [0, 1] cursor.
     int32_t x = 0;
     int32_t y = 0;
 

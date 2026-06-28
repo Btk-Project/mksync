@@ -81,7 +81,7 @@ Client/Server、RPC 消息、平台抽象、输入事件模型和基础反射工
   - 创建输入注入器。
 - `InputCapture` 提供初始化、关闭和异步读取输入事件。
 - `InputInjector` 提供初始化、关闭和注入输入事件。
-- 当前已有 Windows 与 XCB/Linux 最小输入注入实现；XCB capture 仍待改为 ilias poll 后端。
+- 当前已有 Windows 与 XCB/Linux 最小输入注入实现；XCB capture 已接入 ilias poll 后端。
 
 ### refl
 
@@ -104,5 +104,5 @@ Client/Server、RPC 消息、平台抽象、输入事件模型和基础反射工
 
 ## 近期开发计划入口
 
-- 将 XCB/XInput2 capture 改为 ilias poll 后端。
+- 做 Linux 真机编译，验证 XCB capture 和 injector。
 - 完成真实 Server/Client 联调验收。

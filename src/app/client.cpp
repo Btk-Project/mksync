@@ -42,6 +42,9 @@ auto Client::run() -> IoTask<void> {
         .name = std::string {computerName},
     }}));
 
+    // Initialize injection only after the server accepts the identity. If this
+    // fails, the connection exits before advertising screens that cannot accept
+    // forwarded input.
     ILIAS_CO_TRYV(co_await injector->initialize());
 
     // Start the reader part and the writer part
@@ -67,7 +70,9 @@ auto Client::handleWrite(void *_platform, void *_transport) -> IoTask<void> {
     auto platform = static_cast<Platform*>(_platform);
     auto transport = static_cast<RpcTransport*>(_transport);
 
-    // First, send screen to it
+    // First, send screen to it. These coordinates are the client's own real
+    // screen rects; the server stores them for entry-point mapping and sends
+    // input back in the same screenIndex/x/y space.
     ILIAS_CO_TRYV(co_await transport->writeMessage(RpcMessage {ScreensMessage {
         .screens = platform->screens(),
     }}));
@@ -90,6 +95,8 @@ auto Client::handleRead(void *_transport, void *_injector) -> IoTask<void> {
 
 auto Client::handleMessage(const RpcMessage &message, InputInjector &injector) -> IoTask<void> {
     if (auto input = std::get_if<InputMessage>(&message)) {
+        // InputMessage already carries target-client coordinates. The client
+        // side should inject directly instead of re-running topology logic.
         ILIAS_CO_TRYV(co_await injector.inject(input->event));
         co_return {};
     }
