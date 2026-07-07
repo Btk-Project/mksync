@@ -24,7 +24,7 @@ namespace fmtlib = std;
 #include <fmt/ranges.h>
 namespace fmtlib = fmt;
 #if FMT_VERSION < 110000
-namespace fmtlib {
+namespace fmt {
     template<typename T, typename Char = char>
     concept formattable = requires (T&& t, fmt::format_context ctx) {
         fmt::formatter<std::remove_cvref_t<T>, Char>().format(t, ctx);
