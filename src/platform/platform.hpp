@@ -18,6 +18,10 @@ public:
     virtual auto initialize() -> IoTask<void> = 0;
     virtual auto shutdown() -> Task<void> = 0;
     virtual auto nextEvent() -> Task<InputEvent> = 0;
+    virtual auto setRemoteControlActive(bool active) -> IoResult<void> {
+        (void) active;
+        return {};
+    }
 };
 
 class InputInjector {

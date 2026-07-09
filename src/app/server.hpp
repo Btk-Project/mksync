@@ -48,6 +48,7 @@ inline auto _refl_fmt_inline(const VirtualScreen &value, auto it) {
  * 
  */
 struct ClientState;
+class InputCapture;
 
 /**
  * @brief The server, collection event and dispatch to another client
@@ -87,6 +88,8 @@ public:
         IPEndpoint endpoint,
         ilias::mpsc::Sender<RpcMessage> sender
     ) -> void;
+    auto attachCaptureForTest(InputCapture *capture) -> void;
+    auto removeScreensForTest(IPEndpoint endpoint) -> void;
     auto handleInputEventForTest(const InputEvent &event) -> void;
     auto isClientTrustedForTest(std::string_view name) const -> bool;
     auto isClientTrustedForTest(std::string_view machineId, std::string_view name) const -> bool;
@@ -105,9 +108,11 @@ private:
 
     // Input processing
     auto handleInputEvent(const InputEvent &event) -> void;
+    auto tryHandleLocalHotkey(const InputEvent &event) -> bool;
     auto handleMouseMove(const MouseMoveEvent &event) -> void;
     auto handleRemoteMouseMove(const MouseMoveEvent &event) -> void;
     auto switchActiveScreen(ScreenPoint point) -> void;
+    auto updateCaptureRemoteControl() -> void;
     auto queueInputForScreen(const VirtualScreen &screen, InputEvent event) -> void;
 
     // Screen Manage
@@ -126,6 +131,7 @@ private:
         bool local
     ) -> VirtualScreen *;
     auto removeScreen(IPEndpoint endpoint) -> void;
+    auto activateFirstLocalScreen() -> void;
     auto findScreen(const ScreenKey &key) -> VirtualScreen *;
     auto findScreen(const ScreenKey &key) const -> const VirtualScreen *;
     auto configuredCell(const ScreenKey &key) const -> std::optional<GridPosition>;
@@ -148,6 +154,7 @@ private:
 
     // Current active screen that owns keyboard/mouse input.
     VirtualScreen *mActiveScreen = nullptr;
+    InputCapture *mCapture = nullptr;
 
     // Pixel position on mActiveScreen. When the active screen is remote this is
     // a virtual cursor owned by the server, not the local OS cursor position.

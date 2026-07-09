@@ -20,7 +20,11 @@
 - [x] 鼠标移动使用目标 `screenIndex/x/y` 映射到 X root 坐标后 `XWarpPointer`。
 - [x] 鼠标按钮、滚轮和键盘事件使用 XTest 注入。
 - [x] Xmake Linux 依赖增加 `libxtst`。
-- [ ] 尚未做 Linux 真机编译和注入验收。
+- [x] 新增 `mksync --check-platform`，用于真机 smoke check XInput2 capture 与 XTest injector 初始化。
+- [x] 当前 GCC 14.2 / C++23 环境下，Linux/XCB 主目标编译和链接通过。
+- [x] Linux/X11 真机 `mksync --check-platform` 通过，确认 XInput 2.0、XTest 2.2 可用。
+- [x] Linux/X11 真机捕获到连续 `MouseMoveEvent`，确认 XInput2 事件解码可用。
+- [ ] 尚未做 GCC 16.1 / C++26 Linux 真机编译和注入验收。
 
 ## 已移除的问题
 
@@ -118,7 +122,9 @@ if (mPoller) {
 - [x] `nextEvent()` 循环 `poll(POLLIN)` + `XPending` + `XNextEvent`。
 - [x] `shutdown()` 取消 poller 并关闭 display。
 - [x] 保留事件翻译函数：`translateMouseMove`、`translateButtonEvent`、`translateKeyEvent`。
-- [ ] 补 Linux 可编译检查。
+- [x] 补当前环境 GCC 14.2 / C++23 Linux 可编译检查。
+- [x] 补 Linux/X11 真机事件解码检查。
+- [ ] 补 GCC 16.1 / C++26 Linux 可编译检查。
 
 ## 暂不处理
 

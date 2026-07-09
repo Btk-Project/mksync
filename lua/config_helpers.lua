@@ -1,9 +1,25 @@
+function config_number(name)
+    local value = get_config(name)
+    if type(value) == "number" then
+        return value
+    end
+    return tonumber(value)
+end
+
+function stdc_version()
+    return config_number("stdc")
+end
+
+function stdcxx_version()
+    return config_number("stdcxx")
+end
+
 function stdc()
-    return "c" .. tostring(get_config("stdc"))
+    return "c" .. tostring(stdc_version())
 end
 
 function stdcxx()
-    return "c++" .. tostring(get_config("stdcxx"))
+    return "c++" .. tostring(stdcxx_version())
 end
 
 function check_system_pkgconfig_package(name, packageNames)

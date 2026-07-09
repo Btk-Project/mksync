@@ -5,7 +5,7 @@ local package_basename = "mksync-$(version)-$(plat)-$(arch)-$(mode)"
 xpack("mksync")
     set_title("mksync")
     set_author("Btk-Project")
-    set_maintainer("Btk-Project")
+    set_maintainer("Btk-Project <btk-project@users.noreply.github.com>")
     set_description("Mouse and keyboard synchronization tool")
     set_license("GPL-3.0-or-later")
     set_licensefile("LICENSE")
@@ -13,12 +13,26 @@ xpack("mksync")
     add_targets("mksync")
     set_bindir("bin")
     set_libdir("lib")
+    -- add_sourcefiles(
+    --     "xmake.lua",
+    --     "lua/**",
+    --     "src/**",
+    --     "tests/xmake.lua",
+    --     "LICENSE"
+    -- )
+
+    before_package(function (package)
+        if package:format() == "deb" then
+            os.setenv("LC_ALL", "C")
+            os.setenv("LC_TIME", "C")
+        end
+    end)
 
     if is_plat("windows", "mingw") then
-        set_formats("zip")
+        set_formats("nsis", "zip")
         add_installfiles(path.join(os.projectdir(), get_config("outputdir")) .. "/(**)|**.pdb|**.lib")
     else
-        set_formats("targz")
+        set_formats("deb", "rpm", "targz")
         add_installfiles(path.join(os.projectdir(), get_config("outputdir")) .. "/(**)|**.sym|**.a")
     end
 xpack_end()

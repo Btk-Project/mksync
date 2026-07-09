@@ -14,6 +14,8 @@ struct MouseMoveEvent {
     int32_t x = 0;            // X in pixels
     int32_t y = 0;            // Y in pixels
     uint32_t screenIndex = 0; // Index of the screen
+    int32_t deltaX = 0;       // Relative X movement when the backend provides raw motion
+    int32_t deltaY = 0;       // Relative Y movement when the backend provides raw motion
 };
 FORMATTER(MouseMoveEvent);
 

@@ -22,6 +22,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <system_error>
 #include <utility>
 #include <vector>
@@ -162,6 +163,10 @@ public:
         return mXiOpcode;
     }
 
+    auto rawEventsDuringGrab() const -> bool {
+        return mRawEventsDuringGrab;
+    }
+
     auto createCapture() -> InputCapture::Ptr override;
     auto createInjector() -> InputInjector::Ptr override;
 private:
@@ -174,7 +179,7 @@ private:
         }
 
         auto major = 2;
-        auto minor = 0;
+        auto minor = 1;
         const auto status = ::XIQueryVersion(mDisplay, &major, &minor);
         if (status == BadRequest) {
             SPDLOG_ERROR("XInput2 2.0 is not supported by the X server");
@@ -186,6 +191,10 @@ private:
         }
 
         SPDLOG_INFO("Using XInput {}.{}", major, minor);
+        mRawEventsDuringGrab = major > 2 || (major == 2 && minor >= 1);
+        if (!mRawEventsDuringGrab) {
+            SPDLOG_WARN("XInput 2.1 raw-event grab semantics are unavailable");
+        }
         return true;
     }
 
@@ -252,6 +261,7 @@ private:
     Window mRoot = 0;
     int mDefaultScreen = 0;
     int mXiOpcode = 0;
+    bool mRawEventsDuringGrab = false;
     std::string mDisplayName;
 
     std::weak_ptr<XcbInputCapture> mInputCapture;
@@ -300,6 +310,20 @@ public:
         co_return;
     }
 
+    auto setRemoteControlActive(bool active) -> IoResult<void> override {
+        if (!mDisplay) {
+            return Err(std::make_error_code(std::errc::not_connected));
+        }
+        if (active == mRemoteControlActive) {
+            return {};
+        }
+        if (!active) {
+            releaseRemoteControl();
+            return {};
+        }
+        return acquireRemoteControl();
+    }
+
     auto nextEvent() -> Task<InputEvent> override {
         if (!mDisplay || !mPoller) {
             throw std::runtime_error("InputCapture::nextEvent called after shutdown");
@@ -339,9 +363,190 @@ private:
             mPoller.close();
         }
         if (mDisplay) {
+            releaseRemoteControl();
+            if (mHiddenCursor != 0) {
+                ::XFreeCursor(mDisplay, mHiddenCursor);
+                mHiddenCursor = 0;
+            }
             ::XCloseDisplay(mDisplay);
             mDisplay = nullptr;
             SPDLOG_INFO("XInput2 capture stopped");
+        }
+    }
+
+    static auto grabStatusName(int status) -> std::string_view {
+        switch (status) {
+            case GrabSuccess: return "GrabSuccess";
+            case AlreadyGrabbed: return "AlreadyGrabbed";
+            case GrabInvalidTime: return "GrabInvalidTime";
+            case GrabNotViewable: return "GrabNotViewable";
+            case GrabFrozen: return "GrabFrozen";
+            default: return "Unknown";
+        }
+    }
+
+    static auto grabStatusError(int status) -> std::error_code {
+        switch (status) {
+            case AlreadyGrabbed:
+            case GrabFrozen:
+                return makeIoError(std::errc::device_or_resource_busy);
+            case GrabInvalidTime:
+            case GrabNotViewable:
+                return makeIoError(std::errc::invalid_argument);
+            default:
+                return inputError();
+        }
+    }
+
+    static auto inputError() -> std::error_code {
+        return makeIoError(std::errc::io_error);
+    }
+
+    auto ensureHiddenCursor() -> IoResult<Cursor> {
+        if (mHiddenCursor != 0) {
+            return mHiddenCursor;
+        }
+
+        const char blank[] = {0};
+        auto bitmap = ::XCreateBitmapFromData(mDisplay, mPlatform->root(), blank, 1, 1);
+        if (bitmap == 0) {
+            return Err(makeIoError(std::errc::not_enough_memory));
+        }
+
+        XColor black {};
+        auto cursor = ::XCreatePixmapCursor(mDisplay, bitmap, bitmap, &black, &black, 0, 0);
+        ::XFreePixmap(mDisplay, bitmap);
+        if (cursor == 0) {
+            return Err(makeIoError(std::errc::not_enough_memory));
+        }
+
+        mHiddenCursor = cursor;
+        return mHiddenCursor;
+    }
+
+    auto destroyGrabWindow() -> void {
+        if (mGrabWindow == 0) {
+            return;
+        }
+        ::XDestroyWindow(mDisplay, mGrabWindow);
+        mGrabWindow = 0;
+    }
+
+    auto ensureGrabWindow(Cursor cursor) -> IoResult<Window> {
+        if (mGrabWindow != 0) {
+            return mGrabWindow;
+        }
+
+        XWindowAttributes rootAttributes {};
+        if (::XGetWindowAttributes(mDisplay, mPlatform->root(), &rootAttributes) == 0) {
+            return Err(inputError());
+        }
+
+        XSetWindowAttributes attributes {};
+        attributes.override_redirect = True;
+        attributes.cursor = cursor;
+        attributes.event_mask = PointerMotionMask
+            | ButtonMotionMask
+            | ButtonPressMask
+            | ButtonReleaseMask
+            | KeyPressMask
+            | KeyReleaseMask;
+
+        auto window = ::XCreateWindow(
+            mDisplay,
+            mPlatform->root(),
+            0,
+            0,
+            static_cast<unsigned int>(rootAttributes.width),
+            static_cast<unsigned int>(rootAttributes.height),
+            0,
+            0,
+            InputOnly,
+            CopyFromParent,
+            CWOverrideRedirect | CWCursor | CWEventMask,
+            &attributes
+        );
+        if (window == 0) {
+            return Err(inputError());
+        }
+
+        mGrabWindow = window;
+        ::XMapRaised(mDisplay, mGrabWindow);
+        ::XSync(mDisplay, False);
+        return mGrabWindow;
+    }
+
+    auto acquireRemoteControl() -> IoResult<void> {
+        auto hiddenCursor = ensureHiddenCursor();
+        if (!hiddenCursor) {
+            return Err(hiddenCursor.error());
+        }
+        auto grabWindow = ensureGrabWindow(*hiddenCursor);
+        if (!grabWindow) {
+            return Err(grabWindow.error());
+        }
+
+        const auto eventMask = static_cast<unsigned int>(
+            PointerMotionMask | ButtonMotionMask | ButtonPressMask | ButtonReleaseMask
+        );
+        const auto pointerStatus = ::XGrabPointer(
+            mDisplay,
+            *grabWindow,
+            False,
+            eventMask,
+            GrabModeAsync,
+            GrabModeAsync,
+            0,
+            *hiddenCursor,
+            CurrentTime
+        );
+        if (pointerStatus != GrabSuccess) {
+            SPDLOG_WARN("XGrabPointer failed with {}", grabStatusName(pointerStatus));
+            destroyGrabWindow();
+            return Err(grabStatusError(pointerStatus));
+        }
+        mPointerGrabbed = true;
+
+        const auto keyboardStatus = ::XGrabKeyboard(
+            mDisplay,
+            *grabWindow,
+            False,
+            GrabModeAsync,
+            GrabModeAsync,
+            CurrentTime
+        );
+        if (keyboardStatus == GrabSuccess) {
+            mKeyboardGrabbed = true;
+        }
+        else {
+            SPDLOG_WARN("XGrabKeyboard failed with {}; local key events may leak", grabStatusName(keyboardStatus));
+        }
+
+        mRemoteControlActive = true;
+        mLastCorePointer = queryPointer(mDisplay);
+        ::XFlush(mDisplay);
+        SPDLOG_INFO("X11 remote control grab enabled");
+        return {};
+    }
+
+    auto releaseRemoteControl() -> void {
+        if (!mDisplay) {
+            return;
+        }
+        if (mKeyboardGrabbed) {
+            ::XUngrabKeyboard(mDisplay, CurrentTime);
+            mKeyboardGrabbed = false;
+        }
+        if (mPointerGrabbed) {
+            ::XUngrabPointer(mDisplay, CurrentTime);
+            mPointerGrabbed = false;
+        }
+        destroyGrabWindow();
+        mLastCorePointer.reset();
+        if (mRemoteControlActive) {
+            mRemoteControlActive = false;
+            ::XFlush(mDisplay);
+            SPDLOG_INFO("X11 remote control grab disabled");
         }
     }
 
@@ -369,6 +574,12 @@ private:
     }
 
     auto translateEvent(Display *display, XEvent *event) -> std::optional<InputEvent> {
+        if (mRemoteControlActive && !mPlatform->rawEventsDuringGrab()) {
+            if (auto translated = translateCoreEvent(display, event)) {
+                return translated;
+            }
+        }
+
         if (event->xcookie.type != GenericEvent || event->xcookie.extension != mPlatform->xiOpcode()) {
             return std::nullopt;
         }
@@ -384,13 +595,40 @@ private:
 
         switch (event->xcookie.evtype) {
             case XI_RawMotion:
-                return translateMouseMove(display);
+                return translateMouseMove(display, event->xcookie);
             case XI_RawButtonPress:
             case XI_RawButtonRelease:
                 return translateButtonEvent(display, event->xcookie);
             case XI_RawKeyPress:
             case XI_RawKeyRelease:
                 return translateKeyEvent(display, event->xcookie);
+            default:
+                return std::nullopt;
+        }
+    }
+
+    auto translateCoreEvent(Display *display, XEvent *event) -> std::optional<InputEvent> {
+        switch (event->type) {
+            case MotionNotify:
+                return translateCoreMouseMove(event->xmotion);
+            case ButtonPress:
+            case ButtonRelease:
+                return translateButtonEvent(
+                    display,
+                    event->xbutton.button,
+                    event->type == ButtonRelease,
+                    std::pair {
+                        static_cast<int32_t>(event->xbutton.x_root),
+                        static_cast<int32_t>(event->xbutton.y_root),
+                    }
+                );
+            case KeyPress:
+            case KeyRelease:
+                return translateKeyEvent(
+                    display,
+                    static_cast<KeyCode>(event->xkey.keycode),
+                    event->type == KeyRelease
+                );
             default:
                 return std::nullopt;
         }
@@ -410,20 +648,86 @@ private:
         return std::pair {static_cast<int32_t>(rootX), static_cast<int32_t>(rootY)};
     }
 
-    auto translateMouseMove(Display *display) const -> std::optional<InputEvent> {
-        // XI_RawMotion carries device deltas, while the rest of the pipeline currently
-        // expects absolute pixels in the target screen. Query the pointer once per raw
-        // motion event and keep relative-motion policy outside this platform layer.
-        auto pointer = queryPointer(display);
+    static auto rawMotionDelta(const XGenericEventCookie &cookie) -> std::pair<int32_t, int32_t> {
+        const auto *raw = static_cast<const XIRawEvent *>(cookie.data);
+        auto deltaX = 0.0;
+        auto deltaY = 0.0;
+        auto *value = raw->raw_values;
+        for (auto axis = 0; axis < raw->valuators.mask_len * 8; ++axis) {
+            if (!XIMaskIsSet(raw->valuators.mask, axis)) {
+                continue;
+            }
+            if (axis == 0) {
+                deltaX = *value;
+            }
+            else if (axis == 1) {
+                deltaY = *value;
+            }
+            ++value;
+        }
+        return {
+            static_cast<int32_t>(std::lround(deltaX)),
+            static_cast<int32_t>(std::lround(deltaY)),
+        };
+    }
+
+    auto screenLocalPoint(
+        Display *display,
+        std::optional<std::pair<int32_t, int32_t>> rootPoint
+    ) const -> std::optional<std::pair<uint32_t, std::pair<int32_t, int32_t>>> {
+        auto pointer = rootPoint;
+        if (!pointer) {
+            pointer = queryPointer(display);
+        }
         if (!pointer) {
             return std::nullopt;
         }
-        auto [screenIndex, local] = mPlatform->globalToScreen(pointer->first, pointer->second);
+        return mPlatform->globalToScreen(pointer->first, pointer->second);
+    }
+
+    auto translateCoreMouseMove(const XMotionEvent &event) -> std::optional<InputEvent> {
+        auto rootPoint = std::pair {
+            static_cast<int32_t>(event.x_root),
+            static_cast<int32_t>(event.y_root),
+        };
+        auto [screenIndex, local] = mPlatform->globalToScreen(rootPoint.first, rootPoint.second);
+
+        auto deltaX = 0;
+        auto deltaY = 0;
+        if (mLastCorePointer) {
+            deltaX = rootPoint.first - mLastCorePointer->first;
+            deltaY = rootPoint.second - mLastCorePointer->second;
+        }
+        mLastCorePointer = rootPoint;
+
         return InputEvent {
             MouseMoveEvent {
                 .x = local.first,
                 .y = local.second,
                 .screenIndex = screenIndex,
+                .deltaX = deltaX,
+                .deltaY = deltaY,
+            }
+        };
+    }
+
+    auto translateMouseMove(Display *display, const XGenericEventCookie &cookie) const -> std::optional<InputEvent> {
+        // Keep absolute coordinates for edge detection while also preserving
+        // raw device deltas so remote screens can keep moving after the local
+        // OS cursor reaches a physical screen boundary.
+        auto pointer = queryPointer(display);
+        if (!pointer) {
+            return std::nullopt;
+        }
+        auto [screenIndex, local] = mPlatform->globalToScreen(pointer->first, pointer->second);
+        auto [deltaX, deltaY] = rawMotionDelta(cookie);
+        return InputEvent {
+            MouseMoveEvent {
+                .x = local.first,
+                .y = local.second,
+                .screenIndex = screenIndex,
+                .deltaX = deltaX,
+                .deltaY = deltaY,
             }
         };
     }
@@ -431,21 +735,30 @@ private:
     auto translateButtonEvent(Display *display, const XGenericEventCookie &cookie) const -> std::optional<InputEvent> {
         const auto *raw = static_cast<const XIRawEvent *>(cookie.data);
         const auto release = cookie.evtype == XI_RawButtonRelease;
-        const auto pointer = queryPointer(display);
+        return translateButtonEvent(display, raw->detail, release, std::nullopt);
+    }
+
+    auto translateButtonEvent(
+        Display *display,
+        unsigned int detail,
+        bool release,
+        std::optional<std::pair<int32_t, int32_t>> rootPoint
+    ) const -> std::optional<InputEvent> {
+        const auto pointer = screenLocalPoint(display, rootPoint);
         if (!pointer) {
             return std::nullopt;
         }
 
-        auto [screenIndex, local] = mPlatform->globalToScreen(pointer->first, pointer->second);
-        switch (raw->detail) {
+        const auto &[screenIndex, local] = *pointer;
+        switch (detail) {
             case 1:
             case 2:
             case 3: {
                 auto button = MouseButton::Left;
-                if (raw->detail == 2) {
+                if (detail == 2) {
                     button = MouseButton::Middle;
                 }
-                else if (raw->detail == 3) {
+                else if (detail == 3) {
                     button = MouseButton::Right;
                 }
                 return InputEvent {
@@ -471,8 +784,8 @@ private:
                     MouseWheelEvent {
                         .x = local.first,
                         .y = local.second,
-                        .deltaX = raw->detail == 6 ? -120 : (raw->detail == 7 ? 120 : 0),
-                        .deltaY = raw->detail == 4 ? 120 : (raw->detail == 5 ? -120 : 0),
+                        .deltaX = detail == 6 ? -120 : (detail == 7 ? 120 : 0),
+                        .deltaY = detail == 4 ? 120 : (detail == 5 ? -120 : 0),
                     }
                 };
             default:
@@ -482,9 +795,16 @@ private:
 
     auto translateKeyEvent(Display *display, const XGenericEventCookie &cookie) const -> std::optional<InputEvent> {
         const auto *raw = static_cast<const XIRawEvent *>(cookie.data);
-        const auto keySym = ::XkbKeycodeToKeysym(display, static_cast<KeyCode>(raw->detail), 0, 0);
+        return translateKeyEvent(
+            display,
+            static_cast<KeyCode>(raw->detail),
+            cookie.evtype == XI_RawKeyRelease
+        );
+    }
+
+    auto translateKeyEvent(Display *display, KeyCode keyCode, bool release) const -> std::optional<InputEvent> {
+        const auto keySym = ::XkbKeycodeToKeysym(display, keyCode, 0, 0);
         const auto key = translateKeySym(keySym);
-        const auto release = cookie.evtype == XI_RawKeyRelease;
         auto modifiers = currentModifiers(display);
 
         // XQueryKeymap observes the state before/around this raw event depending on server
@@ -503,7 +823,7 @@ private:
             KeyEvent {
                 .key = key,
                 .modifiers = modifiers,
-                .nativeCode = static_cast<uint32_t>(raw->detail),
+                .nativeCode = static_cast<uint32_t>(keyCode),
                 .repeat = false,
                 .release = release,
             }
@@ -640,6 +960,12 @@ private:
     };
 
     Display *mDisplay = nullptr;
+    Cursor mHiddenCursor = 0;
+    Window mGrabWindow = 0;
+    bool mRemoteControlActive = false;
+    bool mPointerGrabbed = false;
+    bool mKeyboardGrabbed = false;
+    std::optional<std::pair<int32_t, int32_t>> mLastCorePointer;
     ilias::Poller mPoller;
     std::shared_ptr<XcbPlatform> mPlatform;
 };
@@ -717,9 +1043,7 @@ private:
     }
 
     auto flush() -> std::error_code {
-        if (::XFlush(mDisplay) != 0) {
-            return inputError();
-        }
+        ::XFlush(mDisplay);
         return {};
     }
 

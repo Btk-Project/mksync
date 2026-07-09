@@ -1,5 +1,6 @@
 #include "app/server.hpp"
 #include "platform/platform.hpp"
+#include "support/mock_platform.hpp"
 
 #include <gtest/gtest.h>
 #include <ilias/testing.hpp>
@@ -275,6 +276,109 @@ TEST(ServerInputRouting, SwitchesActiveScreenAcrossRightEdge) {
 
     ASSERT_TRUE(server.activeScreenKey().has_value());
     EXPECT_EQ(*server.activeScreenKey(), remoteKey);
+}
+
+TEST(ServerInputRouting, RestoresLocalActiveScreenAfterRemoteDisconnect) {
+    auto localEndpoint = makeEndpoint(30022);
+    auto remoteEndpoint = makeEndpoint(30023);
+    auto server = mks::Server {localEndpoint};
+
+    server.registerScreensForTest(localEndpoint, {
+        makeScreen("local-primary", 1920, 1080, true),
+    }, true);
+    server.registerScreensForTest(remoteEndpoint, {
+        makeScreen("remote-primary", 2560, 1440, true),
+    }, false);
+
+    const auto localKey = mks::ScreenKey {
+        .ownerId = fmtlib::format("{}", localEndpoint),
+        .screenIndex = 0,
+    };
+    const auto remoteKey = mks::ScreenKey {
+        .ownerId = fmtlib::format("{}", remoteEndpoint),
+        .screenIndex = 0,
+    };
+
+    server.handleInputEventForTest(mks::InputEvent {mks::MouseMoveEvent {
+        .x = 1919,
+        .y = 540,
+        .screenIndex = 0,
+    }});
+
+    ASSERT_TRUE(server.activeScreenKey().has_value());
+    ASSERT_EQ(*server.activeScreenKey(), remoteKey);
+
+    server.removeScreensForTest(remoteEndpoint);
+
+    ASSERT_TRUE(server.activeScreenKey().has_value());
+    EXPECT_EQ(*server.activeScreenKey(), localKey);
+
+    server.registerScreensForTest(remoteEndpoint, {
+        makeScreen("remote-primary", 2560, 1440, true),
+    }, false);
+    server.handleInputEventForTest(mks::InputEvent {mks::MouseMoveEvent {
+        .x = 1919,
+        .y = 540,
+        .screenIndex = 0,
+    }});
+
+    ASSERT_TRUE(server.activeScreenKey().has_value());
+    EXPECT_EQ(*server.activeScreenKey(), remoteKey);
+}
+
+TEST(ServerInputRouting, TogglesRemoteControlCaptureWhenActiveScreenChanges) {
+    auto localEndpoint = makeEndpoint(30024);
+    auto remoteEndpoint = makeEndpoint(30025);
+    auto server = mks::Server {localEndpoint};
+    auto capture = mks::test::MockInputCapture {};
+    server.attachCaptureForTest(&capture);
+    const auto localKey = mks::ScreenKey {
+        .ownerId = fmtlib::format("{}", localEndpoint),
+        .screenIndex = 0,
+    };
+
+    server.registerScreensForTest(localEndpoint, {
+        makeScreen("local-primary", 1920, 1080, true),
+    }, true);
+    server.registerScreensForTest(remoteEndpoint, {
+        makeScreen("remote-primary", 2560, 1440, true),
+    }, false);
+
+    EXPECT_FALSE(capture.remoteControlActive());
+
+    server.handleInputEventForTest(mks::InputEvent {mks::MouseMoveEvent {
+        .x = 1919,
+        .y = 540,
+        .screenIndex = 0,
+    }});
+
+    EXPECT_TRUE(capture.remoteControlActive());
+
+    server.handleInputEventForTest(mks::InputEvent {mks::MouseMoveEvent {
+        .x = 1900,
+        .y = 540,
+        .screenIndex = 0,
+    }});
+
+    EXPECT_FALSE(capture.remoteControlActive());
+
+    server.handleInputEventForTest(mks::InputEvent {mks::MouseMoveEvent {
+        .x = 1919,
+        .y = 540,
+        .screenIndex = 0,
+    }});
+    EXPECT_TRUE(capture.remoteControlActive());
+
+    server.handleInputEventForTest(mks::InputEvent {mks::KeyEvent {
+        .key = mks::Key::F12,
+        .nativeCode = 96,
+        .release = false,
+    }});
+    EXPECT_FALSE(capture.remoteControlActive());
+    EXPECT_EQ(server.activeScreenKey(), localKey);
+
+    server.removeScreensForTest(remoteEndpoint);
+    EXPECT_FALSE(capture.remoteControlActive());
 }
 
 TEST(ServerInputRouting, KeepsActiveScreenWhenEdgeHasNoNeighbor) {

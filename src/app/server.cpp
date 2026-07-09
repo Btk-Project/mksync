@@ -77,6 +77,14 @@ auto Server::attachClientSenderForTest(
     mClientSenders[endpoint] = std::move(sender);
 }
 
+auto Server::attachCaptureForTest(InputCapture *capture) -> void {
+    mCapture = capture;
+}
+
+auto Server::removeScreensForTest(IPEndpoint endpoint) -> void {
+    removeScreen(endpoint);
+}
+
 auto Server::handleInputEventForTest(const InputEvent &event) -> void {
     handleInputEvent(event);
 }
@@ -110,10 +118,16 @@ auto Server::run() -> IoTask<void> {
 
     // Create the capture backend
     auto platform = Platform::create();
-    assert(platform);
+    if (!platform) {
+        co_return Err(std::make_error_code(std::errc::operation_not_supported));
+    }
     auto capture = platform->createCapture();
-    assert(capture);
+    if (!capture) {
+        SPDLOG_ERROR("Current platform does not provide an input capture backend");
+        co_return Err(std::make_error_code(std::errc::operation_not_supported));
+    }
     ILIAS_CO_TRYV(co_await capture->initialize());
+    mCapture = capture.get();
 
     // Register screens
     registerScreens(localEndpoint, platform->screens(), true);
@@ -126,6 +140,7 @@ auto Server::run() -> IoTask<void> {
         ),
         capture->shutdown()
     );
+    mCapture = nullptr;
     co_return {};
 }
 
@@ -242,6 +257,10 @@ auto Server::handleClientWrite(ClientState *state) -> IoTask<void> {
 }
 
 auto Server::handleInputEvent(const InputEvent &event) -> void {
+    if (tryHandleLocalHotkey(event)) {
+        return;
+    }
+
     if (mActiveScreen && !mActiveScreen->local) {
         // While a remote screen is active, all non-mouse input belongs to that
         // client. Mouse movement still needs special handling because the local
@@ -256,15 +275,29 @@ auto Server::handleInputEvent(const InputEvent &event) -> void {
     }
 
     if (auto key = std::get_if<KeyEvent>(&event)) {
-        if (key->key == Key::F12 && !key->release) {
-            SPDLOG_INFO("Server F12 pressed");
-        }
+        (void) key;
         return;
     }
 
     if (auto mouse = std::get_if<MouseMoveEvent>(&event)) {
         handleMouseMove(*mouse);
     }
+}
+
+auto Server::tryHandleLocalHotkey(const InputEvent &event) -> bool {
+    auto key = std::get_if<KeyEvent>(&event);
+    if (!key || key->release || key->key != Key::F12) {
+        return false;
+    }
+
+    if (mActiveScreen && !mActiveScreen->local) {
+        SPDLOG_INFO("Server fail-safe F12 pressed, returning to local screen");
+        activateFirstLocalScreen();
+        return true;
+    }
+
+    SPDLOG_INFO("Server F12 pressed");
+    return true;
 }
 
 auto Server::handleMouseMove(const MouseMoveEvent &event) -> void {
@@ -320,12 +353,12 @@ auto Server::handleRemoteMouseMove(const MouseMoveEvent &event) -> void {
         };
     }
 
-    // The capture backend reports absolute coordinates on the local machine.
-    // For v0.1 we use the change between local samples as the remote movement
-    // delta. More advanced DPI/speed policy can replace only this block later.
-    auto deltaX = 0;
-    auto deltaY = 0;
-    if (mLastLocalMouse) {
+    // Prefer raw relative motion when the backend provides it. Absolute local
+    // coordinates stop changing at the physical edge, but raw deltas keep the
+    // remote virtual cursor moving beyond that boundary.
+    auto deltaX = event.deltaX;
+    auto deltaY = event.deltaY;
+    if (deltaX == 0 && deltaY == 0 && mLastLocalMouse) {
         deltaX = event.x - mLastLocalMouse->x;
         deltaY = event.y - mLastLocalMouse->y;
     }
@@ -373,6 +406,7 @@ auto Server::switchActiveScreen(ScreenPoint point) -> void {
     }
     mActiveScreen = screen;
     mActivePoint = std::move(point);
+    updateCaptureRemoteControl();
 
     if (!screen->local) {
         // Entering a remote screen needs an immediate absolute move so the
@@ -382,6 +416,22 @@ auto Server::switchActiveScreen(ScreenPoint point) -> void {
             .y = mActivePoint->y,
             .screenIndex = mActivePoint->key.screenIndex,
         }});
+    }
+}
+
+auto Server::updateCaptureRemoteControl() -> void {
+    if (!mCapture) {
+        return;
+    }
+
+    const auto active = mActiveScreen && !mActiveScreen->local;
+    auto result = mCapture->setRemoteControlActive(active);
+    if (!result) {
+        SPDLOG_WARN(
+            "Server failed to {} local input capture for remote control: {}",
+            active ? "enable" : "disable",
+            result.error().message()
+        );
     }
 }
 
@@ -475,10 +525,14 @@ auto Server::registerScreens(
                 .x = 0,
                 .y = 0,
             };
+            updateCaptureRemoteControl();
         }
     }
 
     SPDLOG_INFO("Server topology screens {}", mTopology.screens());
+    if (!mActiveScreen) {
+        activateFirstLocalScreen();
+    }
 }
 
 auto Server::addScreen(
@@ -523,6 +577,7 @@ auto Server::addScreen(
 auto Server::removeScreen(IPEndpoint endpoint) -> void {
     auto range = mScreens.equal_range(endpoint);
     auto ownerIds = std::vector<std::string> {};
+    auto activeRemoved = false;
     for (auto it = range.first; it != range.second; ++it) {
         // One endpoint can own multiple screens. removeOwner works by stable
         // owner id, so collect each id once before erasing mScreens.
@@ -535,13 +590,47 @@ auto Server::removeScreen(IPEndpoint endpoint) -> void {
             mActiveScreen = nullptr;
             mActivePoint.reset();
             mLastLocalMouse.reset();
+            activeRemoved = true;
         }
     }
     mScreens.erase(endpoint);
     for (const auto &registeredOwnerId : ownerIds) {
         mTopology.removeOwner(registeredOwnerId);
     }
+    if (activeRemoved) {
+        activateFirstLocalScreen();
+    }
     SPDLOG_INFO("Server current screens {}", mScreens);
+}
+
+auto Server::activateFirstLocalScreen() -> void {
+    auto selected = mScreens.end();
+    for (auto it = mScreens.begin(); it != mScreens.end(); ++it) {
+        if (!it->second.local) {
+            continue;
+        }
+        if (selected == mScreens.end() || it->second.info.primary) {
+            selected = it;
+        }
+        if (it->second.info.primary) {
+            break;
+        }
+    }
+
+    if (selected == mScreens.end()) {
+        updateCaptureRemoteControl();
+        return;
+    }
+
+    mActiveScreen = &selected->second;
+    mActivePoint = ScreenPoint {
+        .key = mActiveScreen->key,
+        .x = 0,
+        .y = 0,
+    };
+    mLastLocalMouse.reset();
+    updateCaptureRemoteControl();
+    SPDLOG_INFO("Server active screen reset to {}", mActiveScreen->key);
 }
 
 auto Server::findScreen(const ScreenKey &key) -> VirtualScreen * {

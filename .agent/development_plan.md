@@ -39,6 +39,7 @@
 - [x] M6 Server 切入远端屏幕时发送入口 `MouseMoveEvent`。
 - [x] M6 Server 在远端 active screen 上转发非 `MouseMoveEvent` 输入。
 - [x] M6 增加 `test_input_pipeline` 覆盖 Server -> RpcTransport -> Client -> MockInjector。
+- [x] M6 增加完整 Mock 操作流程测试：鼠标跨到远端、远端键盘传递、鼠标回本机、本机键盘不再转发。
 - [x] M6 按 `targetDelta = sourceDelta` 处理远端 active screen 上的连续鼠标移动。
 - [x] M6 处理远端屏幕切回本机屏幕。
 - [x] M6 处理跨多个远端屏幕。
@@ -58,9 +59,15 @@
 - [x] M7 重启加载配置后，拓扑布局按 `machineId` 恢复且不依赖连接顺序。
 - [x] M5 实现 XCB/Linux 最小 `InputInjector`，使用 XTest/Xlib 注入鼠标和键盘事件。
 - [x] XCB/XInput2 capture 改为使用 ilias poll 后端，不再创建独立线程。
-- [ ] M5 XCB/Linux 注入器尚未做 Linux 真机编译和注入验收。
+- [x] 修复 `xmake f --stdcxx=26` 时 `stdcxx` 以字符串传给 `ilias` 包配置的问题。
+- [x] 新增 `mksync --check-platform`，用于枚举屏幕并初始化/关闭 capture 与 injector。
+- [x] 在当前 GCC 14.2 / C++23 环境下完成 Linux/XCB 主目标编译和链接检查。
+- [x] Linux/X11 真机运行 `mksync --check-platform` 通过：XInput 2.0、XTest 2.2、单屏 3600x1080。
+- [x] Linux/X11 真机捕获到连续 `MouseMoveEvent`，确认 XInput2 事件解码可用。
+- [ ] M5 XCB/Linux 注入器尚未做 GCC 16.1 / C++26 真机编译和注入验收。
 
 下一步：
 
-- [ ] 做 Linux 真机编译，验证 XCB capture 和 injector。
+- [ ] 更深入的捕获/注入验收放到独立测试目标或专用工具，不塞进主程序。
+- [ ] 做 Linux/XCB 实际注入验收。
 - [ ] 完成真实 Server/Client 联调验收。

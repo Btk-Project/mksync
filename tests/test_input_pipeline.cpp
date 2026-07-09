@@ -56,6 +56,26 @@ auto receiveOneMessage(
     co_return {};
 }
 
+auto forwardAndReceiveOneMessage(
+    ilias::mpsc::Receiver<mks::RpcMessage> &receiver,
+    mks::RpcTransport &serverTransport,
+    mks::RpcTransport &clientTransport,
+    mks::Client &client,
+    mks::InputInjector &injector
+) -> mks::IoTask<void> {
+    auto [forward, receive] = co_await ilias::whenAll(
+        forwardOneMessage(receiver, serverTransport),
+        receiveOneMessage(clientTransport, client, injector)
+    );
+    if (!forward) {
+        co_return mks::Err(forward.error());
+    }
+    if (!receive) {
+        co_return mks::Err(receive.error());
+    }
+    co_return {};
+}
+
 } // namespace
 
 ILIAS_TEST(InputPipeline, ServerMessageReachesClientInjector) {
@@ -176,6 +196,206 @@ ILIAS_TEST(InputPipeline, ServerMessageReachesClientInjector) {
     EXPECT_EQ(key->key, mks::Key::A);
     EXPECT_EQ(key->modifiers, mks::KeyModifier::LeftCtrl);
     EXPECT_EQ(key->nativeCode, 30U);
+
+    co_await injector->shutdown();
+    co_return;
+}
+
+ILIAS_TEST(InputPipeline, FullMockOperationCrossesRemoteReturnsLocalAndRoutesKeyboard) {
+    auto localEndpoint = makeEndpoint(30211);
+    auto remoteEndpoint = makeEndpoint(30212);
+    auto server = mks::Server {localEndpoint};
+    auto client = mks::Client {makeEndpoint(30213)};
+    auto platform = mks::test::MockPlatform {{}};
+    auto injector = platform.injector();
+
+    auto initResult = co_await injector->initialize();
+    EXPECT_TRUE(initResult.has_value()) << initResult.error().message();
+    if (!initResult) {
+        co_return;
+    }
+
+    auto [sender, receiver] = ilias::mpsc::channel<mks::RpcMessage>(10);
+    auto [serverStream, clientStream] = ilias::DuplexStream::make(4096);
+    auto serverTransport = mks::RpcTransport {std::move(serverStream)};
+    auto clientTransport = mks::RpcTransport {std::move(clientStream)};
+
+    server.registerScreensForTest(localEndpoint, {
+        makeScreen("local-primary", 1920, 1080, true),
+    }, true);
+    server.registerScreensForTest(remoteEndpoint, {
+        makeScreen("remote-primary", 2560, 1440, true),
+    }, false);
+    server.attachClientSenderForTest(remoteEndpoint, sender);
+
+    const auto localKey = mks::ScreenKey {
+        .ownerId = fmtlib::format("{}", localEndpoint),
+        .screenIndex = 0,
+    };
+    const auto remoteKey = mks::ScreenKey {
+        .ownerId = fmtlib::format("{}", remoteEndpoint),
+        .screenIndex = 0,
+    };
+
+    EXPECT_TRUE(server.activeScreenKey().has_value());
+    if (!server.activeScreenKey()) {
+        co_return;
+    }
+    EXPECT_EQ(*server.activeScreenKey(), localKey);
+
+    server.handleInputEventForTest(mks::InputEvent {mks::MouseMoveEvent {
+        .x = 1919,
+        .y = 540,
+        .screenIndex = 0,
+    }});
+
+    auto result = co_await forwardAndReceiveOneMessage(
+        receiver,
+        serverTransport,
+        clientTransport,
+        client,
+        *injector
+    );
+    EXPECT_TRUE(result.has_value()) << result.error().message();
+    if (!result) {
+        co_return;
+    }
+
+    EXPECT_EQ(server.activeScreenKey(), remoteKey);
+    auto events = injector->events();
+    EXPECT_EQ(events.size(), 1U);
+    if (events.size() != 1U) {
+        co_return;
+    }
+    auto *entryMove = std::get_if<mks::MouseMoveEvent>(&events[0]);
+    EXPECT_NE(entryMove, nullptr);
+    if (!entryMove) {
+        co_return;
+    }
+    EXPECT_EQ(entryMove->x, 0);
+    EXPECT_EQ(entryMove->y, 720);
+    EXPECT_EQ(entryMove->screenIndex, 0U);
+
+    server.handleInputEventForTest(mks::InputEvent {mks::MouseMoveEvent {
+        .x = 1929,
+        .y = 550,
+        .screenIndex = 0,
+    }});
+
+    result = co_await forwardAndReceiveOneMessage(
+        receiver,
+        serverTransport,
+        clientTransport,
+        client,
+        *injector
+    );
+    EXPECT_TRUE(result.has_value()) << result.error().message();
+    if (!result) {
+        co_return;
+    }
+
+    events = injector->events();
+    EXPECT_EQ(events.size(), 2U);
+    if (events.size() != 2U) {
+        co_return;
+    }
+    auto *remoteMove = std::get_if<mks::MouseMoveEvent>(&events[1]);
+    EXPECT_NE(remoteMove, nullptr);
+    if (!remoteMove) {
+        co_return;
+    }
+    EXPECT_EQ(remoteMove->x, 10);
+    EXPECT_EQ(remoteMove->y, 730);
+    EXPECT_EQ(remoteMove->screenIndex, 0U);
+
+    server.handleInputEventForTest(mks::InputEvent {mks::KeyEvent {
+        .key = mks::Key::A,
+        .modifiers = mks::KeyModifier::LeftCtrl,
+        .nativeCode = 30,
+        .repeat = false,
+        .release = false,
+    }});
+
+    result = co_await forwardAndReceiveOneMessage(
+        receiver,
+        serverTransport,
+        clientTransport,
+        client,
+        *injector
+    );
+    EXPECT_TRUE(result.has_value()) << result.error().message();
+    if (!result) {
+        co_return;
+    }
+
+    server.handleInputEventForTest(mks::InputEvent {mks::KeyEvent {
+        .key = mks::Key::A,
+        .modifiers = mks::KeyModifier::None,
+        .nativeCode = 30,
+        .repeat = false,
+        .release = true,
+    }});
+
+    result = co_await forwardAndReceiveOneMessage(
+        receiver,
+        serverTransport,
+        clientTransport,
+        client,
+        *injector
+    );
+    EXPECT_TRUE(result.has_value()) << result.error().message();
+    if (!result) {
+        co_return;
+    }
+
+    events = injector->events();
+    EXPECT_EQ(events.size(), 4U);
+    if (events.size() != 4U) {
+        co_return;
+    }
+    auto *keyDown = std::get_if<mks::KeyEvent>(&events[2]);
+    EXPECT_NE(keyDown, nullptr);
+    if (!keyDown) {
+        co_return;
+    }
+    EXPECT_EQ(keyDown->key, mks::Key::A);
+    EXPECT_EQ(keyDown->modifiers, mks::KeyModifier::LeftCtrl);
+    EXPECT_EQ(keyDown->nativeCode, 30U);
+    EXPECT_FALSE(keyDown->release);
+
+    auto *keyUp = std::get_if<mks::KeyEvent>(&events[3]);
+    EXPECT_NE(keyUp, nullptr);
+    if (!keyUp) {
+        co_return;
+    }
+    EXPECT_EQ(keyUp->key, mks::Key::A);
+    EXPECT_EQ(keyUp->nativeCode, 30U);
+    EXPECT_TRUE(keyUp->release);
+
+    server.handleInputEventForTest(mks::InputEvent {mks::MouseMoveEvent {
+        .x = 1900,
+        .y = 550,
+        .screenIndex = 0,
+    }});
+
+    EXPECT_TRUE(server.activeScreenKey().has_value());
+    if (!server.activeScreenKey()) {
+        co_return;
+    }
+    EXPECT_EQ(*server.activeScreenKey(), localKey);
+    EXPECT_FALSE(static_cast<bool>(receiver.tryRecv()));
+    EXPECT_EQ(injector->events().size(), 4U);
+
+    server.handleInputEventForTest(mks::InputEvent {mks::KeyEvent {
+        .key = mks::Key::B,
+        .modifiers = mks::KeyModifier::None,
+        .nativeCode = 31,
+        .repeat = false,
+        .release = false,
+    }});
+
+    EXPECT_FALSE(static_cast<bool>(receiver.tryRecv()));
+    EXPECT_EQ(injector->events().size(), 4U);
 
     co_await injector->shutdown();
     co_return;

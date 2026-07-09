@@ -1,7 +1,7 @@
 -- project configuration
 set_project("mksync")
 set_version("0.0.1", {build = "$(buildversion)", soname = true})
-set_xmakever("3.0.0")
+set_xmakever("2.9.9")
 option("alias", {showmenu = false, default = "mks"}) -- project abbreviation
 
 set_configvar("LEGAL_COPYRIGHT", "Copyright (C) 2024 Btk-Project")
@@ -34,7 +34,6 @@ check_macros("has_std_expected",        "__cpp_lib_expected",           {languag
 check_macros("has_std_format",          "__cpp_lib_format >= 202207L",  {languages = stdcxx(), includes = "version"})
 check_system_pkgconfig_package("has_system_fmt",              "fmt")
 check_system_pkgconfig_package("has_system_spdlog",           "spdlog")
-check_system_pkgconfig_package("has_system_argparse",         "argparse")
 check_system_pkgconfig_package("has_system_gtest",            {"gtest", "gmock"})
 check_system_pkgconfig_package("has_system_xtst",             "xtst")
 
@@ -54,7 +53,6 @@ if not has_config("has_std_format")  then add_requires("fmt") end
 -- normal libraries
 add_requires(
     "spdlog",
-    "argparse",
     "ilias",
     "neko-proto-tools"
 )
@@ -81,9 +79,8 @@ add_requireconfs("**zeus_expected", {override = true, version = "x.x.x"})
 -- normal libraries' dependencies configurations
 add_requireconfs("**fmt",      {override = true, system = useSystemFmt, version = "x.x.x", configs = {shared = is_config("3rd_kind", "shared"), debug = is_config("3rd_mode", "debug"), header_only = false}})
 add_requireconfs("**spdlog",    {override = true, system = useSystemSpdlog, version = "x.x.x", configs = {shared = is_config("3rd_kind", "shared"), debug = is_config("3rd_mode", "debug"), header_only = false, fmt_external = useSystemSpdlog or not has_config("has_std_format"), std_format = not useSystemSpdlog and has_config("has_std_format"), wchar = true, wchar_console = true}})
-add_requireconfs("**argparse",  {override = true, system = has_config("has_system_argparse"), version = "x.x.x"})
-add_requireconfs("**ilias",     {override = true, version = "x.x.x", configs = {debug = is_config("3rd_mode", "debug"), stdcxx = get_config("stdcxx"), fmt = not has_config("has_std_format")}})
-add_requireconfs("**neko-proto-tools", {override = true, version = "x.x.x", configs = {debug = is_config("3rd_mode", "debug"), enable_simdjson = false, enable_rapidjson = true, enable_communication = false, enable_fmt = false, enable_spdlog = false, enable_rapidxml = false, enable_jsonrpc = false, enable_protocol = false}})
+add_requireconfs("**ilias",     {override = true, version = "x.x.x", configs = {debug = is_config("3rd_mode", "debug"), stdcxx = stdcxx_version(), fmt = not has_config("has_std_format")}})
+add_requireconfs("**neko-proto-tools", {override = true, version = "x.x.x", configs = {debug = is_config("3rd_mode", "debug"), enable_simdjson = false, enable_rapidjson = true, enable_communication = false, enable_fmt = false, enable_spdlog = false, enable_rapidxml = false, enable_jsonrpc = false, enable_protocol = false, enable_tomlplusplus = true}})
 -- configurations of dependency libraries
 add_requireconfs("**libportal",         {system = true, optional = true})
 add_requireconfs("**libx11",            {system = true})
@@ -105,7 +102,6 @@ target("mksync")
     add_packages("ilias")
     add_packages("spdlog")
     add_packages("neko-proto-tools")
-    add_packages("argparse")
     
     if is_plat("linux") then
         add_packages("libx11")
@@ -142,7 +138,7 @@ target("mksync")
     end
 
     -- Reflection
-    if get_config("stdcxx") == 26 then
+    if stdcxx_version() == 26 then
         add_cxxflags("-freflection", {force = true})
     end
 

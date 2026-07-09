@@ -21,7 +21,7 @@ v0.1 的目标是跑通最小可用的跨机器输入链路：
 
 ## 当前进度
 
-最后更新：2026-06-28。
+最后更新：2026-07-08。
 
 当前 checklist：
 
@@ -54,9 +54,15 @@ v0.1 的目标是跑通最小可用的跨机器输入链路：
 - [x] Client 收到输入消息后调用 `InputInjector::inject`。
 - [x] `test_client` 覆盖 `InputMessage` 到 `MockInputInjector` 的注入。
 - [x] 用 Mock Platform 跑通 Server -> Client -> MockInjector 测试。
+- [x] 用 Mock Platform 覆盖完整操作流程：跨到远端、键盘传递、回本机、键盘停止转发。
 - [x] 实现 Win32 `InputInjector`。
 - [x] 实现 XCB/Linux `InputInjector`。
 - [x] XCB/XInput2 capture 改为使用 ilias poll，不再使用独立线程。
+- [x] 修复 `xmake f --stdcxx=26` 时 `stdcxx` 传给 `ilias` 包配置的类型问题。
+- [x] 新增 `mksync --check-platform` 平台后端 smoke check 模式。
+- [x] 当前 GCC 14.2 / C++23 环境下，Linux/XCB 主目标已完成编译和链接检查。
+- [x] Linux/X11 真机 `mksync --check-platform` 初始化检查通过，确认 XInput 2.0 和 XTest 2.2 可用。
+- [x] Linux/X11 真机捕获到连续 `MouseMoveEvent`，确认 XInput2 事件解码可用。
 - [x] 远端 active screen 上按本机 `MouseMoveEvent` delta 连续发送远端鼠标移动。
 - [x] 处理远端屏幕切回本机屏幕。
 - [x] 处理跨多个远端屏幕。
@@ -484,8 +490,13 @@ Todo：
 - [x] XCB/Linux 注入器使用 XTest/Xlib 注入鼠标移动、按钮、滚轮和键盘事件。
 - [x] XCB/Linux 注入器已接入 `XcbPlatform::createInjector()`。
 - [x] Linux 构建依赖增加 `libxtst`。
-- [x] `xmake build` 已通过。
-- [x] `xmake test` 已通过。
+- [x] 修复 `xmake f --stdcxx=26` 命令行配置会把 `stdcxx` 作为字符串传给 `ilias` 的问题。
+- [x] 新增 `mksync --check-platform`，可在真机上枚举屏幕并初始化/关闭 capture 与 injector。
+- [x] Linux/X11 真机运行 `mksync --check-platform` 已通过，环境报告单屏 3600x1080、XInput 2.0、XTest 2.2。
+- [x] Linux/X11 真机捕获到连续 `MouseMoveEvent`，确认 XInput2 事件解码可用。
+- [x] 在当前 GCC 14.2 / C++23 环境下，`xmake build mksync` 已通过。
+- [x] 在当前 GCC 14.2 / C++23 环境下，`xmake test` 已通过。
+- [ ] 当前环境 GCC 14.2 不支持 `-freflection`，尚未完成 GCC 16.1 / C++26 编译验收。
 - [ ] 尚未做会实际移动本机鼠标的手工验收。
 - [ ] 尚未做 Linux/XCB 真机编译和注入验收。
 
@@ -512,6 +523,8 @@ Todo：
 - [x] Server 侧连续鼠标移动可进入远端发送队列。
 - [x] 远端屏幕可通过左边缘切回本机屏幕。
 - [x] 远端 active screen 可跨到同 endpoint 的下一块远端屏幕。
+- [x] 完整 Mock 流程中，远端键盘按下/释放进入 Client injector。
+- [x] 完整 Mock 流程中，鼠标回到本机后键盘事件不再转发给远端。
 - [ ] 键盘事件在真实远端系统生效。
 - [ ] 鼠标事件在真实远端系统生效。
 
@@ -520,6 +533,7 @@ Todo：
 - [x] 已新增 `test_server` 覆盖右边缘切换和无邻居保持。
 - [x] 已新增 `test_server` 覆盖远端发送队列中的 `InputMessage`。
 - [x] 已新增 `test_input_pipeline` 覆盖 Server -> RpcTransport -> Client -> MockInjector。
+- [x] `test_input_pipeline` 已覆盖完整 Mock 操作流程。
 - [x] `test_server` 和 `test_input_pipeline` 已覆盖远端 active screen 上的连续鼠标移动。
 - [x] `test_server` 已覆盖远端屏幕切回本机屏幕。
 - [x] `test_server` 已覆盖跨多个远端屏幕。

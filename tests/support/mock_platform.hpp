@@ -29,6 +29,15 @@ public:
         throw std::runtime_error("MockInputCapture::nextEvent called after shutdown");
     }
 
+    auto setRemoteControlActive(bool active) -> IoResult<void> override {
+        mRemoteControlActive = active;
+        return {};
+    }
+
+    auto remoteControlActive() const -> bool {
+        return mRemoteControlActive;
+    }
+
     auto push(InputEvent event) -> bool {
         if (!mSender) {
             return false;
@@ -39,6 +48,7 @@ public:
 private:
     ilias::mpsc::Sender<InputEvent> mSender;
     ilias::mpsc::Receiver<InputEvent> mReceiver;
+    bool mRemoteControlActive = false;
 };
 
 class MockInputInjector final : public InputInjector {

@@ -2,6 +2,8 @@
 #include "rpc/transport.hpp"
 #include "rpc/message.hpp"
 #include "client.hpp"
+#include <cerrno>
+#include <cstring>
 
 MKS_BEGIN
 
@@ -17,7 +19,9 @@ Client::Client(IPEndpoint endpoint, AppConfig config)
 
 auto Client::run() -> IoTask<void> {
     auto platform = Platform::create();
-    assert(platform);
+    if (!platform) {
+        co_return Err(std::make_error_code(std::errc::operation_not_supported));
+    }
 
     auto injector = platform->createInjector();
     if (!injector) {
@@ -29,9 +33,12 @@ auto Client::run() -> IoTask<void> {
     ILIAS_CO_TRY(auto stream, co_await TcpStream::connect(mEndpoint));
 
     // Send Hello to it
-    char computerNameBuf[256];
-    auto computerNameLen = ::gethostname(computerNameBuf, sizeof(computerNameBuf));
-    assert(computerNameLen != -1);
+    char computerNameBuf[256] {};
+    if (::gethostname(computerNameBuf, sizeof(computerNameBuf)) == -1) {
+        co_return Err(std::error_code(errno, std::generic_category()));
+    }
+    computerNameBuf[sizeof(computerNameBuf) - 1] = '\0';
+    auto computerNameLen = std::strlen(computerNameBuf);
     std::string_view computerName {computerNameBuf, static_cast<size_t>(computerNameLen)};
     SPDLOG_INFO("Computer name: {}", computerName);
 
@@ -48,13 +55,20 @@ auto Client::run() -> IoTask<void> {
     ILIAS_CO_TRYV(co_await injector->initialize());
 
     // Start the reader part and the writer part
-    co_await ilias::finally(
+    auto [readResult, writeResult] = co_await ilias::finally(
         ilias::whenAny(
             handleRead(&transport, injector.get()),
             handleWrite(platform.get(), &transport)
         ),
         injector->shutdown()
     );
+
+    if (readResult) {
+        ILIAS_CO_TRYV(std::move(*readResult));
+    }
+    if (writeResult) {
+        ILIAS_CO_TRYV(std::move(*writeResult));
+    }
     co_return {};
 }
 
