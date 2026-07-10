@@ -1,0 +1,6 @@
+command='server'
+[params]
+endpoint='0.0.0.0:1234'
+[params.common]
+configPath='mksync.json'
+logLevel='trace'

@@ -72,18 +72,6 @@ static auto parseLogLevel(std::string_view text) -> spdlog::level::level_enum
     return spdlog::level::info;
 }
 
-static auto configuredLogLevel() -> spdlog::level::level_enum
-{
-    if (const auto *level = std::getenv("MKSYNC_LOG_LEVEL"); level && *level) {
-        return parseLogLevel(level);
-    }
-#if MKS_DEBUG
-    return spdlog::level::trace;
-#else
-    return spdlog::level::info;
-#endif
-}
-
 static void initializeLogging()
 {
     static std::once_flag once;
@@ -104,15 +92,8 @@ static void initializeLogging()
                 sinks.end()
             );
             logger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] [%s:%#] %v");
-            const auto logLevel = configuredLogLevel();
-            logger->set_level(logLevel);
-            logger->flush_on(logLevel <= spdlog::level::debug ? logLevel : spdlog::level::info);
+            logger->flush_on(spdlog::level::info);
             spdlog::set_default_logger(std::move(logger));
-            SPDLOG_INFO(
-                "Logging to {} level={}",
-                logPath.string(),
-                spdlog::level::to_string_view(logLevel)
-            );
         }
         catch (const std::exception &err) {
             std::cerr << "Failed to initialize file logging: " << err.what() << '\n';
@@ -196,6 +177,9 @@ static auto makeParserConfig() -> NekoProto::argparser::ArgParserConfig
     config.version     = MKS_VERSION_STR;
     config.configIo.emplace();
     config.configIo->enableFormat("toml");
+    config.deprecatedOptionHandler = [](std::string_view optionName, std::string_view message) {
+        SPDLOG_WARN("Option '{}' is deprecated: {}", optionName, message);
+    };
     // config.configIo->enableFormat("json");
     return config;
 }
@@ -260,6 +244,7 @@ void ilias_main(int argc, char **argv)
     }
 
     if (std::holds_alternative<mks::CheckPlatformCommand>(*command)) {
+        spdlog::set_level(parseLogLevel("trace"));
         auto checked = co_await runPlatformCheck();
         if (!checked) {
             SPDLOG_ERROR("Platform check failed: {}", checked.error().message());
@@ -269,12 +254,13 @@ void ilias_main(int argc, char **argv)
     }
 
     if (const auto *serverCommand = std::get_if<mks::ServerCommand>(&*command)) {
+        spdlog::set_level(parseLogLevel(serverCommand->common.logLevel));
         auto endpoint = ilias::IPEndpoint::fromString(serverCommand->endpoint);
         if (!endpoint) {
             SPDLOG_ERROR("Invalid endpoint: {}", serverCommand->endpoint);
             co_return;
         }
-        auto loaded = loadAppConfig(serverCommand->configPath);
+        auto loaded = loadAppConfig(serverCommand->common.configPath);
         if (!loaded) {
             co_return;
         }
@@ -291,12 +277,13 @@ void ilias_main(int argc, char **argv)
         }
     }
     else if (const auto *clientCommand = std::get_if<mks::ClientCommand>(&*command)) {
+        spdlog::set_level(parseLogLevel(clientCommand->common.logLevel));
         auto endpoint = ilias::IPEndpoint::fromString(clientCommand->endpoint);
         if (!endpoint) {
             SPDLOG_ERROR("Invalid endpoint: {}", clientCommand->endpoint);
             co_return;
         }
-        auto loaded = loadAppConfig(clientCommand->configPath);
+        auto loaded = loadAppConfig(clientCommand->common.configPath);
         if (!loaded) {
             co_return;
         }
