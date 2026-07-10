@@ -143,6 +143,7 @@ auto Server::acceptIncomingConnections(TcpListener listener) -> Task<void> {
             }
             auto &[sock, endpoint] = *incoming;
             (void) endpoint;
+            (void) sock.setOption(ilias::sockopt::TcpNoDelay(true));
             scope.spawn(handleIncoming(std::move(sock)));
         }
     });
