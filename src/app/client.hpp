@@ -6,6 +6,7 @@
 #include <ilias/task.hpp>
 #include <ilias/net.hpp>
 #include <map>
+#include <optional>
 
 MKS_BEGIN
 
@@ -33,9 +34,11 @@ private:
     auto handleWrite(void *platform, void *transport) -> IoTask<void>;
     auto handleRead(void *transport, void *injector) -> IoTask<void>;
     auto handleMessage(const RpcMessage &message, InputInjector &injector) -> IoTask<void>;
+    auto shutdownConnection(RpcTransport *transport, InputInjector *injector) -> Task<void>;
 
     IPEndpoint mEndpoint;
     AppConfig mConfig;
+    std::optional<uint32_t> mLastInjectedMouseScreen;
 };
 
 MKS_END

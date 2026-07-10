@@ -168,6 +168,62 @@ TEST(ServerScreenRegistry, UsesConfiguredScreenCells) {
     EXPECT_EQ(remote->cell, (mks::GridPosition {.x = 0, .y = 1}));
 }
 
+TEST(ServerScreenRegistry, RepairsStaleRemoteCellAfterLocalMonitorAdded) {
+    auto localEndpoint = makeEndpoint(30026);
+    auto remoteEndpoint = makeEndpoint(30027);
+    auto localOwnerId = std::string {"machine-local"};
+    auto remoteOwnerId = std::string {"machine-remote"};
+    auto server = mks::Server {localEndpoint, mks::AppConfig {
+        .machineId = localOwnerId,
+        // This is an auto-saved position from when the server only had its
+        // primary monitor. A newly attached local monitor now takes (1, 0).
+        .screens = {
+            mks::ScreenLayoutConfig {
+                .ownerId = localOwnerId,
+                .screenIndex = 0,
+                .cell = {.x = 0, .y = 0},
+            },
+            mks::ScreenLayoutConfig {
+                .ownerId = remoteOwnerId,
+                .screenIndex = 0,
+                .cell = {.x = 1, .y = 0},
+            },
+        },
+        .trustedClients = {},
+    }};
+
+    server.registerScreensForTest(localEndpoint, localOwnerId, {
+        makeScreen("local-primary", 1920, 1080, true),
+        makeScreen("local-side", 1280, 720, false),
+    }, true);
+    server.registerScreensForTest(remoteEndpoint, remoteOwnerId, {
+        makeScreen("remote-primary", 2560, 1440, true),
+    }, false);
+
+    auto screens = server.topologyScreens();
+    ASSERT_EQ(screens.size(), 3U);
+
+    auto *localSide = findScreen(screens, localOwnerId, 1);
+    ASSERT_NE(localSide, nullptr);
+    EXPECT_EQ(localSide->cell, (mks::GridPosition {.x = 1, .y = 0}));
+
+    auto *remote = findScreen(screens, remoteOwnerId, 0);
+    ASSERT_NE(remote, nullptr);
+    EXPECT_EQ(remote->cell, (mks::GridPosition {.x = 2, .y = 0}));
+
+    auto persistedRemote = mks::findScreenLayout(server.configForTest(), remoteOwnerId, 0);
+    ASSERT_TRUE(persistedRemote.has_value());
+    EXPECT_EQ(*persistedRemote, (mks::GridPosition {.x = 2, .y = 0}));
+
+    server.handleInputEventForTest(mks::InputEvent {mks::MouseMoveEvent {
+        .x = 1279,
+        .y = 360,
+        .screenIndex = 1,
+    }});
+
+    EXPECT_EQ(server.activeScreenKey(), remote->key);
+}
+
 TEST(ServerScreenRegistry, PersistsRegisteredScreenCellsToConfig) {
     auto localEndpoint = makeEndpoint(30018);
     auto remoteEndpoint = makeEndpoint(30019);
@@ -367,6 +423,13 @@ TEST(ServerInputRouting, TogglesRemoteControlCaptureWhenActiveScreenChanges) {
         .y = 540,
         .screenIndex = 0,
     }});
+    EXPECT_FALSE(capture.remoteControlActive());
+
+    server.handleInputEventForTest(mks::InputEvent {mks::MouseMoveEvent {
+        .x = 1919,
+        .y = 540,
+        .screenIndex = 0,
+    }});
     EXPECT_TRUE(capture.remoteControlActive());
 
     server.handleInputEventForTest(mks::InputEvent {mks::KeyEvent {
@@ -470,6 +533,37 @@ ILIAS_TEST(ServerInputRouting, SendsInputMessagesToRemoteClient) {
     EXPECT_EQ(remoteMove->y, 730);
     EXPECT_EQ(remoteMove->screenIndex, 0U);
 
+    server.handleInputEventForTest(mks::InputEvent {mks::MouseButtonEvent {
+        .x = 1919,
+        .y = 550,
+        .screenIndex = 0,
+        .button = mks::MouseButton::Right,
+        .release = false,
+    }});
+
+    auto buttonMessage = co_await receiver.recv();
+    EXPECT_TRUE(static_cast<bool>(buttonMessage));
+    if (!buttonMessage) {
+        co_return;
+    }
+
+    auto *buttonInput = std::get_if<mks::InputMessage>(&*buttonMessage);
+    EXPECT_NE(buttonInput, nullptr);
+    if (!buttonInput) {
+        co_return;
+    }
+
+    auto *button = std::get_if<mks::MouseButtonEvent>(&buttonInput->event);
+    EXPECT_NE(button, nullptr);
+    if (!button) {
+        co_return;
+    }
+    EXPECT_EQ(button->x, 10);
+    EXPECT_EQ(button->y, 730);
+    EXPECT_EQ(button->screenIndex, 0U);
+    EXPECT_EQ(button->button, mks::MouseButton::Right);
+    EXPECT_FALSE(button->release);
+
     server.handleInputEventForTest(mks::InputEvent {mks::KeyEvent {
         .key = mks::Key::A,
         .modifiers = mks::KeyModifier::LeftCtrl,
@@ -505,7 +599,9 @@ ILIAS_TEST(ServerInputRouting, SwitchesBackToLocalAcrossRemoteLeftEdge) {
     auto localEndpoint = makeEndpoint(30010);
     auto remoteEndpoint = makeEndpoint(30011);
     auto server = mks::Server {localEndpoint};
+    auto capture = mks::test::MockInputCapture {};
     auto [sender, receiver] = ilias::mpsc::channel<mks::RpcMessage>(10);
+    server.attachCaptureForTest(&capture);
 
     server.registerScreensForTest(localEndpoint, {
         makeScreen("local-primary", 1920, 1080, true),
@@ -534,6 +630,28 @@ ILIAS_TEST(ServerInputRouting, SwitchesBackToLocalAcrossRemoteLeftEdge) {
 
     server.handleInputEventForTest(mks::InputEvent {mks::MouseMoveEvent {
         .x = 1900,
+        .y = 540,
+        .screenIndex = 0,
+    }});
+
+    EXPECT_TRUE(server.activeScreenKey().has_value());
+    if (!server.activeScreenKey()) {
+        co_return;
+    }
+    EXPECT_EQ(*server.activeScreenKey(), localKey);
+    EXPECT_FALSE(static_cast<bool>(receiver.tryRecv()));
+
+    auto cursorMove = capture.lastCursorMove();
+    EXPECT_TRUE(cursorMove.has_value());
+    if (!cursorMove) {
+        co_return;
+    }
+    EXPECT_EQ(cursorMove->screenIndex, 0U);
+    EXPECT_EQ(cursorMove->x, 1919);
+    EXPECT_EQ(cursorMove->y, 540);
+
+    server.handleInputEventForTest(mks::InputEvent {mks::MouseMoveEvent {
+        .x = 1919,
         .y = 540,
         .screenIndex = 0,
     }});

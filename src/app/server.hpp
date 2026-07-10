@@ -104,6 +104,7 @@ private:
     auto handleIncoming(TcpStream stream) -> IoTask<void>;
     auto handleClientRead(ClientState *state) -> IoTask<void>;
     auto handleClientWrite(ClientState *state) -> IoTask<void>;
+    auto shutdownClientConnection(ClientState *state) -> Task<void>;
     auto isClientTrusted(const HelloMessage &hello) const -> bool;
 
     // Input processing
@@ -112,8 +113,11 @@ private:
     auto handleMouseMove(const MouseMoveEvent &event) -> void;
     auto handleRemoteMouseMove(const MouseMoveEvent &event) -> void;
     auto switchActiveScreen(ScreenPoint point) -> void;
+    auto eventAtActivePoint(InputEvent event) const -> InputEvent;
+    auto suppressPendingLocalWarp(const ScreenPoint &point) -> bool;
+    auto moveLocalCursorToActivePoint() -> void;
     auto updateCaptureRemoteControl() -> void;
-    auto queueInputForScreen(const VirtualScreen &screen, InputEvent event) -> void;
+    auto queueInputForScreen(const VirtualScreen &screen, InputEvent event) -> bool;
 
     // Screen Manage
     auto registerScreens(IPEndpoint endpoint, const std::vector<ScreenInfo> &screens, bool local) -> void;
@@ -163,6 +167,10 @@ private:
     // Last absolute local capture sample. Remote motion currently uses
     // targetDelta = sourceDelta, so this sample is the source delta baseline.
     std::optional<MouseMoveEvent> mLastLocalMouse;
+
+    // XWarpPointer/SetCursorPos may echo one local motion event at the mapped
+    // edge pixel. Suppress that echo so returning home does not bounce back.
+    std::optional<ScreenPoint> mPendingLocalWarp;
 };
 
 MKS_END

@@ -60,7 +60,7 @@ auto Client::run() -> IoTask<void> {
             handleRead(&transport, injector.get()),
             handleWrite(platform.get(), &transport)
         ),
-        injector->shutdown()
+        shutdownConnection(&transport, injector.get())
     );
 
     if (readResult) {
@@ -70,6 +70,26 @@ auto Client::run() -> IoTask<void> {
         ILIAS_CO_TRYV(std::move(*writeResult));
     }
     co_return {};
+}
+
+auto Client::shutdownConnection(RpcTransport *transport, InputInjector *injector) -> Task<void> {
+    SPDLOG_INFO("Client shutting down connection to {}", mEndpoint);
+    if (transport) {
+        auto result = co_await transport->shutdown();
+        if (!result) {
+            SPDLOG_WARN(
+                "Client transport shutdown failed for {}: {}",
+                mEndpoint,
+                result.error().message()
+            );
+        }
+        transport->close();
+    }
+    if (injector) {
+        co_await injector->shutdown();
+    }
+    SPDLOG_INFO("Client connection shutdown complete for {}", mEndpoint);
+    co_return;
 }
 
 #ifdef MKS_ENABLE_TEST_HOOKS
@@ -103,6 +123,7 @@ auto Client::handleRead(void *_transport, void *_injector) -> IoTask<void> {
     auto injector = static_cast<InputInjector*>(_injector);
     while (true) {
         ILIAS_CO_TRY(auto msg, co_await transport->readMessage());
+        SPDLOG_TRACE("Client received message {}", msg);
         ILIAS_CO_TRYV(co_await handleMessage(msg, *injector));
     }
 }
@@ -111,11 +132,41 @@ auto Client::handleMessage(const RpcMessage &message, InputInjector &injector) -
     if (auto input = std::get_if<InputMessage>(&message)) {
         // InputMessage already carries target-client coordinates. The client
         // side should inject directly instead of re-running topology logic.
-        ILIAS_CO_TRYV(co_await injector.inject(input->event));
+        SPDLOG_TRACE("Client injecting input event {}", input->event);
+        auto injected = co_await injector.inject(input->event);
+        if (!injected) {
+            SPDLOG_WARN(
+                "Client failed to inject input event {}: {}",
+                input->event,
+                injected.error().message()
+            );
+            co_return Err(injected.error());
+        }
+
+        if (const auto *move = std::get_if<MouseMoveEvent>(&input->event)) {
+            if (!mLastInjectedMouseScreen || *mLastInjectedMouseScreen != move->screenIndex) {
+                SPDLOG_INFO(
+                    "Client cursor entered local screen={} at ({}, {})",
+                    move->screenIndex,
+                    move->x,
+                    move->y
+                );
+            }
+            else {
+                SPDLOG_TRACE(
+                    "Client cursor moved on local screen={} to ({}, {})",
+                    move->screenIndex,
+                    move->x,
+                    move->y
+                );
+            }
+            mLastInjectedMouseScreen = move->screenIndex;
+        }
+        SPDLOG_TRACE("Client injected input event {}", input->event);
         co_return {};
     }
 
-    SPDLOG_INFO("Received message: {}", message);
+    SPDLOG_TRACE("Client received non-input message {}", message);
     co_return {};
 }
 

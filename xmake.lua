@@ -16,6 +16,7 @@ set_languages(stdc(), stdcxx())
 set_warnings("allextra")
 set_encodings("utf-8")
 set_exceptions("cxx")
+add_defines("SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE")
 
 -- compile rules
 add_rules("mode.release", "mode.debug")
@@ -36,6 +37,7 @@ check_system_pkgconfig_package("has_system_fmt",              "fmt")
 check_system_pkgconfig_package("has_system_spdlog",           "spdlog")
 check_system_pkgconfig_package("has_system_gtest",            {"gtest", "gmock"})
 check_system_pkgconfig_package("has_system_xtst",             "xtst")
+check_system_pkgconfig_package("has_system_xrandr",           "xrandr")
 
 -- hide options, hide targets, pack targets
 includes("lua/hideoptions.lua")
@@ -62,10 +64,11 @@ if is_plat("linux") then
         "libx11",
         "libxcb",
         "libxi",
+        "libxrandr",
         "libxtst",
         "xcb-util-keysyms"
     )
-    -- sudo apt install libx11-dev libxi-dev libxtst-dev libxcb-keysyms1-dev libxcb-util0-dev libxcb-xtest0-dev
+    -- sudo apt install libx11-dev libxrandr-dev libxi-dev libxtst-dev libxcb-keysyms1-dev libxcb-util0-dev libxcb-xtest0-dev
 end
 
 -- msvc flags
@@ -86,6 +89,7 @@ add_requireconfs("**libportal",         {system = true, optional = true})
 add_requireconfs("**libx11",            {system = true})
 add_requireconfs("**libxcb",            {system = true})
 add_requireconfs("**libxi",             {system = true})
+add_requireconfs("**libxrandr",         {system = true})
 add_requireconfs("**libxtst",           {system = true})
 add_requireconfs("**xcb-util-keysyms",  {system = true})
     -- sudo apt install python3-pip libgirepository1.0-dev valac
@@ -107,6 +111,7 @@ target("mksync")
         add_packages("libx11")
         add_packages("libxcb")
         add_packages("libxi")
+        add_packages("libxrandr")
         add_packages("libxtst")
         add_packages("xcb-util-keysyms")
     end

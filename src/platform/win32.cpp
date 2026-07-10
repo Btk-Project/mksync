@@ -392,6 +392,36 @@ public:
         throw std::runtime_error("InputCapture::nextEvent called after shutdown");
     }
 
+    auto moveLocalCursor(uint32_t screenIndex, int32_t x, int32_t y) -> IoResult<void> override {
+        auto latch = std::latch {1};
+        auto error = std::error_code {};
+        try {
+            mPlatform->uiCall([this, &latch, &error, screenIndex, x, y]() {
+                auto point = mPlatform->localToGlobal(screenIndex, POINT {.x = x, .y = y});
+                if (!point) {
+                    error = std::make_error_code(std::errc::invalid_argument);
+                }
+                else if (!::SetCursorPos(point->x, point->y)) {
+                    error = lastErrorCode();
+                }
+                latch.count_down();
+            });
+            latch.wait();
+        }
+        catch (const std::system_error &ex) {
+            return Err(ex.code());
+        }
+        catch (...) {
+            return Err(std::make_error_code(std::errc::operation_not_supported));
+        }
+
+        if (error) {
+            return Err(error);
+        }
+        SPDLOG_TRACE("Win32 capture moved local cursor screen={} local=({}, {})", screenIndex, x, y);
+        return {};
+    }
+
     // auto notifyScreenTopologyChanged() -> void {
     //     tryEnqueue(InputEvent {
     //         .type = InputEvent::Type::ScreenChange,
@@ -446,6 +476,7 @@ private:
         if (!mSender) {
             return;
         }
+        SPDLOG_TRACE("Win32 capture event {}", event);
         if (auto result = mSender.trySend(std::move(event)); !result) {
             mDroppedEvents.fetch_add(1, std::memory_order_relaxed);
         }
@@ -745,14 +776,17 @@ public:
             co_return Err(std::make_error_code(std::errc::not_connected));
         }
 
+        SPDLOG_TRACE("Win32 injecting event {}", event);
         auto error = std::error_code {};
         std::visit([&](const auto &value) {
             error = injectOne(value);
         }, event);
 
         if (error) {
+            SPDLOG_WARN("Win32 failed to inject event {}: {}", event, error.message());
             co_return Err(error);
         }
+        SPDLOG_TRACE("Win32 injected event {}", event);
         co_return {};
     }
 private:
@@ -924,6 +958,14 @@ private:
         if (!::SetCursorPos(point->x, point->y)) {
             return fallbackError();
         }
+        SPDLOG_TRACE(
+            "Win32 moved cursor screen={} local=({}, {}) global=({}, {})",
+            screenIndex,
+            x,
+            y,
+            point->x,
+            point->y
+        );
         return {};
     }
 

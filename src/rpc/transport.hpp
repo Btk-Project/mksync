@@ -31,6 +31,8 @@ public:
 
     auto writeMessage(const RpcMessage &msg) -> IoTask<void>;
     auto readMessage() -> IoTask<RpcMessage>;
+    auto shutdown() -> IoTask<void>;
+    auto close() -> void;
 private:
     auto writeHeader(uint16_t size, MessageId id) -> IoTask<void>;
     auto readHeader() -> IoTask<std::pair<uint16_t, MessageId> >;

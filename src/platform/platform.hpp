@@ -5,6 +5,7 @@
 #include <ilias/io.hpp>
 #include <variant>
 #include <format>
+#include <system_error>
 #include "core.hpp"
 
 MKS_BEGIN
@@ -21,6 +22,12 @@ public:
     virtual auto setRemoteControlActive(bool active) -> IoResult<void> {
         (void) active;
         return {};
+    }
+    virtual auto moveLocalCursor(uint32_t screenIndex, int32_t x, int32_t y) -> IoResult<void> {
+        (void) screenIndex;
+        (void) x;
+        (void) y;
+        return Err(std::make_error_code(std::errc::operation_not_supported));
     }
 };
 

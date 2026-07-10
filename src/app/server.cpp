@@ -167,6 +167,7 @@ auto Server::waitPlatformEvent(void *_platform, void *_capture) -> Task<void> {
     // Process....
     while (true) {
         auto event = co_await capture->nextEvent();
+        SPDLOG_TRACE("Server captured platform event {}", event);
         handleInputEvent(event);
     }
 }
@@ -218,22 +219,82 @@ auto Server::handleIncoming(TcpStream socket) -> IoTask<void> {
         SPDLOG_INFO("New client connected {}, version: {}, name: {}", endpoint, hello->version, hello->name);
     }
 
-    // Handle the reader part and writer part of the connection
-    co_await ilias::whenAny(
-        handleClientRead(&state),
-        handleClientWrite(&state)
+    // Handle the reader part and writer part of the connection.
+    auto [readResult, writeResult] = co_await ilias::finally(
+        ilias::whenAny(
+            handleClientRead(&state),
+            handleClientWrite(&state)
+        ),
+        shutdownClientConnection(&state)
     );
+    if (readResult && !*readResult) {
+        SPDLOG_WARN(
+            "Server client read loop ended unexpectedly endpoint={} owner={} name={}: {}",
+            state.endpoint,
+            state.ownerId,
+            state.name,
+            readResult->error().message()
+        );
+        co_return Err(readResult->error());
+    }
+    if (writeResult && !*writeResult) {
+        SPDLOG_WARN(
+            "Server client write loop ended unexpectedly endpoint={} owner={} name={}: {}",
+            state.endpoint,
+            state.ownerId,
+            state.name,
+            writeResult->error().message()
+        );
+        co_return Err(writeResult->error());
+    }
     co_return {};
+}
+
+auto Server::shutdownClientConnection(ClientState *state) -> Task<void> {
+    if (!state) {
+        co_return;
+    }
+
+    SPDLOG_INFO(
+        "Server shutting down client connection endpoint={} owner={} name={}",
+        state->endpoint,
+        state->ownerId,
+        state->name
+    );
+    auto result = co_await state->transport.shutdown();
+    if (!result) {
+        SPDLOG_WARN(
+            "Server transport shutdown failed endpoint={} owner={} name={}: {}",
+            state->endpoint,
+            state->ownerId,
+            state->name,
+            result.error().message()
+        );
+    }
+    state->transport.close();
+    SPDLOG_INFO(
+        "Server client connection closed endpoint={} owner={} name={}",
+        state->endpoint,
+        state->ownerId,
+        state->name
+    );
+    co_return;
 }
 
 auto Server::handleClientRead(ClientState *state) -> IoTask<void> {
     while (true) {
         ILIAS_CO_TRY(auto msg, co_await state->transport.readMessage());
         if (auto screens = std::get_if<ScreensMessage>(&msg)) {
+            SPDLOG_TRACE(
+                "Server received screens endpoint={} owner={} count={}",
+                state->endpoint,
+                state->ownerId,
+                screens->screens.size()
+            );
             registerScreens(state->endpoint, state->ownerId, screens->screens, false);
             continue;
         }
-        SPDLOG_INFO("Server received message {}", msg);
+        SPDLOG_TRACE("Server received message {}", msg);
     }
     co_return {};
 }
@@ -251,13 +312,22 @@ auto Server::handleClientWrite(ClientState *state) -> IoTask<void> {
     mClientSenders[state->endpoint] = sender;
     while (true) {
         auto msg = (co_await reader.recv()).value(); // The channel cannot be closed, use .value() to unwrap the value
+        SPDLOG_TRACE("Server writing message to {}: {}", state->endpoint, msg);
         ILIAS_CO_TRYV(co_await state->transport.writeMessage(std::move(msg)));
     }
     co_return {};
 }
 
 auto Server::handleInputEvent(const InputEvent &event) -> void {
+    SPDLOG_TRACE(
+        "Server handling input event active={} point={} event={}",
+        mActiveScreen ? fmtlib::format("{}", mActiveScreen->key) : std::string {"<none>"},
+        mActivePoint ? fmtlib::format("{}", *mActivePoint) : std::string {"<none>"},
+        event
+    );
+
     if (tryHandleLocalHotkey(event)) {
+        SPDLOG_TRACE("Server consumed local hotkey event {}", event);
         return;
     }
 
@@ -269,7 +339,14 @@ auto Server::handleInputEvent(const InputEvent &event) -> void {
             handleRemoteMouseMove(*mouse);
         }
         else {
-            queueInputForScreen(*mActiveScreen, event);
+            auto routed = eventAtActivePoint(event);
+            SPDLOG_TRACE(
+                "Server routing non-move event to remote screen {} source={} routed={}",
+                mActiveScreen->key,
+                event,
+                routed
+            );
+            queueInputForScreen(*mActiveScreen, std::move(routed));
         }
         return;
     }
@@ -302,6 +379,7 @@ auto Server::tryHandleLocalHotkey(const InputEvent &event) -> bool {
 
 auto Server::handleMouseMove(const MouseMoveEvent &event) -> void {
     if (!mActiveScreen) {
+        SPDLOG_TRACE("Server ignored local mouse move because no active screen exists: {}", event);
         return;
     }
     if (!mActiveScreen->local) {
@@ -325,22 +403,37 @@ auto Server::handleMouseMove(const MouseMoveEvent &event) -> void {
     // event is handled as remote motion, this becomes the delta baseline.
     mLastLocalMouse = event;
     mActivePoint = point;
+    SPDLOG_TRACE("Server local mouse point {}", point);
+
+    if (suppressPendingLocalWarp(point)) {
+        return;
+    }
 
     auto edge = mTopology.hitEdge(point);
     if (!edge) {
+        SPDLOG_TRACE("Server local mouse remains on {}", point.key);
         return;
     }
+    SPDLOG_TRACE("Server local mouse hit edge {} at {}", *edge, point);
 
     auto target = mTopology.mapEntryPoint(point, *edge);
     if (!target) {
+        SPDLOG_TRACE(
+            "Server local mouse edge {} has no mapped target from {}: {}",
+            *edge,
+            point,
+            target.error().message()
+        );
         return;
     }
+    SPDLOG_TRACE("Server local mouse maps {} across {} to {}", point, *edge, *target);
 
     switchActiveScreen(*target);
 }
 
 auto Server::handleRemoteMouseMove(const MouseMoveEvent &event) -> void {
     if (!mActiveScreen || mActiveScreen->local) {
+        SPDLOG_TRACE("Server ignored remote mouse move without remote active screen: {}", event);
         return;
     }
     // A remote active screen has no local OS cursor to query. mActivePoint is
@@ -363,21 +456,40 @@ auto Server::handleRemoteMouseMove(const MouseMoveEvent &event) -> void {
         deltaY = event.y - mLastLocalMouse->y;
     }
     mLastLocalMouse = event;
+    SPDLOG_TRACE(
+        "Server remote mouse source={} delta=({}, {}) activePoint={}",
+        event,
+        deltaX,
+        deltaY,
+        *mActivePoint
+    );
 
     if (deltaX == 0 && deltaY == 0) {
+        SPDLOG_TRACE("Server ignored zero-delta remote mouse event {}", event);
         return;
     }
 
     auto nextPoint = *mActivePoint;
     nextPoint.x += deltaX;
     nextPoint.y += deltaY;
+    SPDLOG_TRACE("Server remote virtual cursor candidate {}", nextPoint);
 
     // Check crossing before clamping so an overshoot past the remote edge can
     // move into the neighbor instead of getting stuck at the border pixel.
     if (auto edge = mTopology.hitEdge(nextPoint)) {
+        SPDLOG_TRACE("Server remote virtual cursor hit edge {} at {}", *edge, nextPoint);
         if (auto target = mTopology.mapEntryPoint(nextPoint, *edge)) {
+            SPDLOG_TRACE("Server remote mouse maps {} across {} to {}", nextPoint, *edge, *target);
             switchActiveScreen(*target);
             return;
+        }
+        else {
+            SPDLOG_TRACE(
+                "Server remote edge {} has no mapped target from {}: {}",
+                *edge,
+                nextPoint,
+                target.error().message()
+            );
         }
     }
 
@@ -387,6 +499,7 @@ auto Server::handleRemoteMouseMove(const MouseMoveEvent &event) -> void {
     // active remote screen and send an absolute pixel position to the client.
     mActivePoint->x = std::clamp(nextPoint.x, 0, maxX);
     mActivePoint->y = std::clamp(nextPoint.y, 0, maxY);
+    SPDLOG_TRACE("Server remote virtual cursor clamped to {}", *mActivePoint);
 
     queueInputForScreen(*mActiveScreen, InputEvent {MouseMoveEvent {
         .x = mActivePoint->x,
@@ -402,21 +515,90 @@ auto Server::switchActiveScreen(ScreenPoint point) -> void {
     }
 
     if (mActiveScreen && mActiveScreen->key != screen->key) {
-        SPDLOG_INFO("Server active screen changed {} -> {}", mActiveScreen->key, screen->key);
+        SPDLOG_INFO("Server active screen changed {} -> {} at {}", mActiveScreen->key, screen->key, point);
+    }
+    else {
+        SPDLOG_TRACE("Server active screen stays on {} at {}", screen->key, point);
     }
     mActiveScreen = screen;
     mActivePoint = std::move(point);
     updateCaptureRemoteControl();
 
     if (!screen->local) {
+        mPendingLocalWarp.reset();
         // Entering a remote screen needs an immediate absolute move so the
         // client-side injector starts from the mapped entry pixel.
-        queueInputForScreen(*screen, InputEvent {MouseMoveEvent {
+        auto entry = MouseMoveEvent {
             .x = mActivePoint->x,
             .y = mActivePoint->y,
             .screenIndex = mActivePoint->key.screenIndex,
-        }});
+        };
+        if (queueInputForScreen(*screen, InputEvent {entry})) {
+            SPDLOG_INFO(
+                "Server queued remote cursor entry endpoint={} screen={} event={}",
+                screen->endpoint,
+                screen->key,
+                entry
+            );
+        }
     }
+    else {
+        moveLocalCursorToActivePoint();
+    }
+}
+
+auto Server::eventAtActivePoint(InputEvent event) const -> InputEvent {
+    if (!mActiveScreen || !mActivePoint || mActivePoint->key != mActiveScreen->key) {
+        return event;
+    }
+
+    std::visit(Overloads {
+        [&](MouseButtonEvent &button) {
+            button.x = mActivePoint->x;
+            button.y = mActivePoint->y;
+            button.screenIndex = mActivePoint->key.screenIndex;
+        },
+        [&](MouseWheelEvent &wheel) {
+            wheel.x = mActivePoint->x;
+            wheel.y = mActivePoint->y;
+        },
+        [](MouseMoveEvent &) {},
+        [](KeyEvent &) {},
+    }, event);
+    return event;
+}
+
+auto Server::suppressPendingLocalWarp(const ScreenPoint &point) -> bool {
+    if (!mPendingLocalWarp || *mPendingLocalWarp != point) {
+        return false;
+    }
+
+    SPDLOG_TRACE("Server suppressed local warp echo at {}", point);
+    mPendingLocalWarp.reset();
+    return true;
+}
+
+auto Server::moveLocalCursorToActivePoint() -> void {
+    if (!mCapture || !mActiveScreen || !mActiveScreen->local || !mActivePoint) {
+        return;
+    }
+
+    auto result = mCapture->moveLocalCursor(
+        mActivePoint->key.screenIndex,
+        mActivePoint->x,
+        mActivePoint->y
+    );
+    if (!result) {
+        SPDLOG_WARN(
+            "Server failed to move local cursor to {}: {}",
+            *mActivePoint,
+            result.error().message()
+        );
+        return;
+    }
+
+    mPendingLocalWarp = *mActivePoint;
+    SPDLOG_TRACE("Server moved local cursor to {}", *mActivePoint);
 }
 
 auto Server::updateCaptureRemoteControl() -> void {
@@ -435,23 +617,32 @@ auto Server::updateCaptureRemoteControl() -> void {
     }
 }
 
-auto Server::queueInputForScreen(const VirtualScreen &screen, InputEvent event) -> void {
+auto Server::queueInputForScreen(const VirtualScreen &screen, InputEvent event) -> bool {
     if (screen.local) {
-        return;
+        SPDLOG_TRACE("Server ignored queue for local screen {} event={}", screen.key, event);
+        return false;
     }
 
     auto it = mClientSenders.find(screen.endpoint);
     if (it == mClientSenders.end() || !it->second) {
         SPDLOG_WARN("Server has no sender for remote screen {}", screen.key);
-        return;
+        return false;
     }
 
     auto message = RpcMessage {InputMessage {
         .event = std::move(event),
     }};
+    SPDLOG_TRACE(
+        "Server queueing input for remote screen {} endpoint={} message={}",
+        screen.key,
+        screen.endpoint,
+        message
+    );
     if (!it->second.trySend(std::move(message))) {
         SPDLOG_WARN("Server failed to queue input for remote screen {}", screen.key);
+        return false;
     }
+    return true;
 }
 
 auto Server::registerScreens(IPEndpoint endpoint, const std::vector<ScreenInfo> &screens, bool local) -> void {
@@ -484,10 +675,12 @@ auto Server::registerScreens(
             .screenIndex = index,
         };
         auto cell = GridPosition {};
+        auto usedPersistedCell = false;
         if (auto configured = configuredCell(key)) {
             // Persisted layout wins over auto placement so machineId-based
             // screen identity remains stable across reconnects and restarts.
             cell = *configured;
+            usedPersistedCell = true;
             if (local && (info.primary || index == primaryIndex)) {
                 primaryRegistered = true;
             }
@@ -507,6 +700,26 @@ auto Server::registerScreens(
             // Temporary fallback for first run: pack new screens to the right.
             // Formal layout editing should write explicit cells into config.
             cell = nextFreeCell(local ? 1 : 1);
+        }
+
+        // Automatically remembered cells can become stale when the local
+        // monitor count changes. For example, a client once placed at (1, 0)
+        // collides after a second local monitor is added at that cell. Do not
+        // leave the client out of the topology: repair the stale placement by
+        // packing it to the next free cell on the right, then persist it.
+        const auto cellOccupied = std::ranges::any_of(mTopology.screens(), [&](const auto &screen) {
+            return screen.cell == cell;
+        });
+        if (usedPersistedCell && cellOccupied) {
+            const auto replacement = nextFreeCell(1);
+            SPDLOG_WARN(
+                "Server layout cell {} for screen {}:{} is occupied; moving it to {}",
+                cell,
+                key.ownerId,
+                key.screenIndex,
+                replacement
+            );
+            cell = replacement;
         }
 
         auto *screen = addScreen(
@@ -590,6 +803,7 @@ auto Server::removeScreen(IPEndpoint endpoint) -> void {
             mActiveScreen = nullptr;
             mActivePoint.reset();
             mLastLocalMouse.reset();
+            mPendingLocalWarp.reset();
             activeRemoved = true;
         }
     }
@@ -629,6 +843,7 @@ auto Server::activateFirstLocalScreen() -> void {
         .y = 0,
     };
     mLastLocalMouse.reset();
+    mPendingLocalWarp.reset();
     updateCaptureRemoteControl();
     SPDLOG_INFO("Server active screen reset to {}", mActiveScreen->key);
 }

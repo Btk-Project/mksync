@@ -27,6 +27,7 @@ auto RpcTransport::writeMessage(const RpcMessage &message) -> IoTask<void> {
             SPDLOG_ERROR("RpcTransport::writeMessage: Message too large: {} bytes", buffer.size());
             co_return Err(RpcError::MessageTooLarge);
         }
+        SPDLOG_TRACE("RpcTransport writing id={} size={} message={}", wr.Id, buffer.size(), message);
         ILIAS_CO_TRYV(co_await writeHeader(static_cast<uint16_t>(buffer.size()), wr.Id));
         ILIAS_CO_TRYV(co_await mStream.writeAll(ilias::makeBuffer(buffer)));
         co_return {};
@@ -77,7 +78,36 @@ auto RpcTransport::readMessage() -> IoTask<RpcMessage> {
         }
         return result;
     };
-    co_return findById<RpcMessage>(id, parser);
+    auto message = findById<RpcMessage>(id, parser);
+    if (message) {
+        SPDLOG_TRACE("RpcTransport read id={} size={} message={}", id, size, *message);
+    }
+    co_return message;
+}
+
+auto RpcTransport::shutdown() -> IoTask<void> {
+    if (!mStream) {
+        SPDLOG_TRACE("RpcTransport shutdown skipped because stream is already closed");
+        co_return {};
+    }
+
+    SPDLOG_TRACE("RpcTransport shutting down stream");
+    auto result = co_await mStream.shutdown();
+    if (!result) {
+        SPDLOG_WARN("RpcTransport shutdown failed: {}", result.error().message());
+        co_return Err(result.error());
+    }
+    SPDLOG_TRACE("RpcTransport stream shut down");
+    co_return {};
+}
+
+auto RpcTransport::close() -> void {
+    if (!mStream) {
+        return;
+    }
+
+    SPDLOG_TRACE("RpcTransport closing stream");
+    mStream.nextLayer().close();
 }
 
 // Header ...

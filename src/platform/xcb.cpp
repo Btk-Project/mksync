@@ -6,6 +6,7 @@
 #include <X11/Xlib.h>
 #include <X11/XF86keysym.h>
 #include <X11/extensions/XInput2.h>
+#include <X11/extensions/Xrandr.h>
 #include <X11/extensions/XTest.h>
 #include <X11/keysym.h>
 #include <poll.h>
@@ -16,7 +17,9 @@
 #endif
 
 #include <cerrno>
+#include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <limits>
 #include <memory>
 #include <mutex>
@@ -56,11 +59,30 @@ namespace {
     auto makeIoError(std::errc err) -> std::error_code {
         return std::make_error_code(err);
     }
+
+    auto envValue(const char *name) -> std::string_view {
+        const auto *value = std::getenv(name);
+        if (!value || *value == '\0') {
+            return "<unset>";
+        }
+        return value;
+    }
+
+    auto envIsSet(const char *name) -> bool {
+        const auto *value = std::getenv(name);
+        return value && *value != '\0';
+    }
+
+    auto isWaylandSession() -> bool {
+        const auto *sessionType = std::getenv("XDG_SESSION_TYPE");
+        return sessionType && std::string_view {sessionType} == "wayland";
+    }
 }
 
 struct XcbScreen {
     uint32_t index = 0;
-    xcb_window_t root = XCB_WINDOW_NONE;
+    int xScreenNumber = 0;
+    Window root = 0;
     ScreenInfo screen {};
 };
 
@@ -76,6 +98,7 @@ public:
         mDisplayName = ::XDisplayString(mDisplay);
         mDefaultScreen = ::XDefaultScreen(mDisplay);
         mRoot = ::XRootWindow(mDisplay, mDefaultScreen);
+        logSessionEnvironment();
 
         if (!queryXInput()) {
             throw std::runtime_error("XInput2 is not available");
@@ -144,6 +167,22 @@ public:
         return mRoot;
     }
 
+    auto root(uint32_t screenIndex) const -> std::optional<Window> {
+        auto lock = std::scoped_lock(mScreenMutex);
+        if (screenIndex >= mScreens.size()) {
+            return std::nullopt;
+        }
+        return mScreens[screenIndex].root;
+    }
+
+    auto xScreenNumber(uint32_t screenIndex) const -> std::optional<int> {
+        auto lock = std::scoped_lock(mScreenMutex);
+        if (screenIndex >= mScreens.size()) {
+            return std::nullopt;
+        }
+        return mScreens[screenIndex].xScreenNumber;
+    }
+
     auto localToGlobal(uint32_t screenIndex, int32_t x, int32_t y) const -> std::optional<std::pair<int32_t, int32_t>> {
         auto lock = std::scoped_lock(mScreenMutex);
         if (screenIndex >= mScreens.size()) {
@@ -170,6 +209,33 @@ public:
     auto createCapture() -> InputCapture::Ptr override;
     auto createInjector() -> InputInjector::Ptr override;
 private:
+    auto logSessionEnvironment() const -> void {
+        SPDLOG_INFO(
+            "X11 session display={} DISPLAY={} XDG_SESSION_TYPE={} WAYLAND_DISPLAY={} "
+            "SSH_CONNECTION={} SSH_CLIENT={} XAUTHORITY={}",
+            mDisplayName,
+            envValue("DISPLAY"),
+            envValue("XDG_SESSION_TYPE"),
+            envValue("WAYLAND_DISPLAY"),
+            envValue("SSH_CONNECTION"),
+            envValue("SSH_CLIENT"),
+            envValue("XAUTHORITY")
+        );
+
+        if (isWaylandSession() || envIsSet("WAYLAND_DISPLAY")) {
+            SPDLOG_WARN(
+                "Wayland session detected; XTest injection can be ignored by native Wayland "
+                "windows. Use an Xorg session or a uinput backend for system-wide input."
+            );
+        }
+        if (envIsSet("SSH_CONNECTION") || envIsSet("SSH_CLIENT")) {
+            SPDLOG_WARN(
+                "SSH session detected; verify DISPLAY/XAUTHORITY target the graphical desktop "
+                "session, not an SSH-forwarded or headless X server."
+            );
+        }
+    }
+
     auto queryXInput() -> bool {
         int event = 0;
         int error = 0;
@@ -198,6 +264,94 @@ private:
         return true;
     }
 
+    auto enumerateRandrMonitors() -> std::vector<XcbScreen> {
+        auto eventBase = 0;
+        auto errorBase = 0;
+        if (::XRRQueryExtension(mDisplay, &eventBase, &errorBase) == 0) {
+            SPDLOG_INFO("XRandR extension is not available; falling back to X root screens");
+            return {};
+        }
+
+        auto major = 1;
+        auto minor = 5;
+        if (::XRRQueryVersion(mDisplay, &major, &minor) == 0) {
+            SPDLOG_WARN("XRRQueryVersion failed; falling back to X root screens");
+            return {};
+        }
+
+        SPDLOG_INFO("Using XRandR {}.{} for monitor layout", major, minor);
+        if (major < 1 || (major == 1 && minor < 5)) {
+            SPDLOG_WARN("XRandR monitor API requires 1.5; falling back to X root screens");
+            return {};
+        }
+
+        auto monitorCount = 0;
+        auto *rawMonitors = ::XRRGetMonitors(mDisplay, mRoot, True, &monitorCount);
+        auto monitors = std::unique_ptr<XRRMonitorInfo, decltype(&XRRFreeMonitors)> {
+            rawMonitors,
+            &XRRFreeMonitors
+        };
+        if (!rawMonitors || monitorCount <= 0) {
+            SPDLOG_WARN("XRRGetMonitors returned no active monitors; falling back to X root screens");
+            return {};
+        }
+
+        std::vector<XcbScreen> screens;
+        screens.reserve(static_cast<size_t>(monitorCount));
+        for (auto monitorIndex = 0; monitorIndex < monitorCount; ++monitorIndex) {
+            const auto &monitor = rawMonitors[monitorIndex];
+            if (monitor.width <= 0 || monitor.height <= 0) {
+                SPDLOG_WARN(
+                    "Ignoring invalid XRandR monitor index={} rect=({}, {}) {}x{}",
+                    monitorIndex,
+                    monitor.x,
+                    monitor.y,
+                    monitor.width,
+                    monitor.height
+                );
+                continue;
+            }
+
+            const auto widthMm = static_cast<int32_t>(monitor.mwidth);
+            const auto dpi = widthMm > 0
+                ? static_cast<int32_t>(std::lround(monitor.width * 25.4 / widthMm))
+                : 72;
+            const auto index = static_cast<uint32_t>(screens.size());
+            screens.push_back(XcbScreen {
+                .index = index,
+                .xScreenNumber = mDefaultScreen,
+                .root = mRoot,
+                .screen = ScreenInfo {
+                    .x = static_cast<int32_t>(monitor.x),
+                    .y = static_cast<int32_t>(monitor.y),
+                    .width = static_cast<int32_t>(monitor.width),
+                    .height = static_cast<int32_t>(monitor.height),
+                    .dpi = dpi,
+                    .name = monitorName(monitor.name, index),
+                    .primary = monitor.primary != 0,
+                }
+            });
+        }
+
+        return screens;
+    }
+
+    auto monitorName(Atom atom, uint32_t index) const -> std::string {
+        if (atom == 0) {
+            return fmtlib::format("monitor-{}", index);
+        }
+
+        auto *name = ::XGetAtomName(mDisplay, atom);
+        if (!name) {
+            return fmtlib::format("monitor-{}", index);
+        }
+        auto guard = std::unique_ptr<char, decltype(&XFree)> {name, &XFree};
+        if (*name == '\0') {
+            return fmtlib::format("monitor-{}", index);
+        }
+        return name;
+    }
+
     auto enumerateScreens() -> void {
         int defaultScreen = 0;
         auto *connection = ::xcb_connect(mDisplayName.empty() ? nullptr : mDisplayName.c_str(), &defaultScreen);
@@ -214,9 +368,9 @@ private:
             throw std::runtime_error(fmtlib::format("XCB connection failed with error {}", error));
         }
 
-        std::vector<XcbScreen> screens;
+        auto screens = enumerateRandrMonitors();
         auto iter = ::xcb_setup_roots_iterator(::xcb_get_setup(connection));
-        for (auto index = 0U; iter.rem != 0; ::xcb_screen_next(&iter), ++index) {
+        for (auto index = 0U; screens.empty() && iter.rem != 0; ::xcb_screen_next(&iter), ++index) {
             const auto *screen = iter.data;
             const auto width = static_cast<int32_t>(screen->width_in_pixels);
             const auto height = static_cast<int32_t>(screen->height_in_pixels);
@@ -225,7 +379,8 @@ private:
 
             screens.push_back(XcbScreen {
                 .index = index,
-                .root = screen->root,
+                .xScreenNumber = static_cast<int>(index),
+                .root = static_cast<Window>(screen->root),
                 .screen = ScreenInfo {
                     .x = 0,
                     .y = 0,
@@ -324,6 +479,33 @@ public:
         return acquireRemoteControl();
     }
 
+    auto moveLocalCursor(uint32_t screenIndex, int32_t x, int32_t y) -> IoResult<void> override {
+        if (!mDisplay) {
+            return Err(std::make_error_code(std::errc::not_connected));
+        }
+
+        auto global = mPlatform->localToGlobal(screenIndex, x, y);
+        if (!global) {
+            return Err(std::make_error_code(std::errc::invalid_argument));
+        }
+        auto root = mPlatform->root(screenIndex).value_or(mPlatform->root());
+
+        if (::XWarpPointer(mDisplay, 0, root, 0, 0, 0, 0, global->first, global->second) == 0) {
+            return Err(inputError());
+        }
+        mLastCorePointer = *global;
+        ::XFlush(mDisplay);
+        SPDLOG_TRACE(
+            "XInput2 capture moved local cursor screen={} local=({}, {}) global=({}, {})",
+            screenIndex,
+            x,
+            y,
+            global->first,
+            global->second
+        );
+        return {};
+    }
+
     auto nextEvent() -> Task<InputEvent> override {
         if (!mDisplay || !mPoller) {
             throw std::runtime_error("InputCapture::nextEvent called after shutdown");
@@ -336,6 +518,7 @@ public:
                 XEvent event {};
                 ::XNextEvent(mDisplay, &event);
                 if (auto translated = translateEvent(mDisplay, &event)) {
+                    SPDLOG_TRACE("XInput2 capture event {}", *translated);
                     co_return std::move(*translated);
                 }
             }
@@ -995,7 +1178,14 @@ public:
             co_return Err(makeIoError(std::errc::operation_not_supported));
         }
 
-        SPDLOG_INFO("Using XTest {}.{} for input injection", major, minor);
+        SPDLOG_INFO(
+            "Using XTest {}.{} for input injection display={} eventBase={} errorBase={}",
+            major,
+            minor,
+            mPlatform->displayName(),
+            eventBase,
+            errorBase
+        );
         co_return {};
     }
 
@@ -1009,14 +1199,17 @@ public:
             co_return Err(std::make_error_code(std::errc::not_connected));
         }
 
+        SPDLOG_TRACE("XTest injecting event {}", event);
         auto error = std::error_code {};
         std::visit([&](const auto &value) {
             error = injectOne(value);
         }, event);
 
         if (error) {
+            SPDLOG_WARN("XTest failed to inject event {}: {}", event, error.message());
             co_return Err(error);
         }
+        SPDLOG_TRACE("XTest injected event {}", event);
         co_return {};
     }
 private:
@@ -1052,13 +1245,73 @@ private:
         if (!global) {
             return std::make_error_code(std::errc::invalid_argument);
         }
+        const auto xScreenNumber = mPlatform->xScreenNumber(screenIndex);
+        if (!xScreenNumber) {
+            return std::make_error_code(std::errc::invalid_argument);
+        }
 
-        // XWarpPointer wants root coordinates. The server already mapped the
-        // target screen entry point, so this is only a coordinate-space bridge.
-        if (::XWarpPointer(mDisplay, 0, mPlatform->root(), 0, 0, 0, 0, global->first, global->second) == 0) {
+        // The server already mapped the target screen entry point. Inject a
+        // real XTest motion event so the remote desktop updates its cursor.
+        if (::XTestFakeMotionEvent(
+            mDisplay,
+            *xScreenNumber,
+            global->first,
+            global->second,
+            CurrentTime
+        ) == 0) {
             return inputError();
         }
-        return flush();
+        if (auto error = flush(); error) {
+            return error;
+        }
+        const auto observed = queryPointer();
+        if (!observed) {
+            SPDLOG_WARN(
+                "XTest moved cursor request accepted but XQueryPointer failed screen={} "
+                "local=({}, {}) global=({}, {})",
+                screenIndex,
+                x,
+                y,
+                global->first,
+                global->second
+            );
+        }
+        else if (observed->first != global->first || observed->second != global->second) {
+            SPDLOG_WARN(
+                "XTest moved cursor request accepted but pointer is at global=({}, {}), "
+                "expected global=({}, {}) screen={} local=({}, {})",
+                observed->first,
+                observed->second,
+                global->first,
+                global->second,
+                screenIndex,
+                x,
+                y
+            );
+        }
+        SPDLOG_TRACE(
+            "XTest moved cursor screen={} local=({}, {}) global=({}, {})",
+            screenIndex,
+            x,
+            y,
+            global->first,
+            global->second
+        );
+        return {};
+    }
+
+    auto queryPointer() const -> std::optional<std::pair<int32_t, int32_t>> {
+        Window root = 0;
+        Window child = 0;
+        int rootX = 0;
+        int rootY = 0;
+        int windowX = 0;
+        int windowY = 0;
+        unsigned int mask = 0;
+        if (::XQueryPointer(mDisplay, mPlatform->root(), &root, &child, &rootX, &rootY, &windowX, &windowY, &mask) == 0) {
+            return std::nullopt;
+        }
+        return std::pair {static_cast<int32_t>(rootX), static_cast<int32_t>(rootY)};
     }
 
     auto fakeButton(unsigned int button, bool press) -> std::error_code {

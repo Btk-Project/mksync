@@ -9,6 +9,7 @@
 #include "config/arg_config.hpp"
 #include "core.hpp"
 #include "platform/platform.hpp"
+#include <cctype>
 #include <filesystem>
 #include <stacktrace>
 #include <csignal>
@@ -16,6 +17,8 @@
 #include <iostream>
 #include <optional>
 #include <print>
+#include <string>
+#include <string_view>
 #include <system_error>
 #include <variant>
 
@@ -40,6 +43,47 @@ static auto logFilePath() -> std::filesystem::path
     return "mksync.log";
 }
 
+static auto parseLogLevel(std::string_view text) -> spdlog::level::level_enum
+{
+    auto normalized = std::string {};
+    normalized.reserve(text.size());
+    for (auto ch : text) {
+        normalized.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
+    }
+
+    if (normalized == "trace") {
+        return spdlog::level::trace;
+    }
+    if (normalized == "debug") {
+        return spdlog::level::debug;
+    }
+    if (normalized == "warn" || normalized == "warning") {
+        return spdlog::level::warn;
+    }
+    if (normalized == "err" || normalized == "error") {
+        return spdlog::level::err;
+    }
+    if (normalized == "critical") {
+        return spdlog::level::critical;
+    }
+    if (normalized == "off") {
+        return spdlog::level::off;
+    }
+    return spdlog::level::info;
+}
+
+static auto configuredLogLevel() -> spdlog::level::level_enum
+{
+    if (const auto *level = std::getenv("MKSYNC_LOG_LEVEL"); level && *level) {
+        return parseLogLevel(level);
+    }
+#if MKS_DEBUG
+    return spdlog::level::trace;
+#else
+    return spdlog::level::info;
+#endif
+}
+
 static void initializeLogging()
 {
     static std::once_flag once;
@@ -60,9 +104,15 @@ static void initializeLogging()
                 sinks.end()
             );
             logger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] [%s:%#] %v");
-            logger->flush_on(spdlog::level::info);
+            const auto logLevel = configuredLogLevel();
+            logger->set_level(logLevel);
+            logger->flush_on(logLevel <= spdlog::level::debug ? logLevel : spdlog::level::info);
             spdlog::set_default_logger(std::move(logger));
-            SPDLOG_INFO("Logging to {}", logPath.string());
+            SPDLOG_INFO(
+                "Logging to {} level={}",
+                logPath.string(),
+                spdlog::level::to_string_view(logLevel)
+            );
         }
         catch (const std::exception &err) {
             std::cerr << "Failed to initialize file logging: " << err.what() << '\n';

@@ -3,9 +3,16 @@
 #include "platform/platform.hpp"
 #include <ilias/sync.hpp>
 #include <mutex>
+#include <optional>
 #include <vector>
 
 namespace mks::test {
+
+struct MockCursorMove {
+    uint32_t screenIndex = 0;
+    int32_t x = 0;
+    int32_t y = 0;
+};
 
 class MockInputCapture final : public InputCapture {
 public:
@@ -34,8 +41,21 @@ public:
         return {};
     }
 
+    auto moveLocalCursor(uint32_t screenIndex, int32_t x, int32_t y) -> IoResult<void> override {
+        mLastCursorMove = MockCursorMove {
+            .screenIndex = screenIndex,
+            .x = x,
+            .y = y,
+        };
+        return {};
+    }
+
     auto remoteControlActive() const -> bool {
         return mRemoteControlActive;
+    }
+
+    auto lastCursorMove() const -> std::optional<MockCursorMove> {
+        return mLastCursorMove;
     }
 
     auto push(InputEvent event) -> bool {
@@ -49,6 +69,7 @@ private:
     ilias::mpsc::Sender<InputEvent> mSender;
     ilias::mpsc::Receiver<InputEvent> mReceiver;
     bool mRemoteControlActive = false;
+    std::optional<MockCursorMove> mLastCursorMove;
 };
 
 class MockInputInjector final : public InputInjector {

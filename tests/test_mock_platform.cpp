@@ -65,6 +65,22 @@ ILIAS_TEST(MockPlatform, CaptureCanPushAndReceiveEvents) {
     co_return;
 }
 
+TEST(MockPlatform, CaptureRecordsLocalCursorMoves) {
+    auto platform = mks::test::MockPlatform {{
+        makeScreen("primary", 1920, 1080, true),
+    }};
+    auto capture = platform.capture();
+
+    auto result = capture->moveLocalCursor(0, 640, 360);
+    ASSERT_TRUE(result.has_value()) << result.error().message();
+
+    auto move = capture->lastCursorMove();
+    ASSERT_TRUE(move.has_value());
+    EXPECT_EQ(move->screenIndex, 0U);
+    EXPECT_EQ(move->x, 640);
+    EXPECT_EQ(move->y, 360);
+}
+
 ILIAS_TEST(MockPlatform, InjectorRecordsInjectedEvents) {
     auto platform = mks::test::MockPlatform {{
         makeScreen("primary", 1920, 1080, true),
