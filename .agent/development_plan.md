@@ -2,8 +2,9 @@
 
 当前详细开发计划文档位于：
 
-- `docs/development_plan.md`
-- `docs/xcb_backend.md`
+- `docs/development_plan.md`（功能里程碑 M1–M8 + 开放问题）
+- `docs/framework.md`（当前架构快照）
+- `docs/xcb_backend.md`（Linux/X11；本轮不改 xcb 实现）
 
 当前关键决策：
 
@@ -12,62 +13,32 @@
 - Client 必须上报真实 screen rect，Server 保存这些 rect。
 - 平台捕获、Server 转发和 Client 注入都使用目标屏幕真实像素坐标。
 - 归一化比例只允许作为边缘入口映射的临时计算，不作为运行时坐标系统。
-- 当前阶段不做复杂手感或移速统一；鼠标 delta/DPI/DPS 策略留到最小链路跑通后。
-- 优先实现 Mock Platform，以便拓扑和跨端输入流程可自动化测试。
-- XCB/XInput2 capture 已使用 ilias poll 监听 X connection fd，不再使用独立线程。
+- `MouseMoveEvent` 可带 `deltaX/deltaY`；远端连续运动优先相对增量。
+- 当前阶段不做复杂手感或移速统一；DPI/DPS 策略后置。
+- 优先 Mock Platform 自动化测试；真机联调仍是未完成验收。
+- XCB/XInput2 capture 已使用 ilias poll；**后续 xcb 改动单独走 `xcb_backend.md`**。
+- 代码风格：Result/IoTask、结构化并发、避免 god class / 巨型 dispatch 面条。
 
-当前进度：
+当前进度（摘要）：
 
-- [x] M1 新增 `ScreenTopology`。
-- [x] M1 增加 `test_topology`。
-- [x] M3 Server 保存 Client endpoint 和 Hello name。
-- [x] M3 Server 处理 `ScreensMessage`。
-- [x] M3 Server 注册本机和远端屏幕。
-- [x] M3 增加 `test_server`。
-- [x] M4 新增 `MockPlatform`。
-- [x] M4 新增 `MockInputCapture`。
-- [x] M4 新增 `MockInputInjector`。
-- [x] M4 增加 `test_mock_platform`。
-- [x] M6 Server 内部 active screen 可从本机切到右侧远端屏幕。
-- [x] M6 右边缘切换和无邻居保持已有测试覆盖。
-- [x] M2 定义最小 `InputMessage`。
-- [x] M2 增加 `InputMessage` 的 `RpcTransport` roundtrip 测试。
-- [x] M2 增加 `InputMessage` 格式化测试。
-- [x] M5 Client 初始化 `InputInjector`。
-- [x] M5 Client 收到输入消息后调用 `InputInjector::inject`。
-- [x] M5 增加 `test_client` 覆盖 `InputMessage` 到 `MockInputInjector`。
-- [x] M6 Server 切入远端屏幕时发送入口 `MouseMoveEvent`。
-- [x] M6 Server 在远端 active screen 上转发非 `MouseMoveEvent` 输入。
-- [x] M6 增加 `test_input_pipeline` 覆盖 Server -> RpcTransport -> Client -> MockInjector。
-- [x] M6 增加完整 Mock 操作流程测试：鼠标跨到远端、远端键盘传递、鼠标回本机、本机键盘不再转发。
-- [x] M6 按 `targetDelta = sourceDelta` 处理远端 active screen 上的连续鼠标移动。
-- [x] M6 处理远端屏幕切回本机屏幕。
-- [x] M6 处理跨多个远端屏幕。
-- [x] M5 实现 Win32 最小 `InputInjector`。
-- [x] M5 Win32 鼠标移动、按钮、滚轮、键盘按下和释放使用真实平台 API 注入。
-- [x] M7 新增 `AppConfig`。
-- [x] M7 配置可保存 `machineId`、可信 Client 和屏幕网格布局。
-- [x] M7 增加 `test_config` 覆盖配置 JSON 和文件读写。
-- [x] M3 Server 注册屏幕时可优先使用配置中的网格位置。
-- [x] M7 CLI/运行入口加载或创建配置文件并传给 Server。
-- [x] M7 Server 支持可信 Client 名称白名单。
-- [x] M2 `HelloMessage` 携带 `machineId`。
-- [x] M3 Client 握手发送配置中的本机 `machineId`。
-- [x] M3 Server 使用 `HelloMessage.machineId` 作为远端屏幕 owner id，缺失时回退 endpoint。
-- [x] M7 Server 支持可信 Client `machineId` 白名单。
-- [x] M7 Server 注册屏幕后回写并保存当前屏幕布局到配置文件。
-- [x] M7 重启加载配置后，拓扑布局按 `machineId` 恢复且不依赖连接顺序。
-- [x] M5 实现 XCB/Linux 最小 `InputInjector`，使用 XTest/Xlib 注入鼠标和键盘事件。
-- [x] XCB/XInput2 capture 改为使用 ilias poll 后端，不再创建独立线程。
-- [x] 修复 `xmake f --stdcxx=26` 时 `stdcxx` 以字符串传给 `ilias` 包配置的问题。
-- [x] 新增 `mksync --check-platform`，用于枚举屏幕并初始化/关闭 capture 与 injector。
-- [x] 在当前 GCC 14.2 / C++23 环境下完成 Linux/XCB 主目标编译和链接检查。
-- [x] Linux/X11 真机运行 `mksync --check-platform` 通过：XInput 2.0、XTest 2.2、单屏 3600x1080。
-- [x] Linux/X11 真机捕获到连续 `MouseMoveEvent`，确认 XInput2 事件解码可用。
-- [ ] M5 XCB/Linux 注入器尚未做 GCC 16.1 / C++26 真机编译和注入验收。
+- [x] M1–M4：拓扑、协议最小集、Mock Platform、相关测试。
+- [x] M5–M6：Client 注入、Server 跨屏与远端连续移动、Win32/XCB 最小 injector（xcb 细节见专文）。
+- [x] M7：AppConfig / machineId / 布局持久化 / 信任白名单（空列表仍=开发态全信任）。
+- [x] 2026-07-10：完成代码 review；文档与 M8 债务清单同步。
+- [ ] M5/M6 真机注入与跨机联调验收。
+- [ ] M7 认证策略与“未授权不能注入”。
+- [ ] M8 可靠性与结构拆分（不碰 xcb）。
 
-下一步：
+下一步（与 `docs/development_plan.md` M8 对齐）：
 
-- [ ] 更深入的捕获/注入验收放到独立测试目标或专用工具，不塞进主程序。
-- [ ] 做 Linux/XCB 实际注入验收。
-- [ ] 完成真实 Server/Client 联调验收。
+1. **可靠性 P0**
+   - [ ] 远端 `InputMessage` 队列背压/合并/丢弃策略可测。
+   - [ ] Client 单次 inject 失败不断连。
+   - [ ] 收紧信任模型；拒绝时回 `ErrorMessage`。
+2. **结构 P1（非 xcb）**
+   - [ ] 拆 `Server` 职责；去掉 app 层 `void*`。
+   - [ ] 收敛 `mScreens` / `mTopology` 双状态；拆 `win32.cpp`。
+3. **验收**
+   - [ ] 真机 Server/Client 联调。
+   - [ ] Linux 注入/边界对照 `xcb_backend.md`（改代码另开任务）。
+   - [ ] `xmake test` 全绿；framework / development_plan / 本文件同步。

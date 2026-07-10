@@ -117,7 +117,7 @@ target("mksync")
     end
 
     if is_plat("windows") then 
-        add_syslinks("user32")
+        add_syslinks("user32", "shcore")
     end
 
     if not has_config("has_std_format") then

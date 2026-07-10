@@ -5,13 +5,19 @@
 #include <gtest/gtest.h>
 #include <ilias/testing.hpp>
 #include <filesystem>
+#include <memory>
 #include <stdexcept>
+#include <vector>
 
 auto mks::Platform::create() -> Ptr {
     return nullptr;
 }
 
 namespace {
+
+auto makePlatform() -> mks::Platform::Ptr {
+    return std::make_shared<mks::test::MockPlatform>(std::vector<mks::ScreenInfo> {});
+}
 
 auto makeEndpoint(uint16_t port) -> mks::IPEndpoint {
     auto endpoint = mks::IPEndpoint::fromString(fmtlib::format("127.0.0.1:{}", port));
@@ -51,7 +57,7 @@ auto findScreen(
 
 TEST(ServerScreenRegistry, RegistersLocalPrimaryAtOrigin) {
     auto endpoint = makeEndpoint(30001);
-    auto server = mks::Server {endpoint};
+    auto server = mks::Server {makePlatform(), endpoint};
 
     server.registerScreensForTest(endpoint, {
         makeScreen("local-primary", 1920, 1080, true),
@@ -77,7 +83,7 @@ TEST(ServerScreenRegistry, RegistersLocalPrimaryAtOrigin) {
 TEST(ServerScreenRegistry, RegistersRemoteScreensInFreeRightCells) {
     auto localEndpoint = makeEndpoint(30002);
     auto remoteEndpoint = makeEndpoint(30003);
-    auto server = mks::Server {localEndpoint};
+    auto server = mks::Server {makePlatform(), localEndpoint};
 
     server.registerScreensForTest(localEndpoint, {
         makeScreen("local-primary", 1920, 1080, true),
@@ -105,7 +111,7 @@ TEST(ServerScreenRegistry, RegistersRemoteScreensInFreeRightCells) {
 
 TEST(ServerScreenRegistry, ReplacesScreensForSameEndpoint) {
     auto endpoint = makeEndpoint(30004);
-    auto server = mks::Server {endpoint};
+    auto server = mks::Server {makePlatform(), endpoint};
 
     server.registerScreensForTest(endpoint, {
         makeScreen("old", 1920, 1080, true),
@@ -147,7 +153,7 @@ TEST(ServerScreenRegistry, UsesConfiguredScreenCells) {
         },
         .trustedClients = {},
     };
-    auto server = mks::Server {localEndpoint, std::move(config)};
+    auto server = mks::Server {makePlatform(), localEndpoint, std::move(config)};
 
     server.registerScreensForTest(localEndpoint, {
         makeScreen("local-primary", 1920, 1080, true),
@@ -173,7 +179,7 @@ TEST(ServerScreenRegistry, RepairsStaleRemoteCellAfterLocalMonitorAdded) {
     auto remoteEndpoint = makeEndpoint(30027);
     auto localOwnerId = std::string {"machine-local"};
     auto remoteOwnerId = std::string {"machine-remote"};
-    auto server = mks::Server {localEndpoint, mks::AppConfig {
+    auto server = mks::Server {makePlatform(), localEndpoint, mks::AppConfig {
         .machineId = localOwnerId,
         // This is an auto-saved position from when the server only had its
         // primary monitor. A newly attached local monitor now takes (1, 0).
@@ -230,7 +236,7 @@ TEST(ServerScreenRegistry, PersistsRegisteredScreenCellsToConfig) {
     auto path = std::filesystem::temp_directory_path() / "mksync-test-server-layout.json";
     std::filesystem::remove(path);
 
-    auto server = mks::Server {localEndpoint, mks::AppConfig {
+    auto server = mks::Server {makePlatform(), localEndpoint, mks::AppConfig {
         .version = 1,
         .machineId = "machine-local",
         .screens = {},
@@ -260,7 +266,7 @@ TEST(ServerScreenRegistry, PersistsRegisteredScreenCellsToConfig) {
 
     auto restartedLocalEndpoint = makeEndpoint(30020);
     auto restartedRemoteEndpoint = makeEndpoint(30021);
-    auto restarted = mks::Server {restartedLocalEndpoint, *loaded};
+    auto restarted = mks::Server {makePlatform(), restartedLocalEndpoint, *loaded};
     restarted.registerScreensForTest(restartedRemoteEndpoint, "machine-remote", {
         makeScreen("remote-primary", 2560, 1440, true),
     }, false);
@@ -282,14 +288,14 @@ TEST(ServerScreenRegistry, PersistsRegisteredScreenCellsToConfig) {
 
 TEST(ServerSecurity, AllowsAllClientsWhenTrustedListIsEmpty) {
     auto endpoint = makeEndpoint(30016);
-    auto server = mks::Server {endpoint};
+    auto server = mks::Server {makePlatform(), endpoint};
 
     EXPECT_TRUE(server.isClientTrustedForTest("any-client"));
 }
 
 TEST(ServerSecurity, RejectsClientsMissingFromTrustedList) {
     auto endpoint = makeEndpoint(30017);
-    auto server = mks::Server {endpoint, mks::AppConfig {
+    auto server = mks::Server {makePlatform(), endpoint, mks::AppConfig {
         .machineId = "server",
         .screens = {},
         .trustedClients = {
@@ -309,7 +315,7 @@ TEST(ServerSecurity, RejectsClientsMissingFromTrustedList) {
 TEST(ServerInputRouting, SwitchesActiveScreenAcrossRightEdge) {
     auto localEndpoint = makeEndpoint(30005);
     auto remoteEndpoint = makeEndpoint(30006);
-    auto server = mks::Server {localEndpoint};
+    auto server = mks::Server {makePlatform(), localEndpoint};
 
     server.registerScreensForTest(localEndpoint, {
         makeScreen("local-primary", 1920, 1080, true),
@@ -337,7 +343,7 @@ TEST(ServerInputRouting, SwitchesActiveScreenAcrossRightEdge) {
 TEST(ServerInputRouting, RestoresLocalActiveScreenAfterRemoteDisconnect) {
     auto localEndpoint = makeEndpoint(30022);
     auto remoteEndpoint = makeEndpoint(30023);
-    auto server = mks::Server {localEndpoint};
+    auto server = mks::Server {makePlatform(), localEndpoint};
 
     server.registerScreensForTest(localEndpoint, {
         makeScreen("local-primary", 1920, 1080, true),
@@ -385,7 +391,7 @@ TEST(ServerInputRouting, RestoresLocalActiveScreenAfterRemoteDisconnect) {
 TEST(ServerInputRouting, TogglesRemoteControlCaptureWhenActiveScreenChanges) {
     auto localEndpoint = makeEndpoint(30024);
     auto remoteEndpoint = makeEndpoint(30025);
-    auto server = mks::Server {localEndpoint};
+    auto server = mks::Server {makePlatform(), localEndpoint};
     auto capture = mks::test::MockInputCapture {};
     server.attachCaptureForTest(&capture);
     const auto localKey = mks::ScreenKey {
@@ -446,7 +452,7 @@ TEST(ServerInputRouting, TogglesRemoteControlCaptureWhenActiveScreenChanges) {
 
 TEST(ServerInputRouting, KeepsActiveScreenWhenEdgeHasNoNeighbor) {
     auto localEndpoint = makeEndpoint(30007);
-    auto server = mks::Server {localEndpoint};
+    auto server = mks::Server {makePlatform(), localEndpoint};
 
     server.registerScreensForTest(localEndpoint, {
         makeScreen("local-primary", 1920, 1080, true),
@@ -468,7 +474,7 @@ TEST(ServerInputRouting, KeepsActiveScreenWhenEdgeHasNoNeighbor) {
 ILIAS_TEST(ServerInputRouting, SendsInputMessagesToRemoteClient) {
     auto localEndpoint = makeEndpoint(30008);
     auto remoteEndpoint = makeEndpoint(30009);
-    auto server = mks::Server {localEndpoint};
+    auto server = mks::Server {makePlatform(), localEndpoint};
     auto [sender, receiver] = ilias::mpsc::channel<mks::RpcMessage>(10);
 
     server.registerScreensForTest(localEndpoint, {
@@ -598,7 +604,7 @@ ILIAS_TEST(ServerInputRouting, SendsInputMessagesToRemoteClient) {
 ILIAS_TEST(ServerInputRouting, SwitchesBackToLocalAcrossRemoteLeftEdge) {
     auto localEndpoint = makeEndpoint(30010);
     auto remoteEndpoint = makeEndpoint(30011);
-    auto server = mks::Server {localEndpoint};
+    auto server = mks::Server {makePlatform(), localEndpoint};
     auto capture = mks::test::MockInputCapture {};
     auto [sender, receiver] = ilias::mpsc::channel<mks::RpcMessage>(10);
     server.attachCaptureForTest(&capture);
@@ -668,7 +674,7 @@ ILIAS_TEST(ServerInputRouting, SwitchesBackToLocalAcrossRemoteLeftEdge) {
 ILIAS_TEST(ServerInputRouting, SwitchesAcrossMultipleRemoteScreens) {
     auto localEndpoint = makeEndpoint(30012);
     auto remoteEndpoint = makeEndpoint(30013);
-    auto server = mks::Server {localEndpoint};
+    auto server = mks::Server {makePlatform(), localEndpoint};
     auto [sender, receiver] = ilias::mpsc::channel<mks::RpcMessage>(10);
 
     server.registerScreensForTest(localEndpoint, {

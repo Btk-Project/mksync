@@ -6,13 +6,19 @@
 
 #include <gtest/gtest.h>
 #include <ilias/testing.hpp>
+#include <memory>
 #include <stdexcept>
+#include <vector>
 
 auto mks::Platform::create() -> Ptr {
     return nullptr;
 }
 
 namespace {
+
+auto makePlatform() -> std::shared_ptr<mks::test::MockPlatform> {
+    return std::make_shared<mks::test::MockPlatform>(std::vector<mks::ScreenInfo> {});
+}
 
 auto makeEndpoint(uint16_t port) -> mks::IPEndpoint {
     auto endpoint = mks::IPEndpoint::fromString(fmtlib::format("127.0.0.1:{}", port));
@@ -81,10 +87,11 @@ auto forwardAndReceiveOneMessage(
 ILIAS_TEST(InputPipeline, ServerMessageReachesClientInjector) {
     auto localEndpoint = makeEndpoint(30201);
     auto remoteEndpoint = makeEndpoint(30202);
-    auto server = mks::Server {localEndpoint};
-    auto client = mks::Client {makeEndpoint(30203)};
-    auto platform = mks::test::MockPlatform {{}};
-    auto injector = platform.injector();
+    auto serverPlatform = makePlatform();
+    auto clientPlatform = makePlatform();
+    auto server = mks::Server {serverPlatform, localEndpoint};
+    auto client = mks::Client {clientPlatform, makeEndpoint(30203)};
+    auto injector = clientPlatform->injector();
 
     auto initResult = co_await injector->initialize();
     EXPECT_TRUE(initResult.has_value()) << initResult.error().message();
@@ -204,10 +211,11 @@ ILIAS_TEST(InputPipeline, ServerMessageReachesClientInjector) {
 ILIAS_TEST(InputPipeline, FullMockOperationCrossesRemoteReturnsLocalAndRoutesKeyboard) {
     auto localEndpoint = makeEndpoint(30211);
     auto remoteEndpoint = makeEndpoint(30212);
-    auto server = mks::Server {localEndpoint};
-    auto client = mks::Client {makeEndpoint(30213)};
-    auto platform = mks::test::MockPlatform {{}};
-    auto injector = platform.injector();
+    auto serverPlatform = makePlatform();
+    auto clientPlatform = makePlatform();
+    auto server = mks::Server {serverPlatform, localEndpoint};
+    auto client = mks::Client {clientPlatform, makeEndpoint(30213)};
+    auto injector = clientPlatform->injector();
 
     auto initResult = co_await injector->initialize();
     EXPECT_TRUE(initResult.has_value()) << initResult.error().message();

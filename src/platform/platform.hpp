@@ -18,17 +18,16 @@ public:
 
     virtual auto initialize() -> IoTask<void> = 0;
     virtual auto shutdown() -> Task<void> = 0;
+
+    /**
+     * @brief Get the next event of the capture
+     * 
+     * @return Task<InputEvent> 
+     */
     virtual auto nextEvent() -> Task<InputEvent> = 0;
-    virtual auto setRemoteControlActive(bool active) -> IoResult<void> {
-        (void) active;
-        return {};
-    }
-    virtual auto moveLocalCursor(uint32_t screenIndex, int32_t x, int32_t y) -> IoResult<void> {
-        (void) screenIndex;
-        (void) x;
-        (void) y;
-        return Err(std::make_error_code(std::errc::operation_not_supported));
-    }
+    
+    virtual auto setRemoteControlActive(bool active) -> IoResult<void> = 0;
+    virtual auto moveLocalCursor(uint32_t screenIndex, int32_t x, int32_t y) -> IoResult<void> = 0;
 };
 
 class InputInjector {

@@ -264,7 +264,12 @@ void ilias_main(int argc, char **argv)
         if (!loaded) {
             co_return;
         }
-        mks::Server server{*endpoint, loaded->app, loaded->path};
+        auto platform = mks::Platform::create();
+        if (!platform) {
+            SPDLOG_ERROR("Failed to create platform backend");
+            co_return;
+        }
+        mks::Server server{std::move(platform), *endpoint, loaded->app, loaded->path};
         auto [serverResult, ctrlc] = co_await ilias::whenAny(server.run(), ilias::signal::ctrlC());
         if (ctrlc) {
             SPDLOG_WARN("Ctrl-C received, shutting down...");
@@ -287,7 +292,12 @@ void ilias_main(int argc, char **argv)
         if (!loaded) {
             co_return;
         }
-        mks::Client client{*endpoint, loaded->app};
+        auto platform = mks::Platform::create();
+        if (!platform) {
+            SPDLOG_ERROR("Failed to create platform backend");
+            co_return;
+        }
+        mks::Client client{std::move(platform), *endpoint, loaded->app};
         auto [clientResult, ctrlc] = co_await ilias::whenAny(client.run(), ilias::signal::ctrlC());
         if (ctrlc) {
             SPDLOG_WARN("Ctrl-C received, shutting down...");

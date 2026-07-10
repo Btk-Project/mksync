@@ -56,7 +56,7 @@ Use UTF-8 source files, 4-space indentation, no tabs, and a 100-column limit as 
 
 ## Testing Guidelines
 
-There is no active test target yet. Add new tests under `tests/` and wire them through Xmake when introducing behavior that can regress. Prefer names that describe the component and behavior, such as `refl_enum_error_test.cpp`. Once a test target exists, document and use the corresponding `xmake test` or target-specific command.
+Tests live under `tests/` and are wired by `tests/xmake.lua` (`test_*.cpp`; optional per-target `test_xxx.lua`). Run with `xmake test`. Prefer names that describe the component and behavior, such as `test_topology.cpp` or `test_input_pipeline.cpp`. When introducing behavior that can regress, add or extend the matching test target. Platform-specific smoke checks may use `mksync --check-platform` in addition to unit tests.
 
 ## Security & Configuration Tips
 

@@ -1,10 +1,13 @@
 #pragma once
 
 #include "preinclude.hpp"
-#include "refl/formatter.hpp"
-#include "core.hpp"
 #include "config/app_config.hpp"
+#include "core.hpp"
+#include "platform/platform.hpp"
 #include "rpc/message.hpp"
+#include "server_input.hpp"
+#include "server_screens.hpp"
+#include "server_types.hpp"
 #include <ilias/task.hpp>
 #include <ilias/net.hpp>
 #include <ilias/sync.hpp>
@@ -17,59 +20,41 @@ using ilias::TcpListener;
 using ilias::TcpStream;
 
 /**
- * @brief The virtual screen
- * 
- */
-struct VirtualScreen {
-    // Owner
-    IPEndpoint  endpoint;
-    ScreenKey   key;
-    GridPosition cell;
-    bool        local = false;
-
-    // The info
-    ScreenInfo  info;
-};
-
-inline auto _refl_fmt_inline(const VirtualScreen &value, auto it) {
-    return fmtlib::format_to(
-        it,
-        "VirtualScreen {{ endpoint: {}, key: {}, cell: {}, local: {}, info: {} }}",
-        value.endpoint,
-        value.key,
-        value.cell,
-        value.local,
-        value.info
-    );
-}
-
-/**
- * @brief The state of client, manage the outcoming queue
- * 
- */
-struct ClientState;
-class InputCapture;
-
-/**
- * @brief The server, collection event and dispatch to another client
- * 
+ * @brief Host process role that accepts clients and captures local input.
+ *
+ * Collaboration (ownership stays on Server; peers borrow references):
+ *
+ * - @ref ServerScreenStore  — topology cells, VirtualScreen routes, config layout
+ * - @ref ServerInputRouter  — active screen, edge switch, remote InputMessage queue
+ * - @ref ServerSession      — one TCP peer: Hello, ScreensMessage, read/write loops
+ *
+ * @c run() starts accept + capture in parallel. Each accept spawns a
+ * ServerSession task under a TaskScope so disconnects are structured.
+ *
+ * @invariant @c platform is non-null at construction
  */
 class Server {
 public:
-    explicit Server(IPEndpoint endpoint);
-    Server(IPEndpoint endpoint, AppConfig config);
-    Server(IPEndpoint endpoint, AppConfig config, std::filesystem::path configPath);
+    Server(Platform::Ptr platform, IPEndpoint endpoint);
+    Server(Platform::Ptr platform, IPEndpoint endpoint, AppConfig config);
+    Server(
+        Platform::Ptr platform,
+        IPEndpoint endpoint,
+        AppConfig config,
+        std::filesystem::path configPath
+    );
     Server(const Server &) = delete;
     ~Server();
 
     /**
-     * @brief Start the server
-     * 
-     * @return IoTask<void> 
+     * @brief Bind listener, init capture, register local screens, then serve.
      */
     auto run() -> IoTask<void>;
 
+    /** @brief Snapshot of topology screens (for tests / diagnostics). */
     auto topologyScreens() const -> std::vector<TopologyScreen>;
+
+    /** @brief Key of the screen that currently owns keyboard/mouse, if any. */
     auto activeScreenKey() const -> std::optional<ScreenKey>;
 
 #ifdef MKS_ENABLE_TEST_HOOKS
@@ -95,82 +80,54 @@ public:
     auto isClientTrustedForTest(std::string_view machineId, std::string_view name) const -> bool;
     auto configForTest() const -> const AppConfig &;
 #endif
+
 private:
-    // Background tasks
+    // MARK: Background tasks
+
+    /** @brief Accept loop; each connection is a ServerSession under TaskScope. */
     auto acceptIncomingConnections(TcpListener listener) -> Task<void>;
-    auto waitPlatformEvent(void *_platform, void *capture) -> Task<void>;
 
-    // Handle client
+    /** @brief Drain InputCapture and forward events to the input router. */
+    auto waitPlatformEvent(InputCapture &capture) -> Task<void>;
+
+    /**
+     * @brief Build session context, run one ServerSession to completion.
+     *
+     * Spawned from the accept loop; errors are logged inside the session.
+     */
     auto handleIncoming(TcpStream stream) -> IoTask<void>;
-    auto handleClientRead(ClientState *state) -> IoTask<void>;
-    auto handleClientWrite(ClientState *state) -> IoTask<void>;
-    auto shutdownClientConnection(ClientState *state) -> Task<void>;
-    auto isClientTrusted(const HelloMessage &hello) const -> bool;
 
-    // Input processing
-    auto handleInputEvent(const InputEvent &event) -> void;
-    auto tryHandleLocalHotkey(const InputEvent &event) -> bool;
-    auto handleMouseMove(const MouseMoveEvent &event) -> void;
-    auto handleRemoteMouseMove(const MouseMoveEvent &event) -> void;
-    auto switchActiveScreen(ScreenPoint point) -> void;
-    auto eventAtActivePoint(InputEvent event) const -> InputEvent;
-    auto suppressPendingLocalWarp(const ScreenPoint &point) -> bool;
-    auto moveLocalCursorToActivePoint() -> void;
-    auto updateCaptureRemoteControl() -> void;
-    auto queueInputForScreen(const VirtualScreen &screen, InputEvent event) -> bool;
+    // MARK: Screen registration (store + input coordination)
 
-    // Screen Manage
-    auto registerScreens(IPEndpoint endpoint, const std::vector<ScreenInfo> &screens, bool local) -> void;
+    /**
+     * @brief Full screen replace for an endpoint, keeping active-screen safe.
+     *
+     * Order: remove old screens (clear active if needed) → register new set →
+     * ensure a valid local active screen when @p local is true.
+     */
+    auto registerScreens(
+        IPEndpoint endpoint,
+        const std::vector<ScreenInfo> &screens,
+        bool local
+    ) -> void;
     auto registerScreens(
         IPEndpoint endpoint,
         std::string_view ownerId,
         const std::vector<ScreenInfo> &screens,
         bool local
     ) -> void;
-    auto addScreen(
-        IPEndpoint endpoint,
-        ScreenKey key,
-        GridPosition cell,
-        ScreenInfo info,
-        bool local
-    ) -> VirtualScreen *;
-    auto removeScreen(IPEndpoint endpoint) -> void;
-    auto activateFirstLocalScreen() -> void;
-    auto findScreen(const ScreenKey &key) -> VirtualScreen *;
-    auto findScreen(const ScreenKey &key) const -> const VirtualScreen *;
-    auto configuredCell(const ScreenKey &key) const -> std::optional<GridPosition>;
-    auto rememberScreenLayout(const ScreenKey &key, GridPosition cell) -> void;
-    auto saveConfigIfNeeded() -> void;
-    auto nextFreeCell(int32_t startX) const -> GridPosition;
-    auto ownerId(IPEndpoint endpoint) const -> std::string;
-    auto defaultOwnerId(IPEndpoint endpoint, bool local) const -> std::string;
 
-    IPEndpoint  mEndpoint;
-    TcpListener mListener;
-    AppConfig   mConfig;
-    std::filesystem::path mConfigPath;
+    /**
+     * @brief Drop topology routes for an endpoint after disconnect or re-report.
+     */
+    auto removeEndpointScreens(IPEndpoint endpoint) -> void;
 
-    // Client connections
-    std::multimap<IPEndpoint, VirtualScreen> mScreens; // Mapping (owner) to some virtual screen
-    ScreenTopology                            mTopology;
-    std::map<IPEndpoint, ilias::mpsc::Sender<RpcMessage>> mClientSenders;
-    std::map<IPEndpoint, std::string> mEndpointOwners;
-
-    // Current active screen that owns keyboard/mouse input.
-    VirtualScreen *mActiveScreen = nullptr;
-    InputCapture *mCapture = nullptr;
-
-    // Pixel position on mActiveScreen. When the active screen is remote this is
-    // a virtual cursor owned by the server, not the local OS cursor position.
-    std::optional<ScreenPoint> mActivePoint;
-
-    // Last absolute local capture sample. Remote motion currently uses
-    // targetDelta = sourceDelta, so this sample is the source delta baseline.
-    std::optional<MouseMoveEvent> mLastLocalMouse;
-
-    // XWarpPointer/SetCursorPos may echo one local motion event at the mapped
-    // edge pixel. Suppress that echo so returning home does not bounce back.
-    std::optional<ScreenPoint> mPendingLocalWarp;
+    Platform::Ptr mPlatform;
+    IPEndpoint mEndpoint;
+    ServerScreenStore mScreens;
+    // Endpoint → outbound RPC queue used by ServerInputRouter for remote peers.
+    ServerInputRouter::ClientSenders mClientSenders;
+    ServerInputRouter mInput;
 };
 
 MKS_END

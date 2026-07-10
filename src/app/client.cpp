@@ -1,29 +1,29 @@
-#include "platform/platform.hpp"
 #include "rpc/transport.hpp"
 #include "rpc/message.hpp"
 #include "client.hpp"
+#include <cassert>
 #include <cerrno>
 #include <cstring>
+#include <utility>
 
 MKS_BEGIN
 
-Client::Client(IPEndpoint endpoint) : Client(endpoint, AppConfig {}) {
+Client::Client(Platform::Ptr platform, IPEndpoint endpoint)
+    : Client(std::move(platform), endpoint, AppConfig {}) {
 
 }
 
-Client::Client(IPEndpoint endpoint, AppConfig config)
-    : mEndpoint(endpoint),
+Client::Client(Platform::Ptr platform, IPEndpoint endpoint, AppConfig config)
+    : mPlatform(std::move(platform)),
+      mEndpoint(endpoint),
       mConfig(std::move(config)) {
+    // Interface invariant: callers inject a live Platform.
+    assert(mPlatform);
     ensureMachineId(mConfig);
 }
 
 auto Client::run() -> IoTask<void> {
-    auto platform = Platform::create();
-    if (!platform) {
-        co_return Err(std::make_error_code(std::errc::operation_not_supported));
-    }
-
-    auto injector = platform->createInjector();
+    auto injector = mPlatform->createInjector();
     if (!injector) {
         SPDLOG_ERROR("Current platform does not provide an input injector");
         co_return Err(std::make_error_code(std::errc::operation_not_supported));
@@ -57,10 +57,10 @@ auto Client::run() -> IoTask<void> {
     // Start the reader part and the writer part
     auto [readResult, writeResult] = co_await ilias::finally(
         ilias::whenAny(
-            handleRead(&transport, injector.get()),
-            handleWrite(platform.get(), &transport)
+            handleRead(transport, *injector),
+            handleWrite(transport)
         ),
-        shutdownConnection(&transport, injector.get())
+        shutdownConnection(transport, *injector)
     );
 
     if (readResult) {
@@ -72,22 +72,18 @@ auto Client::run() -> IoTask<void> {
     co_return {};
 }
 
-auto Client::shutdownConnection(RpcTransport *transport, InputInjector *injector) -> Task<void> {
+auto Client::shutdownConnection(RpcTransport &transport, InputInjector &injector) -> Task<void> {
     SPDLOG_INFO("Client shutting down connection to {}", mEndpoint);
-    if (transport) {
-        auto result = co_await transport->shutdown();
-        if (!result) {
-            SPDLOG_WARN(
-                "Client transport shutdown failed for {}: {}",
-                mEndpoint,
-                result.error().message()
-            );
-        }
-        transport->close();
+    auto result = co_await transport.shutdown();
+    if (!result) {
+        SPDLOG_WARN(
+            "Client transport shutdown failed for {}: {}",
+            mEndpoint,
+            result.error().message()
+        );
     }
-    if (injector) {
-        co_await injector->shutdown();
-    }
+    transport.close();
+    co_await injector.shutdown();
     SPDLOG_INFO("Client connection shutdown complete for {}", mEndpoint);
     co_return;
 }
@@ -99,32 +95,28 @@ auto Client::handleMessageForTest(const RpcMessage &message, InputInjector &inje
 }
 #endif
 
-auto Client::handleWrite(void *_platform, void *_transport) -> IoTask<void> {
+auto Client::handleWrite(RpcTransport &transport) -> IoTask<void> {
     using namespace std::literals;
-    auto platform = static_cast<Platform*>(_platform);
-    auto transport = static_cast<RpcTransport*>(_transport);
 
     // First, send screen to it. These coordinates are the client's own real
     // screen rects; the server stores them for entry-point mapping and sends
     // input back in the same screenIndex/x/y space.
-    ILIAS_CO_TRYV(co_await transport->writeMessage(RpcMessage {ScreensMessage {
-        .screens = platform->screens(),
+    ILIAS_CO_TRYV(co_await transport.writeMessage(RpcMessage {ScreensMessage {
+        .screens = mPlatform->screens(),
     }}));
 
     // TODO: 
     while (true) {
         co_await ilias::sleep(1s);
-        // ILIAS_CO_TRYV(co_await transport->writeMessage(RpcMessage {PingMessage {} }));
+        // ILIAS_CO_TRYV(co_await transport.writeMessage(RpcMessage {PingMessage {} }));
     }
 }
 
-auto Client::handleRead(void *_transport, void *_injector) -> IoTask<void> {
-    auto transport = static_cast<RpcTransport*>(_transport);
-    auto injector = static_cast<InputInjector*>(_injector);
+auto Client::handleRead(RpcTransport &transport, InputInjector &injector) -> IoTask<void> {
     while (true) {
-        ILIAS_CO_TRY(auto msg, co_await transport->readMessage());
+        ILIAS_CO_TRY(auto msg, co_await transport.readMessage());
         SPDLOG_TRACE("Client received message {}", msg);
-        ILIAS_CO_TRYV(co_await handleMessage(msg, *injector));
+        ILIAS_CO_TRYV(co_await handleMessage(msg, injector));
     }
 }
 

@@ -21,7 +21,7 @@ v0.1 的目标是跑通最小可用的跨机器输入链路：
 
 ## 当前进度
 
-最后更新：2026-07-08。
+最后更新：2026-07-10（代码 review / 文档同步）。
 
 当前 checklist：
 
@@ -81,11 +81,14 @@ v0.1 的目标是跑通最小可用的跨机器输入链路：
 
 当前约束：
 
-- [x] 初期不修改已有消息和事件字段；配置阶段为 `HelloMessage` 追加必要的 `machineId`。
+- [x] 协议最小扩展：`HelloMessage.machineId`、`InputMessage`；`MouseMoveEvent` 已追加
+  可选 `deltaX/deltaY` 以支持远端连续运动（绝对坐标字段语义不变）。
 - [x] 当前阶段不实现复杂鼠标手感、DPI/DPS 或速度统一。
 - [x] 归一化比例只作为边缘入口映射的临时计算，不作为运行时坐标系统。
 - [x] 自动布局只是临时策略，正式布局应来自配置。
 - [x] 远端 active screen 上的连续 `MouseMoveEvent` 已按 `targetDelta = sourceDelta` 基线实现。
+- [x] Win32 capture 在远端控制模式下已实现本机光标锚点固定/回拉（XCB 侧策略见
+  `xcb_backend.md`，本轮不改 xcb）。
 
 ## 屏幕拓扑决策
 
@@ -122,20 +125,22 @@ Client 必须向 Server 上报自己的真实屏幕 `rect`。当前 `ScreenInfo`
 - `dpi`：屏幕 DPI，后续可扩展为 scale factor 或 device pixel ratio。
 - `name/primary`：调试和默认布局使用。
 
-捕获层当前继续产生本机屏幕内像素坐标，不修改现有事件字段：
+捕获层产生本机屏幕内像素坐标；远端连续运动优先使用后端提供的相对增量：
 
 ```cpp
 struct MouseMoveEvent {
     int32_t x;
     int32_t y;
     uint32_t screenIndex;
+    int32_t deltaX = 0; // optional raw relative motion
+    int32_t deltaY = 0;
 };
 ```
 
 Server 转发到远端 Client 的鼠标事件也使用目标 Client 自己的真实坐标。也就是说：
 Server 不发送“拓扑归一化点”作为运行时坐标，而是发送已经按目标屏幕 rect 计算出的
-`screenIndex/x/y`。后续如果必须支持远端活动屏幕上的连续相对运动，再单独讨论最小
-协议或事件扩展。
+`screenIndex/x/y`。远端 active screen 上的连续运动：优先 `deltaX/deltaY`，否则回退
+`targetDelta = source absolute delta`。
 
 归一化比例只作为“穿越边缘的一瞬间”的临时计算工具，用来确定进入邻居屏幕后落在哪条
 边上，而不是长期保存的鼠标坐标：
@@ -229,18 +234,18 @@ public:
 
 ## 远端活动屏幕的鼠标运动
 
-当前平台层捕获的是本机屏幕内绝对坐标。只靠绝对坐标，可以完成“本机屏幕到远端屏幕
-的首次切换”。远端屏幕已经活动后的连续运动，先不修改现有消息和事件结构，等最小链路
-跑通后再选择最简单的补充方案。
+平台层仍以本机屏幕内绝对坐标为主；Win32 在远端控制模式下会把物理光标钉在出口点，
+并用 hook 采样相对位移（`deltaX/deltaY` 或绝对坐标差）。Server 侧维护远端屏幕上的
+虚拟光标像素点，向 Client 发送目标屏真实 `screenIndex/x/y` 的绝对注入。
 
 处理策略：
 
 - 活动屏幕是本机屏幕时，使用 `x/y` 判断是否触达边缘。
 - 切换到远端屏幕后，Server 维护目标屏幕上的当前像素位置。
-- 当前阶段优先实现入口点切换和绝对位置注入。
-- 后续若需要远端连续相对运动，再考虑最小事件或协议扩展。
+- 入口切换发送一次绝对 `MouseMoveEvent`；后续连续运动按 delta 更新虚拟光标。
 - delta 是否按 DPI/DPS 缩放由独立策略决定，不放进拓扑邻接模型。
 - 如果目标像素位置越过远端屏幕边缘，再通过拓扑查找下一个邻居。
+- F12 fail-safe：远端 active 时强制回到本机主屏。
 
 这样拓扑逻辑不依赖真实系统桌面的大坐标系，也不要求本机鼠标真的移动到远端机器。
 
@@ -573,11 +578,87 @@ Todo：
 - [x] 拓扑布局不依赖连接顺序。
 - [ ] 未授权 Client 不能注入输入。
 
+### M8：结构质量与可靠性（2026-07-10 review）
+
+范围说明：
+
+- 基于 BusyStudent C++ / Ilias 约定与 C++ Core Guidelines 做代码审查。
+- **不修改 `src/platform/xcb.cpp` 及 xcb 专属设计**（见 `docs/xcb_backend.md`）。
+- 目标：在真机联调前后，把“会丢事件 / 难扩展 / 状态不一致”的债务压下去。
+
+#### 审查结论摘要
+
+| 严重度 | 主题 | 位置 | 问题 |
+|--------|------|------|------|
+| P0 | 输入背压 | `Server::handleClientWrite` channel(10) + `trySend` | 队列满时直接丢弃远端输入，无背压/无关键丢弃策略 |
+| P0 | 注入失败即断连 | `Client::handleMessage` | `inject` 失败 `co_return Err`，整条连接退出 |
+| P0 | 信任模型过弱 | `isTrustedClient` | 空白名单=全放行；name **或** machineId 任一匹配即信任 |
+| P1 | Server 职责过重 | `server.cpp` ~835 行 | 连接、拓扑/布局、输入路由、配置持久化挤在一个类 |
+| P1 | 类型擦除 | `void*` 传 Platform/Capture/Transport | 失去类型安全，可读性差 |
+| P1 | 双重屏幕状态 | `mScreens` + `mTopology` + senders | `mActiveScreen*` 指向 multimap 节点，一致性靠手写不变量 |
+| P1 | 本机热插拔未闭环 | Win32 `WM_DISPLAYCHANGE` vs Server | 平台可重枚举，Server 不重新 `registerScreens` 本机 |
+| P1 | 错误表达不一致 | capture `nextEvent` / platform create | 部分路径 `throw`，与“常规错误用 Result”不一致 |
+| P2 | 消息分发 | Client/Server `get_if` | 消息种类仍少，但缺少 table-driven 扩展点 |
+| P2 | Win32 文件体量 | `win32.cpp` ~1k 行 | 接近 soft budget，应拆 Platform / Capture / Injector |
+| P2 | keepalive 空转 | `Client::handleWrite` | `sleep` 循环 + 注释掉的 Ping |
+| P2 | 拒绝握手无协议回复 | `handleIncoming` | 不信任时直接 `ProtocolError`，未写 `ErrorMessage` |
+| P2 | 死代码/小瑕疵 | `nextFreeCell(local ? 1 : 1)`、`localScreens` 未用 | 可读性与维护噪音 |
+
+做得好的部分（审查肯定，不作为债务）：
+
+- 拓扑与入口映射职责清晰，测试覆盖扎实。
+- 远端虚拟光标 + Win32 锚点策略与 `targetDelta` 基线一致。
+- `IoTask` / `ILIAS_CO_TRY` 主路径大体正确；`TaskScope` / `whenAny` / `finally` 用法合理。
+- `AppConfig` + `machineId` 持久化布局方向正确。
+- Mock 全链路测试存在，与“先可测再真机”策略一致。
+
+#### Todo
+
+可靠性：
+
+- [ ] 明确远端输入队列策略：增大缓冲 / 合并连续 `MouseMove` / 满时丢弃非关键 vs 阻塞。
+- [ ] Client 注入失败改为可观测错误（日志 + 可选 `ErrorMessage`），默认不因单次注入失败断连。
+- [ ] 收紧可信 Client：默认拒绝空白名单（或显式 `allowAny` 配置）；匹配策略改为 machineId 优先且可配置。
+- [ ] 拒绝握手时向对端写 `ErrorMessage` 再关闭。
+- [ ] capture/injector 常规失败路径尽量 `Result`/`cancellation`，避免 `nextEvent` 用异常表达可预期关闭。
+
+结构（不碰 xcb）：
+
+- [ ] 拆分 `Server`：例如 connection session、screen registry/layout、input router（文件或协作类型）。
+- [ ] 去掉 app 层 `void*` 协程参数，改为类型化引用/`shared_ptr`/成员持有。
+- [ ] 统一屏幕索引：减少 `mScreens` 与 `mTopology` 双写，或把 `VirtualScreen` 路由信息收成单一 source of truth。
+- [ ] 拆分 `win32.cpp` 为 platform / capture / injector（及 key map 已独立）。
+- [ ] RPC 读写消息分发预留 table/visit handler，避免继续拉长 `get_if` 链。
+
+产品闭环（与既有 M5–M7 未完成项对齐）：
+
+- [ ] Server 订阅本机屏幕变化（或轮询）后重新注册本地拓扑。
+- [ ] Client 实现 Ping/Pong keepalive（替换空 `sleep` 循环）。
+- [ ] 真机 Server/Client 联调验收（Win32 + Linux；Linux 细节见 xcb 文档，实现仍可不在本轮改 xcb）。
+- [ ] 配置认证策略与“未授权不能注入”验收。
+- [ ] 可选：边缘吸附阈值、DPI 缩放策略、`CursorEnterMessage`。
+
+#### 验收
+
+- [ ] 高压鼠标移动下远端不再静默丢键（或丢弃策略可测试且有日志指标）。
+- [ ] 注入失败单测：Client 连接保持，错误可观测。
+- [ ] 默认配置下未列入信任列表的 Client 无法完成握手/注入。
+- [ ] `Server` 单文件职责更清晰，输入路由可在不改连接层的情况下扩展。
+- [ ] `win32` 按职责拆分后，现有 `xmake test` 全绿。
+- [ ] `docs/framework.md` 与本文件、`.agent/development_plan.md` 进度一致。
+
+记录：
+
+- [x] 2026-07-10：完成代码 review；刷新 `docs/framework.md`；新增本里程碑。
+- [x] 审查范围刻意排除 xcb 实现改动。
+
 ## 当前开放问题
 
 - `ScreenKey.ownerId` 已优先使用稳定 `machineId`；后续需要考虑旧配置和 endpoint 回退数据的迁移。
-- 后续仍需决定是否引入本机光标固定/回拉，以解决真实系统边界处绝对坐标不再变化的问题。
+- Win32 已实现远端控制下的本机光标固定/回拉；Linux/XCB 侧边界行为与跨平台统一策略仍需对照验收（不在本轮改 xcb 代码）。
 - 自动布局只能作为临时策略，正式体验应以配置文件为准。
 - 是否需要边缘吸附阈值，例如距离边缘 1-2 像素就触发，而不是必须等于边界。
 - 鼠标速度按 DPI、DPS、系统指针速度还是原始输入缩放，需要后续定义策略。
   当前阶段先不实现复杂手感统一。
+- 远端发送队列满时的背压/丢弃语义尚未产品化定义。
+- 空白名单默认全信任是否仅保留为开发模式，需要配置开关或默认收紧。

@@ -5,7 +5,9 @@
 
 #include <gtest/gtest.h>
 #include <ilias/testing.hpp>
+#include <memory>
 #include <stdexcept>
+#include <vector>
 
 auto mks::Platform::create() -> Ptr {
     return nullptr;
@@ -24,8 +26,8 @@ auto makeEndpoint(uint16_t port) -> mks::IPEndpoint {
 } // namespace
 
 ILIAS_TEST(ClientInput, InputMessageInjectsEvent) {
-    auto platform = mks::test::MockPlatform {{}};
-    auto injector = platform.injector();
+    auto platform = std::make_shared<mks::test::MockPlatform>(std::vector<mks::ScreenInfo> {});
+    auto injector = platform->injector();
 
     auto initResult = co_await injector->initialize();
     EXPECT_TRUE(initResult.has_value()) << initResult.error().message();
@@ -33,7 +35,7 @@ ILIAS_TEST(ClientInput, InputMessageInjectsEvent) {
         co_return;
     }
 
-    auto client = mks::Client {makeEndpoint(30101)};
+    auto client = mks::Client {platform, makeEndpoint(30101)};
     auto result = co_await client.handleMessageForTest(
         mks::RpcMessage {mks::InputMessage {
             .event = mks::InputEvent {mks::KeyEvent {
