@@ -5,7 +5,8 @@ target("test_gui_settings_model")
     add_files(
         testFile,
         path.join(os.projectdir(), "ui/model/settings_model.cpp"),
-        path.join(os.projectdir(), "src/config/app_config.cpp")
+        path.join(os.projectdir(), "src/config/app_config.cpp"),
+        path.join(os.projectdir(), "src/config/arg_config.cpp")
     )
     -- gmock_main depends on symbols from gmock; keep a final archive occurrence
     -- because the package's default static-library order places it too early.

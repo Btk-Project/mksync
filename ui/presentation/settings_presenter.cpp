@@ -63,9 +63,20 @@ namespace mks::gui
 
     auto SettingsPresenter::loadDefault() -> void
     {
-        auto result = mModel.loadOrCreate(std::filesystem::path{"mksync.json"});
+        loadConfigPath(QStringLiteral("mksync.json"));
+    }
+
+    auto SettingsPresenter::loadConfigPath(const QString &pathText) -> void
+    {
+        const auto trimmed = pathText.trimmed();
+        if (trimmed.isEmpty()) {
+            showValidationError(tr("屏幕配置文件路径不能为空。"));
+            return;
+        }
+        const auto path   = std::filesystem::path{trimmed.toStdString()};
+        auto       result = mModel.loadOrCreate(path);
         if (!result) {
-            showError(tr("无法载入默认配置"), result.error());
+            showError(tr("无法载入屏幕配置"), result.error());
             return;
         }
         publishConfig();

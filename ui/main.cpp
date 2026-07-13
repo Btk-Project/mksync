@@ -24,8 +24,16 @@ auto main(int argc, char **argv) -> int
     QQuickStyle::setStyle(QStringLiteral("Basic"));
 
     mks::gui::SettingsPresenter settingsPresenter;
+    mks::gui::RuntimePresenter  runtimePresenter;
+    QObject::connect(&settingsPresenter, &mks::gui::SettingsPresenter::configPathChanged,
+                     &runtimePresenter, [&settingsPresenter, &runtimePresenter] {
+                         runtimePresenter.setAppConfigPath(settingsPresenter.configPath());
+                     });
+    QObject::connect(&runtimePresenter, &mks::gui::RuntimePresenter::appConfigPathChanged,
+                     &settingsPresenter, [&settingsPresenter, &runtimePresenter] {
+                         settingsPresenter.loadConfigPath(runtimePresenter.appConfigPath());
+                     });
     settingsPresenter.loadDefault();
-    mks::gui::RuntimePresenter runtimePresenter;
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("settingsPresenter"),

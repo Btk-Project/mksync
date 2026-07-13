@@ -169,32 +169,15 @@ static auto runPlatformCheck() -> mks::IoTask<void>
     }
 }
 
-static auto makeParserConfig() -> NekoProto::argparser::ArgParserConfig
-{
-    auto config        = NekoProto::argparser::ArgParserConfig{};
-    config.programName = "mksync";
-    config.description = "mksync - simple mouse keyboard tools";
-    config.version     = MKS_VERSION_STR;
-    config.configIo.emplace();
-    config.configIo->enableFormat("toml");
-    config.deprecatedOptionHandler = [](std::string_view optionName, std::string_view message) {
-        SPDLOG_WARN("Option '{}' is deprecated: {}", optionName, message);
-    };
-    // config.configIo->enableFormat("json");
-    return config;
-}
-
 static auto printHelp(int argc, char **argv, NekoProto::argparser::ArgParserConfig config) -> void
 {
     std::cout << NekoProto::argparser::format_help<mks::CliCommands>(argc, argv, config);
 }
 
-using CliCommand = std::variant<mks::ServerCommand, mks::ClientCommand, mks::CheckPlatformCommand>;
-
-static auto parseCliCommand(int argc, char **argv) -> std::optional<CliCommand>
+static auto parseCliCommand(int argc, char **argv) -> std::optional<mks::CliCommand>
 {
-    auto parserConfig = makeParserConfig();
-    auto parsed       = NekoProto::argparser::parser<mks::CliCommands>(argc, argv, parserConfig);
+    auto parserConfig = mks::makeCliParserConfig();
+    auto parsed       = mks::parseCliArguments(argc, const_cast<const char *const *>(argv));
     if (!parsed) {
         if (parsed.error() ==
             make_error_code(NekoProto::argparser::ArgParserError::HelpRequested)) {

@@ -35,6 +35,7 @@ target("mksync-gui")
         "presentation/**.hpp",
         "qml.qrc",
         path.join(os.projectdir(), "src/config/app_config.cpp"),
+        path.join(os.projectdir(), "src/config/arg_config.cpp"),
         path.join(os.projectdir(), "src/core.cpp"),
         path.join(os.projectdir(), "src/core/**.cpp"),
         path.join(os.projectdir(), "src/app/**.cpp"),

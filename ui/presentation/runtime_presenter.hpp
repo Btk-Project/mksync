@@ -1,6 +1,7 @@
 #pragma once
 
 #include "config/app_config.hpp"
+#include "config/arg_config.hpp"
 #include "preinclude.hpp"
 
 #include <ilias/task/spawn.hpp>
@@ -8,6 +9,7 @@
 #include <QObject>
 #include <QString>
 #include <QTimer>
+#include <QUrl>
 #include <spdlog/sinks/sink.h>
 
 #include <stop_token>
@@ -25,11 +27,14 @@ namespace mks::gui
 
         Q_PROPERTY(
             int selectedMode READ selectedMode WRITE setSelectedMode NOTIFY selectedModeChanged)
-        Q_PROPERTY(QString serverHost READ serverHost WRITE setServerHost NOTIFY serverHostChanged)
-        Q_PROPERTY(int serverPort READ serverPort WRITE setServerPort NOTIFY serverPortChanged)
-        Q_PROPERTY(QString clientHost READ clientHost WRITE setClientHost NOTIFY clientHostChanged)
-        Q_PROPERTY(int clientPort READ clientPort WRITE setClientPort NOTIFY clientPortChanged)
+        Q_PROPERTY(QString endpoint READ endpoint WRITE setEndpoint NOTIFY endpointChanged)
         Q_PROPERTY(QString logLevel READ logLevel WRITE setLogLevel NOTIFY logLevelChanged)
+        Q_PROPERTY(QString appConfigPath READ appConfigPath WRITE setAppConfigPath NOTIFY
+                       appConfigPathChanged)
+        Q_PROPERTY(QString startupConfigPath READ startupConfigPath NOTIFY startupConfigPathChanged)
+        Q_PROPERTY(QString startupStatusMessage READ startupStatusMessage NOTIFY
+                       startupStatusMessageChanged)
+        Q_PROPERTY(bool hasStartupError READ hasStartupError NOTIFY startupStatusMessageChanged)
         Q_PROPERTY(bool active READ active NOTIFY stateChanged)
         Q_PROPERTY(bool running READ running NOTIFY stateChanged)
         Q_PROPERTY(QString statusTitle READ statusTitle NOTIFY stateChanged)
@@ -51,11 +56,12 @@ namespace mks::gui
         ~RuntimePresenter() override;
 
         auto selectedMode() const -> int;
-        auto serverHost() const -> QString;
-        auto serverPort() const -> int;
-        auto clientHost() const -> QString;
-        auto clientPort() const -> int;
+        auto endpoint() const -> QString;
         auto logLevel() const -> QString;
+        auto appConfigPath() const -> QString;
+        auto startupConfigPath() const -> QString;
+        auto startupStatusMessage() const -> QString;
+        auto hasStartupError() const -> bool;
         auto active() const -> bool;
         auto running() const -> bool;
         auto statusTitle() const -> QString;
@@ -66,24 +72,26 @@ namespace mks::gui
         auto activeScreenIndex() const -> int;
 
         auto setSelectedMode(int mode) -> void;
-        auto setServerHost(const QString &host) -> void;
-        auto setServerPort(int port) -> void;
-        auto setClientHost(const QString &host) -> void;
-        auto setClientPort(int port) -> void;
+        auto setEndpoint(const QString &endpoint) -> void;
         auto setLogLevel(const QString &level) -> void;
+        auto setAppConfigPath(const QString &path) -> void;
 
-        Q_INVOKABLE void start(const QString &configPath);
+        Q_INVOKABLE void createStartupConfig();
+        Q_INVOKABLE void importStartupConfig(const QUrl &url);
+        Q_INVOKABLE void saveStartupConfig();
+        Q_INVOKABLE void saveStartupConfigAs(const QUrl &url);
+        Q_INVOKABLE void start();
         Q_INVOKABLE void stop();
         Q_INVOKABLE void clearLog();
         Q_INVOKABLE void quitApplication();
 
     signals:
         void selectedModeChanged();
-        void serverHostChanged();
-        void serverPortChanged();
-        void clientHostChanged();
-        void clientPortChanged();
+        void endpointChanged();
         void logLevelChanged();
+        void appConfigPathChanged();
+        void startupConfigPathChanged();
+        void startupStatusMessageChanged();
         void stateChanged();
         void logTextChanged();
         void activeScreenChanged();
@@ -104,30 +112,36 @@ namespace mks::gui
         auto        finishRun() -> void;
         auto        appendLog(const QString &text) -> void;
         auto        setStatus(const QString &title, const QString &detail) -> void;
+        auto        publishCommand() -> void;
+        auto        showStartupSuccess(const QString &message) -> void;
+        auto        showStartupError(const QString &action, const std::error_code &error) -> void;
+        auto        showStartupValidationError(const QString &message) -> void;
         auto        refreshActiveScreen() -> void;
         auto        clearRunningServer() -> void;
-        static auto endpointText(const QString &host, int port) -> QString;
+        auto        commonConfig() const -> const CommonConfig &;
+        auto        commonConfig() -> CommonConfig &;
+        auto        endpointValue() const -> const std::string &;
+        auto        endpointValue() -> std::string &;
+        static auto localPath(const QUrl &url) -> std::optional<std::filesystem::path>;
 
-        ilias::StopHandle                    mRunHandle;
-        std::stop_source                     mStopSource;
-        RunMode                              mSelectedMode = ServerMode;
-        RunState                             mState        = RunState::Idle;
-        QString                              mServerHost;
-        int                                  mServerPort = 24800;
-        QString                              mClientHost;
-        int                                  mClientPort = 24800;
-        QString                              mLogLevel;
-        QString                              mStatusTitle;
-        QString                              mStatusDetail;
-        QString                              mLogText;
-        QString                              mRunError;
-        QTimer                               mActiveScreenTimer;
-        mks::Server                         *mRunningServer = nullptr;
-        QString                              mActiveScreenOwnerId;
-        int                                  mActiveScreenIndex = -1;
-        bool                                 mStopping          = false;
-        bool                                 mCompletedNormally = false;
-        bool                                 mQuitWhenStopped   = false;
+        ilias::StopHandle     mRunHandle;
+        std::stop_source      mStopSource;
+        CliCommand            mCommand = ServerCommand{.endpoint = "0.0.0.0:1234", .common = {}};
+        std::filesystem::path mStartupConfigPath;
+        RunState              mState = RunState::Idle;
+        QString               mStartupStatusMessage;
+        bool                  mHasStartupError = false;
+        QString               mStatusTitle;
+        QString               mStatusDetail;
+        QString               mLogText;
+        QString               mRunError;
+        QTimer                mActiveScreenTimer;
+        mks::Server          *mRunningServer = nullptr;
+        QString               mActiveScreenOwnerId;
+        int                   mActiveScreenIndex = -1;
+        bool                  mStopping          = false;
+        bool                  mCompletedNormally = false;
+        bool                  mQuitWhenStopped   = false;
         std::shared_ptr<spdlog::sinks::sink> mLogSink;
     };
 

@@ -21,7 +21,7 @@ ApplicationWindow {
         { "title": "运行", "shortcut": "1", "mark": "●" },
         { "title": "屏幕布局", "shortcut": "2", "mark": "▣" },
         { "title": "可信设备", "shortcut": "3", "mark": "✓" },
-        { "title": "配置文件", "shortcut": "4", "mark": "≡" }
+        { "title": "配置", "shortcut": "4", "mark": "≡" }
     ]
 
     onClosing: function(close) {
@@ -31,7 +31,11 @@ ApplicationWindow {
         }
     }
 
-    Shortcut { sequence: "Ctrl+S"; onActivated: settingsPresenter.save() }
+    Shortcut {
+        sequence: "Ctrl+S"
+        enabled: window.currentPage === 1 || window.currentPage === 2
+        onActivated: settingsPresenter.save()
+    }
     Shortcut { sequence: "Ctrl+1"; onActivated: window.currentPage = 0 }
     Shortcut { sequence: "Ctrl+2"; onActivated: window.currentPage = 1 }
     Shortcut { sequence: "Ctrl+3"; onActivated: window.currentPage = 2 }
@@ -86,6 +90,7 @@ ApplicationWindow {
             }
             Components.MksButton {
                 text: window.narrowLayout ? "保存" : "保存配置"
+                visible: window.currentPage === 1 || window.currentPage === 2
                 implicitWidth: window.narrowLayout ? 68 : 88
                 implicitHeight: 30
                 onClicked: settingsPresenter.save()
@@ -123,7 +128,7 @@ ApplicationWindow {
                 Layout.fillWidth: true
             }
             Text {
-                visible: !window.narrowLayout
+                visible: !window.narrowLayout && window.currentPage !== 0
                 text: settingsPresenter.configPath.length === 0
                     ? "未保存"
                     : settingsPresenter.configPath
@@ -318,15 +323,18 @@ ApplicationWindow {
                         currentIndex: window.currentPage
 
                         Pages.HomePage {
-                            presenter: settingsPresenter
                             runtime: runtimePresenter
+                            onConfigureRequested: window.currentPage = 3
                         }
                         Pages.WorkspacePage {
                             presenter: settingsPresenter
                             runtime: runtimePresenter
                         }
                         Pages.TrustedClientsPage { presenter: settingsPresenter }
-                        Pages.ConfigurationPage { presenter: settingsPresenter }
+                        Pages.ConfigurationPage {
+                            presenter: settingsPresenter
+                            runtime: runtimePresenter
+                        }
                     }
                 }
             }

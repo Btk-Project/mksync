@@ -9,7 +9,6 @@
 #include <QFileInfo>
 #include <QMetaObject>
 #include <QPointer>
-#include <QSettings>
 #include <spdlog/sinks/base_sink.h>
 
 #include <functional>
@@ -21,69 +20,11 @@ namespace mks::gui
     {
         constexpr auto kMaximumLogLength = 64 * 1024;
 
-        struct EndpointSetting {
-            QString host;
-            int     port = 24800;
-        };
-
-        auto parseEndpointSetting(const QString &text, const QString &fallbackHost,
-                                  int fallbackPort) -> EndpointSetting
-        {
-            const auto trimmed  = text.trimmed();
-            auto       host     = QString{};
-            auto       portText = QString{};
-
-            if (trimmed.startsWith(QLatin1Char('['))) {
-                const auto bracket = trimmed.indexOf(QLatin1Char(']'));
-                if (bracket > 1 && bracket + 1 < trimmed.size() &&
-                    trimmed[bracket + 1] == QLatin1Char(':')) {
-                    host     = trimmed.mid(1, bracket - 1);
-                    portText = trimmed.mid(bracket + 2);
-                }
-            }
-            else {
-                const auto colon = trimmed.lastIndexOf(QLatin1Char(':'));
-                if (colon > 0) {
-                    host     = trimmed.left(colon);
-                    portText = trimmed.mid(colon + 1);
-                }
-            }
-
-            auto       validPort = false;
-            const auto port      = portText.toInt(&validPort);
-            if (host.isEmpty() || !validPort || port < 1 || port > 65535) {
-                return {.host = fallbackHost, .port = fallbackPort};
-            }
-            return {.host = std::move(host), .port = port};
-        }
-
-        auto loadEndpointSetting(QSettings &settings, const QString &prefix,
-                                 const QString &fallbackHost, int fallbackPort) -> EndpointSetting
-        {
-            const auto hostKey = prefix + QStringLiteral("Host");
-            const auto portKey = prefix + QStringLiteral("Port");
-            if (settings.contains(hostKey) && settings.contains(portKey)) {
-                const auto host = settings.value(hostKey, fallbackHost).toString();
-                const auto port = settings.value(portKey, fallbackPort).toInt();
-                if (!host.trimmed().isEmpty() && port >= 1 && port <= 65535) {
-                    return {.host = host, .port = port};
-                }
-            }
-
-            // Migrate the combined HOST:PORT setting used by the first GUI revision.
-            return parseEndpointSetting(
-                settings.value(prefix + QStringLiteral("Endpoint")).toString(), fallbackHost,
-                fallbackPort);
-        }
-
         auto parseLogLevel(const QString &text) -> spdlog::level::level_enum
         {
             const auto normalized = text.trimmed().toLower();
             if (normalized == QStringLiteral("trace")) {
                 return spdlog::level::trace;
-            }
-            if (normalized == QStringLiteral("debug")) {
-                return spdlog::level::debug;
             }
             if (normalized == QStringLiteral("warn")) {
                 return spdlog::level::warn;
@@ -124,21 +65,9 @@ namespace mks::gui
 
     RuntimePresenter::RuntimePresenter(QObject *parent) : QObject(parent)
     {
-        auto settings = QSettings{};
-        mSelectedMode = static_cast<RunMode>(
-            settings.value(QStringLiteral("runtime/mode"), ServerMode).toInt());
-        const auto server = loadEndpointSetting(settings, QStringLiteral("runtime/server"),
-                                                QStringLiteral("0.0.0.0"), 24800);
-        const auto client = loadEndpointSetting(settings, QStringLiteral("runtime/client"),
-                                                QStringLiteral("127.0.0.1"), 24800);
-        mServerHost       = server.host;
-        mServerPort       = server.port;
-        mClientHost       = client.host;
-        mClientPort       = client.port;
-        mLogLevel =
-            settings.value(QStringLiteral("runtime/logLevel"), QStringLiteral("info")).toString();
-        mStatusTitle  = tr("未运行");
-        mStatusDetail = tr("选择运行模式并启动 mksync。");
+        mStatusTitle          = tr("未运行");
+        mStatusDetail         = tr("选择运行模式并启动 mksync。");
+        mStartupStatusMessage = tr("启动参数已就绪，可导出为命令行兼容的 TOML 文件。");
 
         mActiveScreenTimer.setInterval(150);
         connect(&mActiveScreenTimer, &QTimer::timeout, this,
@@ -175,32 +104,37 @@ namespace mks::gui
 
     auto RuntimePresenter::selectedMode() const -> int
     {
-        return mSelectedMode;
+        return std::holds_alternative<ClientCommand>(mCommand) ? ClientMode : ServerMode;
     }
 
-    auto RuntimePresenter::serverHost() const -> QString
+    auto RuntimePresenter::endpoint() const -> QString
     {
-        return mServerHost;
-    }
-
-    auto RuntimePresenter::serverPort() const -> int
-    {
-        return mServerPort;
-    }
-
-    auto RuntimePresenter::clientHost() const -> QString
-    {
-        return mClientHost;
-    }
-
-    auto RuntimePresenter::clientPort() const -> int
-    {
-        return mClientPort;
+        return QString::fromStdString(endpointValue());
     }
 
     auto RuntimePresenter::logLevel() const -> QString
     {
-        return mLogLevel;
+        return QString::fromStdString(commonConfig().logLevel);
+    }
+
+    auto RuntimePresenter::appConfigPath() const -> QString
+    {
+        return QString::fromStdString(commonConfig().configPath);
+    }
+
+    auto RuntimePresenter::startupConfigPath() const -> QString
+    {
+        return QString::fromStdString(mStartupConfigPath.string());
+    }
+
+    auto RuntimePresenter::startupStatusMessage() const -> QString
+    {
+        return mStartupStatusMessage;
+    }
+
+    auto RuntimePresenter::hasStartupError() const -> bool
+    {
+        return mHasStartupError;
     }
 
     auto RuntimePresenter::active() const -> bool
@@ -246,85 +180,138 @@ namespace mks::gui
     auto RuntimePresenter::setSelectedMode(int mode) -> void
     {
         const auto nextMode = mode == ClientMode ? ClientMode : ServerMode;
-        if (mSelectedMode == nextMode || active()) {
+        if (selectedMode() == nextMode || active()) {
             return;
         }
-        mSelectedMode = nextMode;
-        QSettings{}.setValue(QStringLiteral("runtime/mode"), mSelectedMode);
-        emit selectedModeChanged();
+        auto endpointText = endpointValue();
+        auto common       = commonConfig();
+        if (nextMode == ClientMode) {
+            mCommand =
+                ClientCommand{.endpoint = std::move(endpointText), .common = std::move(common)};
+        }
+        else {
+            mCommand =
+                ServerCommand{.endpoint = std::move(endpointText), .common = std::move(common)};
+        }
+        publishCommand();
     }
 
-    auto RuntimePresenter::setServerHost(const QString &host) -> void
+    auto RuntimePresenter::setEndpoint(const QString &endpointText) -> void
     {
-        const auto trimmed = host.trimmed();
-        if (trimmed.isEmpty() || mServerHost == trimmed || active()) {
+        const auto trimmed = endpointText.trimmed();
+        if (trimmed.isEmpty() || endpoint() == trimmed || active()) {
             return;
         }
-        mServerHost = trimmed;
-        QSettings{}.setValue(QStringLiteral("runtime/serverHost"), trimmed);
-        emit serverHostChanged();
-    }
-
-    auto RuntimePresenter::setServerPort(int port) -> void
-    {
-        if (port < 1 || port > 65535 || mServerPort == port || active()) {
-            return;
-        }
-        mServerPort = port;
-        QSettings{}.setValue(QStringLiteral("runtime/serverPort"), port);
-        emit serverPortChanged();
-    }
-
-    auto RuntimePresenter::setClientHost(const QString &host) -> void
-    {
-        const auto trimmed = host.trimmed();
-        if (trimmed.isEmpty() || mClientHost == trimmed || active()) {
-            return;
-        }
-        mClientHost = trimmed;
-        QSettings{}.setValue(QStringLiteral("runtime/clientHost"), trimmed);
-        emit clientHostChanged();
-    }
-
-    auto RuntimePresenter::setClientPort(int port) -> void
-    {
-        if (port < 1 || port > 65535 || mClientPort == port || active()) {
-            return;
-        }
-        mClientPort = port;
-        QSettings{}.setValue(QStringLiteral("runtime/clientPort"), port);
-        emit clientPortChanged();
+        endpointValue() = trimmed.toStdString();
+        emit endpointChanged();
     }
 
     auto RuntimePresenter::setLogLevel(const QString &level) -> void
     {
-        static const auto levels     = QStringList{QStringLiteral("trace"), QStringLiteral("debug"),
-                                               QStringLiteral("info"),  QStringLiteral("warn"),
-                                               QStringLiteral("error"), QStringLiteral("critical"),
-                                               QStringLiteral("off")};
-        const auto        normalized = level.trimmed().toLower();
-        if (!levels.contains(normalized) || mLogLevel == normalized || active()) {
+        static const auto levels =
+            QStringList{QStringLiteral("trace"), QStringLiteral("info"),     QStringLiteral("warn"),
+                        QStringLiteral("error"), QStringLiteral("critical"), QStringLiteral("off")};
+        const auto normalized = level.trimmed().toLower();
+        if (!levels.contains(normalized) || logLevel() == normalized || active()) {
             return;
         }
-        mLogLevel = normalized;
-        QSettings{}.setValue(QStringLiteral("runtime/logLevel"), normalized);
+        commonConfig().logLevel = normalized.toStdString();
         emit logLevelChanged();
     }
 
-    auto RuntimePresenter::start(const QString &configPath) -> void
+    auto RuntimePresenter::setAppConfigPath(const QString &path) -> void
+    {
+        const auto normalized = path.trimmed();
+        if (appConfigPath() == normalized) {
+            return;
+        }
+        commonConfig().configPath = normalized.toStdString();
+        emit appConfigPathChanged();
+    }
+
+    auto RuntimePresenter::createStartupConfig() -> void
+    {
+        if (active()) {
+            return;
+        }
+        mCommand = ServerCommand{.endpoint = "0.0.0.0:1234", .common = {}};
+        mStartupConfigPath.clear();
+        publishCommand();
+        emit startupConfigPathChanged();
+        showStartupSuccess(tr("已创建新的服务端启动参数。选择“导出…”以写入 TOML 文件。"));
+    }
+
+    auto RuntimePresenter::importStartupConfig(const QUrl &url) -> void
+    {
+        if (active()) {
+            showStartupValidationError(tr("请先停止正在运行的服务，再导入启动参数。"));
+            return;
+        }
+        const auto path = localPath(url);
+        if (!path) {
+            showStartupValidationError(tr("只能导入本地 TOML 文件。"));
+            return;
+        }
+        auto imported = importCliCommand(*path);
+        if (!imported) {
+            showStartupError(tr("导入启动参数失败"), imported.error());
+            return;
+        }
+        if (std::holds_alternative<CheckPlatformCommand>(*imported)) {
+            showStartupValidationError(tr("GUI 只能载入 server 或 client 启动参数。"));
+            return;
+        }
+        mCommand           = std::move(*imported);
+        mStartupConfigPath = *path;
+        publishCommand();
+        emit startupConfigPathChanged();
+        showStartupSuccess(tr("已导入 %1").arg(startupConfigPath()));
+    }
+
+    auto RuntimePresenter::saveStartupConfig() -> void
+    {
+        if (mStartupConfigPath.empty()) {
+            showStartupValidationError(tr("启动参数尚未指定文件。请选择“导出…”。"));
+            return;
+        }
+        auto saved = exportCliCommand(mStartupConfigPath, mCommand);
+        if (!saved) {
+            showStartupError(tr("导出启动参数失败"), saved.error());
+            return;
+        }
+        showStartupSuccess(tr("已导出到 %1").arg(startupConfigPath()));
+    }
+
+    auto RuntimePresenter::saveStartupConfigAs(const QUrl &url) -> void
+    {
+        const auto path = localPath(url);
+        if (!path) {
+            showStartupValidationError(tr("请选择本地 TOML 保存位置。"));
+            return;
+        }
+        auto saved = exportCliCommand(*path, mCommand);
+        if (!saved) {
+            showStartupError(tr("导出启动参数失败"), saved.error());
+            return;
+        }
+        mStartupConfigPath = *path;
+        emit startupConfigPathChanged();
+        showStartupSuccess(tr("已导出到 %1").arg(startupConfigPath()));
+    }
+
+    auto RuntimePresenter::start() -> void
     {
         if (active()) {
             return;
         }
 
-        const auto host          = mSelectedMode == ServerMode ? mServerHost : mClientHost;
-        const auto port          = mSelectedMode == ServerMode ? mServerPort : mClientPort;
-        const auto endpointValue = endpointText(host, port);
-        const auto endpoint      = ilias::IPEndpoint::fromString(endpointValue.toStdString());
+        const auto endpointText = endpoint();
+        const auto endpoint     = ilias::IPEndpoint::fromString(endpointValue());
         if (!endpoint) {
             setStatus(tr("无法启动"), tr("请输入有效的 IP 地址和端口。"));
             return;
         }
+        const auto configPath = appConfigPath();
         if (configPath.trimmed().isEmpty()) {
             setStatus(tr("无法启动"), tr("当前配置尚未保存，请先保存配置文件。"));
             return;
@@ -346,14 +333,14 @@ namespace mks::gui
         emit logTextChanged();
 
         mState = RunState::Starting;
-        setStatus(tr("正在启动"), mSelectedMode == ServerMode
-                                      ? tr("正在准备监听 %1").arg(endpointValue)
-                                      : tr("正在连接 %1").arg(endpointValue));
+        setStatus(tr("正在启动"), selectedMode() == ServerMode
+                                      ? tr("正在准备监听 %1").arg(endpointText)
+                                      : tr("正在连接 %1").arg(endpointText));
         appendLog(
-            mSelectedMode == ServerMode
-                ? tr("[GUI] 以服务端模式启动，监听 %1，日志等级 %2\n").arg(endpointValue, mLogLevel)
+            selectedMode() == ServerMode
+                ? tr("[GUI] 以服务端模式启动，监听 %1，日志等级 %2\n").arg(endpointText, logLevel())
                 : tr("[GUI] 以客户端模式启动，连接 %1，日志等级 %2\n")
-                      .arg(endpointValue, mLogLevel));
+                      .arg(endpointText, logLevel()));
 
         mRunHandle = ilias::spawn(runService(*endpoint, std::move(*config), absoluteConfigPath));
     }
@@ -400,7 +387,7 @@ namespace mks::gui
                                           std::filesystem::path configPath) -> Task<void>
     {
         try {
-            spdlog::set_level(parseLogLevel(mLogLevel));
+            spdlog::set_level(parseLogLevel(logLevel()));
             auto platform = Platform::create();
             if (!platform) {
                 mRunError = tr("当前系统无法创建键鼠输入后端。");
@@ -408,13 +395,12 @@ namespace mks::gui
             }
 
             mState = RunState::Running;
-            setStatus(mSelectedMode == ServerMode ? tr("服务端运行中") : tr("客户端运行中"),
-                      mSelectedMode == ServerMode
-                          ? tr("正在监听 %1").arg(endpointText(mServerHost, mServerPort))
-                          : tr("已连接到 %1").arg(endpointText(mClientHost, mClientPort)));
+            setStatus(selectedMode() == ServerMode ? tr("服务端运行中") : tr("客户端运行中"),
+                      selectedMode() == ServerMode ? tr("正在监听 %1").arg(this->endpoint())
+                                                   : tr("已连接到 %1").arg(this->endpoint()));
             appendLog(tr("[GUI] 输入后端已初始化。\n"));
 
-            if (mSelectedMode == ServerMode) {
+            if (selectedMode() == ServerMode) {
                 auto server =
                     Server{std::move(platform), endpoint, std::move(config), std::move(configPath)};
                 mRunningServer = &server;
@@ -496,6 +482,76 @@ namespace mks::gui
         emit stateChanged();
     }
 
+    auto RuntimePresenter::publishCommand() -> void
+    {
+        emit selectedModeChanged();
+        emit endpointChanged();
+        emit logLevelChanged();
+        emit appConfigPathChanged();
+    }
+
+    auto RuntimePresenter::showStartupSuccess(const QString &message) -> void
+    {
+        mStartupStatusMessage = message;
+        mHasStartupError      = false;
+        emit startupStatusMessageChanged();
+    }
+
+    auto RuntimePresenter::showStartupError(const QString &action, const std::error_code &error)
+        -> void
+    {
+        mStartupStatusMessage = tr("%1：%2").arg(action, QString::fromStdString(error.message()));
+        mHasStartupError      = true;
+        emit startupStatusMessageChanged();
+    }
+
+    auto RuntimePresenter::showStartupValidationError(const QString &message) -> void
+    {
+        mStartupStatusMessage = message;
+        mHasStartupError      = true;
+        emit startupStatusMessageChanged();
+    }
+
+    auto RuntimePresenter::commonConfig() const -> const CommonConfig &
+    {
+        if (const auto *server = std::get_if<ServerCommand>(&mCommand)) {
+            return server->common;
+        }
+        return std::get<ClientCommand>(mCommand).common;
+    }
+
+    auto RuntimePresenter::commonConfig() -> CommonConfig &
+    {
+        if (auto *server = std::get_if<ServerCommand>(&mCommand)) {
+            return server->common;
+        }
+        return std::get<ClientCommand>(mCommand).common;
+    }
+
+    auto RuntimePresenter::endpointValue() const -> const std::string &
+    {
+        if (const auto *server = std::get_if<ServerCommand>(&mCommand)) {
+            return server->endpoint;
+        }
+        return std::get<ClientCommand>(mCommand).endpoint;
+    }
+
+    auto RuntimePresenter::endpointValue() -> std::string &
+    {
+        if (auto *server = std::get_if<ServerCommand>(&mCommand)) {
+            return server->endpoint;
+        }
+        return std::get<ClientCommand>(mCommand).endpoint;
+    }
+
+    auto RuntimePresenter::localPath(const QUrl &url) -> std::optional<std::filesystem::path>
+    {
+        if (!url.isLocalFile()) {
+            return std::nullopt;
+        }
+        return std::filesystem::path{url.toLocalFile().toStdString()};
+    }
+
     auto RuntimePresenter::refreshActiveScreen() -> void
     {
         auto ownerId     = QString{};
@@ -520,17 +576,6 @@ namespace mks::gui
         mActiveScreenTimer.stop();
         mRunningServer = nullptr;
         refreshActiveScreen();
-    }
-
-    auto RuntimePresenter::endpointText(const QString &host, int port) -> QString
-    {
-        auto normalizedHost = host.trimmed();
-        if (normalizedHost.contains(QLatin1Char(':')) &&
-            !(normalizedHost.startsWith(QLatin1Char('[')) &&
-              normalizedHost.endsWith(QLatin1Char(']')))) {
-            normalizedHost = QStringLiteral("[%1]").arg(normalizedHost);
-        }
-        return QStringLiteral("%1:%2").arg(normalizedHost).arg(port);
     }
 
 } // namespace mks::gui

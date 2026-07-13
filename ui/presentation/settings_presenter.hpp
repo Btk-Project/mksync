@@ -34,6 +34,7 @@ namespace mks::gui
         auto hasError() const -> bool;
 
         Q_INVOKABLE void loadDefault();
+        Q_INVOKABLE void loadConfigPath(const QString &path);
         Q_INVOKABLE void createNew();
         Q_INVOKABLE void importConfig(const QUrl &url);
         Q_INVOKABLE void save();

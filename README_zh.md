@@ -97,8 +97,9 @@ xmake -rv
 
 ### Qt 6 图形界面
 
-Qt/QML 前端位于独立的 [`ui/`](ui/README.md) 目录，默认不会参与命令行构建。它与 CLI 共用
-`AppConfig` 配置文件，支持拖动配置屏幕布局、管理可信设备、导入和保存配置文件。
+Qt/QML 前端位于独立的 [`ui/`](ui/README.md) 目录，默认不会参与命令行构建。屏幕布局和
+可信设备保存在 `AppConfig` JSON 中；启动模式、端点、JSON 路径和日志等级使用 CLI 的
+`CliCommand` 数据模型，可直接导入 `--export-toml` 生成的文件并导出给 `--import-toml`。
 
 ```bash
 xmake f -m debug --enable_gui=y

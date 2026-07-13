@@ -2,24 +2,27 @@
 
 #include "config/config.hpp"
 
+#include <ilias/io/error.hpp>
 #include <nekoproto/argparser/argparser.hpp>
 
+#include <filesystem>
 #include <string>
+#include <variant>
 
 MKS_BEGIN
 
 struct CommonConfig {
     std::string configPath = "mksync.json";
-    std::string logLevel = "info";
+    std::string logLevel   = "info";
 };
 
 struct ServerCommand {
-    std::string endpoint;
+    std::string  endpoint;
     CommonConfig common;
 };
 
 struct ClientCommand {
-    std::string endpoint;
+    std::string  endpoint;
     CommonConfig common;
 };
 
@@ -31,6 +34,14 @@ struct CliCommands {
     CheckPlatformCommand checkPlatform;
 };
 
+using CliCommand = std::variant<ServerCommand, ClientCommand, CheckPlatformCommand>;
+
+auto makeCliParserConfig() -> NekoProto::argparser::ArgParserConfig;
+auto parseCliArguments(int argc, const char *const *argv) -> ilias::IoResult<CliCommand>;
+auto importCliCommand(const std::filesystem::path &path) -> ilias::IoResult<CliCommand>;
+auto exportCliCommand(const std::filesystem::path &path, const CliCommand &command)
+    -> ilias::IoResult<void>;
+
 MKS_END
 
 namespace NekoProto
@@ -40,47 +51,41 @@ namespace NekoProto
 
     template <>
     struct Meta<::mks::ServerCommand, void> {
-        constexpr static auto value = Object(
-            "endpoint",
-            make_tags<mksArgparser::arg_value_name<"HOST:PORT">,
-                      mksArgparser::arg_help<"listen endpoint">,
-                      mksArgparser::ArgTags{.required = true, .positional = true}>(
-                &::mks::ServerCommand::endpoint),
-            "common",
-                &::mks::ServerCommand::common);
+        constexpr static auto value =
+            Object("endpoint",
+                   make_tags<mksArgparser::arg_value_name<"HOST:PORT">,
+                             mksArgparser::arg_help<"listen endpoint">,
+                             mksArgparser::ArgTags{.required = true, .positional = true}>(
+                       &::mks::ServerCommand::endpoint),
+                   "common", &::mks::ServerCommand::common);
     };
 
     template <>
     struct Meta<::mks::ClientCommand, void> {
-        constexpr static auto value = Object(
-            "endpoint",
-            make_tags<mksArgparser::arg_value_name<"HOST:PORT">,
-                      mksArgparser::arg_help<"server endpoint">,
-                      mksArgparser::ArgTags{.required = true, .positional = true}>(
-                &::mks::ClientCommand::endpoint),
-            "common",
-                &::mks::ClientCommand::common);
+        constexpr static auto value =
+            Object("endpoint",
+                   make_tags<mksArgparser::arg_value_name<"HOST:PORT">,
+                             mksArgparser::arg_help<"server endpoint">,
+                             mksArgparser::ArgTags{.required = true, .positional = true}>(
+                       &::mks::ClientCommand::endpoint),
+                   "common", &::mks::ClientCommand::common);
     };
 
     template <>
     struct Meta<::mks::CommonConfig, void> {
         constexpr static auto value = Object(
             "configPath",
-            make_tags<mksArgparser::arg_long_name<"config">,
-                      mksArgparser::arg_short_name<'c'>,
-                      mksArgparser::arg_aliases<"config">,
-                      mksArgparser::arg_value_name<"PATH">,
+            make_tags<mksArgparser::arg_long_name<"config">, mksArgparser::arg_short_name<'c'>,
+                      mksArgparser::arg_aliases<"config">, mksArgparser::arg_value_name<"PATH">,
                       mksArgparser::arg_help<"configuration file path">>(
                 &::mks::CommonConfig::configPath),
             "logLevel",
-                make_tags<mksArgparser::arg_long_name<"log-level">,
-                      mksArgparser::arg_aliases<"log-level">,
-                      mksArgparser::arg_value_name<"LEVEL">,
-                      mksArgparser::arg_choices<"trace", "info", "warn", "error", "critical", "off">,
-                      mksArgparser::arg_default<"info"_cs>,
-                      mksArgparser::arg_env<"MKSYNC_LOG_LEVEL">,
-                      mksArgparser::arg_help<"log level">>(
-                &::mks::CommonConfig::logLevel));
+            make_tags<
+                mksArgparser::arg_long_name<"log-level">, mksArgparser::arg_aliases<"log-level">,
+                mksArgparser::arg_value_name<"LEVEL">,
+                mksArgparser::arg_choices<"trace", "info", "warn", "error", "critical", "off">,
+                mksArgparser::arg_default<"info"_cs>, mksArgparser::arg_env<"MKSYNC_LOG_LEVEL">,
+                mksArgparser::arg_help<"log level">>(&::mks::CommonConfig::logLevel));
     };
 
     template <>

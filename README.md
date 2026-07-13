@@ -97,8 +97,9 @@ xmake -rv
 ### Qt 6 GUI
 
 The Qt/QML frontend lives in the isolated [`ui/`](ui/README.md) directory and is not built by
-default. It shares the CLI `AppConfig` file format, including screen layout, trusted devices, and
-configuration import/export.
+default. Screen layout and trusted devices remain in the `AppConfig` JSON document. Startup mode,
+endpoint, JSON path, and log level use the same `CliCommand` model and TOML parser as the CLI, so
+files produced by `--export-toml` can be opened in the GUI and exported for `--import-toml`.
 
 ```bash
 xmake f -m debug --enable_gui=y
