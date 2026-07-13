@@ -94,6 +94,19 @@ xmake -v
 ```
 xmake -rv
 ```
+
+### Qt 6 图形界面
+
+Qt/QML 前端位于独立的 [`ui/`](ui/README.md) 目录，默认不会参与命令行构建。它与 CLI 共用
+`AppConfig` 配置文件，支持拖动配置屏幕布局、管理可信设备、导入和保存配置文件。
+
+```bash
+xmake f -m debug --enable_gui=y
+xmake build mksync-gui
+xmake run mksync-gui
+```
+
+若 Xmake 未自动找到 Qt 6 SDK，在配置命令末尾增加 `--qt=/path/to/Qt/6.x/<kit>`。
 # FIXME
 - [ ] 增加trace日志，跟踪事件流，以便调试复现完整捕获传输流程。
 - [ ] 鼠标移动到其他屏幕后其他屏幕未显示鼠标指针，也没有接收到事件的感觉（增加具体event日志以便调试）

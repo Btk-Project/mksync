@@ -38,6 +38,14 @@ auto ServerInputRouter::clearActiveState() -> void {
 
 auto ServerInputRouter::ensureActiveLocalScreen(bool preferLocalPrimary) -> void {
     if (preferLocalPrimary) {
+        // Initial server startup only establishes which local screen is active.
+        // There is no remote cursor to bring home, so do not reuse the
+        // remote-to-local switch path: that path intentionally warps the OS
+        // pointer to the mapped entry point.
+        if (!mActiveScreen) {
+            activateFirstLocalScreen();
+            return;
+        }
         if (auto *local = mScreens.firstLocalScreen()) {
             switchActiveScreen(ScreenPoint {
                 .key = local->key,
@@ -46,9 +54,6 @@ auto ServerInputRouter::ensureActiveLocalScreen(bool preferLocalPrimary) -> void
             });
             return;
         }
-    }
-    if (!mActiveScreen) {
-        activateFirstLocalScreen();
     }
 }
 

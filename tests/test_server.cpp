@@ -5,7 +5,9 @@
 #include <gtest/gtest.h>
 #include <ilias/testing.hpp>
 #include <filesystem>
+#include <chrono>
 #include <memory>
+#include <stop_token>
 #include <stdexcept>
 #include <vector>
 
@@ -54,6 +56,35 @@ auto findScreen(
 }
 
 } // namespace
+
+ILIAS_TEST(ServerRuntime, StopTokenCancelsRunAndShutsDownCapture) {
+    using namespace std::chrono_literals;
+
+    auto platform = std::make_shared<mks::test::MockPlatform>(std::vector<mks::ScreenInfo> {
+        makeScreen("local-primary", 1920, 1080, true),
+    });
+    auto server = mks::Server {platform, makeEndpoint(30020)};
+    auto stopSource = std::stop_source {};
+
+    auto requestStop = [&]() -> mks::Task<void> {
+        co_await ilias::sleep(20ms);
+        stopSource.request_stop();
+    };
+    auto stopHandle = ilias::spawn(requestStop());
+
+    auto [canceled, result] = co_await ilias::whenAny(stopSource.get_token(), server.run());
+    EXPECT_TRUE(stopSource.stop_requested());
+    EXPECT_TRUE(canceled.has_value() || result.has_value());
+    if (result) {
+        EXPECT_TRUE(result->has_value()) << result->error().message();
+    }
+    EXPECT_FALSE(platform->capture()->lastCursorMove().has_value());
+
+    auto stopResult = co_await std::move(stopHandle);
+    EXPECT_TRUE(stopResult.has_value());
+    EXPECT_FALSE(platform->capture()->push(mks::InputEvent {mks::MouseMoveEvent {}}));
+    co_return;
+}
 
 TEST(ServerScreenRegistry, RegistersLocalPrimaryAtOrigin) {
     auto endpoint = makeEndpoint(30001);

@@ -1,0 +1,13 @@
+<!DOCTYPE RCC>
+<RCC>
+    <qresource prefix="/qml">
+        <file alias="Main.qml">qml/Main.qml</file>
+        <file alias="components/MksButton.qml">qml/components/MksButton.qml</file>
+        <file alias="components/MksTextField.qml">qml/components/MksTextField.qml</file>
+        <file alias="components/SectionCard.qml">qml/components/SectionCard.qml</file>
+        <file alias="pages/HomePage.qml">qml/pages/HomePage.qml</file>
+        <file alias="pages/ConfigurationPage.qml">qml/pages/ConfigurationPage.qml</file>
+        <file alias="pages/TrustedClientsPage.qml">qml/pages/TrustedClientsPage.qml</file>
+        <file alias="pages/WorkspacePage.qml">qml/pages/WorkspacePage.qml</file>
+    </qresource>
+</RCC>

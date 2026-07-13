@@ -28,6 +28,12 @@ option("3rd_kind",     {showmenu = true, type = "string",  default = get_config(
 option("3rd_mode",     {showmenu = true, type = "string",  default = "release",          values = {"release", "debug"}})
 option("outputdir",    {showmenu = true, type = "string",  default = path.join(os.projectdir(), "bin")})
 option("buildversion", {showmenu = true, type = "number",  default = 0})
+option("enable_gui")
+    set_default(false)
+    set_showmenu(true)
+    set_description("Enable the isolated Qt 6/QML GUI target")
+    set_category("mksync features")
+option_end()
 
 includes("lua/check")
 check_macros("has_std_out_ptr",         "__cpp_lib_out_ptr",            {languages = stdcxx(), includes = "version"})
@@ -99,6 +105,11 @@ end
 -- includes("src/*/xmake.lua")
 -- includes("exec/*/xmake.lua")
 includes("tests/xmake.lua")
+
+-- The GUI stays opt-in so a normal command-line build never needs a Qt SDK.
+if has_config("enable_gui") then
+    includes("ui/xmake.lua")
+end
 
 target("mksync")
     set_kind("binary")

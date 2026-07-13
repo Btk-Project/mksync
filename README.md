@@ -93,3 +93,18 @@ And their combinations:
 ```
 xmake -rv
 ```
+
+### Qt 6 GUI
+
+The Qt/QML frontend lives in the isolated [`ui/`](ui/README.md) directory and is not built by
+default. It shares the CLI `AppConfig` file format, including screen layout, trusted devices, and
+configuration import/export.
+
+```bash
+xmake f -m debug --enable_gui=y
+xmake build mksync-gui
+xmake run mksync-gui
+```
+
+If Xmake cannot find Qt 6 automatically, append `--qt=/path/to/Qt/6.x/<kit>` to the configure
+command.
