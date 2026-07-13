@@ -57,30 +57,6 @@ public:
     /** @brief Key of the screen that currently owns keyboard/mouse, if any. */
     auto activeScreenKey() const -> std::optional<ScreenKey>;
 
-#ifdef MKS_ENABLE_TEST_HOOKS
-    auto registerScreensForTest(
-        IPEndpoint endpoint,
-        const std::vector<ScreenInfo> &screens,
-        bool local
-    ) -> void;
-    auto registerScreensForTest(
-        IPEndpoint endpoint,
-        std::string_view ownerId,
-        const std::vector<ScreenInfo> &screens,
-        bool local
-    ) -> void;
-    auto attachClientSenderForTest(
-        IPEndpoint endpoint,
-        ilias::mpsc::Sender<RpcMessage> sender
-    ) -> void;
-    auto attachCaptureForTest(InputCapture *capture) -> void;
-    auto removeScreensForTest(IPEndpoint endpoint) -> void;
-    auto handleInputEventForTest(const InputEvent &event) -> void;
-    auto isClientTrustedForTest(std::string_view name) const -> bool;
-    auto isClientTrustedForTest(std::string_view machineId, std::string_view name) const -> bool;
-    auto configForTest() const -> const AppConfig &;
-#endif
-
 private:
     // MARK: Background tasks
 

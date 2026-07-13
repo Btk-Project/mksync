@@ -88,13 +88,6 @@ auto Client::shutdownConnection(RpcTransport &transport, InputInjector &injector
     co_return;
 }
 
-#ifdef MKS_ENABLE_TEST_HOOKS
-auto Client::handleMessageForTest(const RpcMessage &message, InputInjector &injector) -> IoTask<void> {
-    ILIAS_CO_TRYV(co_await handleMessage(message, injector));
-    co_return {};
-}
-#endif
-
 auto Client::handleWrite(RpcTransport &transport) -> IoTask<void> {
     using namespace std::literals;
 

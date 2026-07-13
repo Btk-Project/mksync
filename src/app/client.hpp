@@ -27,9 +27,6 @@ public:
 
     auto run() -> IoTask<void>;
 
-#ifdef MKS_ENABLE_TEST_HOOKS
-    auto handleMessageForTest(const RpcMessage &message, InputInjector &injector) -> IoTask<void>;
-#endif
 private:
     auto handleWrite(RpcTransport &transport) -> IoTask<void>;
     auto handleRead(RpcTransport &transport, InputInjector &injector) -> IoTask<void>;

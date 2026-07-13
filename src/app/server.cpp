@@ -47,61 +47,6 @@ auto Server::activeScreenKey() const -> std::optional<ScreenKey> {
     return mInput.activeScreenKey();
 }
 
-// MARK: Test hooks
-
-#ifdef MKS_ENABLE_TEST_HOOKS
-auto Server::registerScreensForTest(
-    IPEndpoint endpoint,
-    const std::vector<ScreenInfo> &screens,
-    bool local
-) -> void {
-    registerScreens(endpoint, screens, local);
-}
-
-auto Server::registerScreensForTest(
-    IPEndpoint endpoint,
-    std::string_view ownerId,
-    const std::vector<ScreenInfo> &screens,
-    bool local
-) -> void {
-    registerScreens(endpoint, ownerId, screens, local);
-}
-
-auto Server::attachClientSenderForTest(
-    IPEndpoint endpoint,
-    ilias::mpsc::Sender<RpcMessage> sender
-) -> void {
-    mClientSenders[endpoint] = std::move(sender);
-}
-
-auto Server::attachCaptureForTest(InputCapture *capture) -> void {
-    mInput.setCapture(capture);
-}
-
-auto Server::removeScreensForTest(IPEndpoint endpoint) -> void {
-    removeEndpointScreens(endpoint);
-}
-
-auto Server::handleInputEventForTest(const InputEvent &event) -> void {
-    mInput.handleInputEvent(event);
-}
-
-auto Server::isClientTrustedForTest(std::string_view name) const -> bool {
-    return mks::isTrustedClient(mScreens.config(), {}, name);
-}
-
-auto Server::isClientTrustedForTest(
-    std::string_view machineId,
-    std::string_view name
-) const -> bool {
-    return mks::isTrustedClient(mScreens.config(), machineId, name);
-}
-
-auto Server::configForTest() const -> const AppConfig & {
-    return mScreens.config();
-}
-#endif
-
 // MARK: Run
 
 auto Server::run() -> IoTask<void> {
