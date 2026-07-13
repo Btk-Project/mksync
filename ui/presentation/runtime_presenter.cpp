@@ -3,6 +3,7 @@
 
 #include "app/client.hpp"
 #include "app/server.hpp"
+#include "platform/backend.hpp"
 #include "platform/platform.hpp"
 
 #include <QCoreApplication>
@@ -68,6 +69,7 @@ namespace mks::gui
         mStatusTitle          = tr("未运行");
         mStatusDetail         = tr("选择运行模式并启动 mksync。");
         mStartupStatusMessage = tr("启动参数已就绪，可导出为命令行兼容的 TOML 文件。");
+        mBackendCheckText     = tr("尚未检查后端能力。");
 
         mActiveScreenTimer.setInterval(150);
         connect(&mActiveScreenTimer, &QTimer::timeout, this,
@@ -91,10 +93,14 @@ namespace mks::gui
         if (auto logger = spdlog::default_logger()) {
             logger->sinks().push_back(mLogSink);
         }
+        refreshBackendChecks();
     }
 
     RuntimePresenter::~RuntimePresenter()
     {
+        if (mBackendCheckHandle) {
+            mBackendCheckHandle.stop();
+        }
         if (auto logger = spdlog::default_logger()) {
             std::erase(logger->sinks(), mLogSink);
         }
@@ -115,6 +121,21 @@ namespace mks::gui
     auto RuntimePresenter::logLevel() const -> QString
     {
         return QString::fromStdString(commonConfig().logLevel);
+    }
+
+    auto RuntimePresenter::selectedBackend() const -> QString
+    {
+        return commonConfig().backend.empty() ? QStringLiteral("auto")
+                                              : QString::fromStdString(commonConfig().backend);
+    }
+
+    auto RuntimePresenter::backendOptions() const -> QStringList
+    {
+        auto result = QStringList{QStringLiteral("auto")};
+        for (const auto &descriptor : registeredBackends()) {
+            result.push_back(QString::fromUtf8(descriptor.name));
+        }
+        return result;
     }
 
     auto RuntimePresenter::appConfigPath() const -> QString
@@ -155,6 +176,32 @@ namespace mks::gui
     auto RuntimePresenter::statusDetail() const -> QString
     {
         return mStatusDetail;
+    }
+
+    auto RuntimePresenter::backendName() const -> QString
+    {
+        if (!mActiveBackendName.isEmpty()) {
+            return mActiveBackendName;
+        }
+        if (commonConfig().backend.empty()) {
+            return tr("自动选择");
+        }
+        for (const auto &descriptor : registeredBackends()) {
+            if (descriptor.name == commonConfig().backend) {
+                return QString::fromUtf8(descriptor.displayName);
+            }
+        }
+        return QString::fromStdString(commonConfig().backend);
+    }
+
+    auto RuntimePresenter::backendCheckText() const -> QString
+    {
+        return mBackendCheckText;
+    }
+
+    auto RuntimePresenter::backendChecking() const -> bool
+    {
+        return mBackendChecking;
     }
 
     auto RuntimePresenter::logText() const -> QString
@@ -219,6 +266,24 @@ namespace mks::gui
         emit logLevelChanged();
     }
 
+    auto RuntimePresenter::setSelectedBackend(const QString &backend) -> void
+    {
+        if (active()) {
+            return;
+        }
+        const auto normalized = backend.trimmed().toLower();
+        const auto value      = normalized == QStringLiteral("auto") ? QString{} : normalized;
+        if (!value.isEmpty() && !backendOptions().contains(value)) {
+            return;
+        }
+        if (commonConfig().backend == value.toStdString()) {
+            return;
+        }
+        commonConfig().backend = value.toStdString();
+        emit selectedBackendChanged();
+        emit backendStatusChanged();
+    }
+
     auto RuntimePresenter::setAppConfigPath(const QString &path) -> void
     {
         const auto normalized = path.trimmed();
@@ -257,7 +322,8 @@ namespace mks::gui
             showStartupError(tr("导入启动参数失败"), imported.error());
             return;
         }
-        if (std::holds_alternative<CheckPlatformCommand>(*imported)) {
+        if (!std::holds_alternative<ServerCommand>(*imported) &&
+            !std::holds_alternative<ClientCommand>(*imported)) {
             showStartupValidationError(tr("GUI 只能载入 server 或 client 启动参数。"));
             return;
         }
@@ -366,6 +432,51 @@ namespace mks::gui
         emit logTextChanged();
     }
 
+    auto RuntimePresenter::refreshBackendChecks() -> void
+    {
+        if (mBackendChecking) {
+            return;
+        }
+        mBackendChecking  = true;
+        mBackendCheckText = tr("正在检查已注册的后端…");
+        emit backendStatusChanged();
+        mBackendCheckHandle = ilias::spawn(runBackendChecks());
+    }
+
+    auto RuntimePresenter::runBackendChecks() -> Task<void>
+    {
+        const auto guardedThis = QPointer<RuntimePresenter>{this};
+        const auto backends    = co_await checkBackends();
+        if (!guardedThis) {
+            co_return;
+        }
+
+        auto lines = QStringList{};
+        for (const auto &backend : backends) {
+            const auto name        = QString::fromUtf8(backend.descriptor.name);
+            const auto displayName = QString::fromUtf8(backend.descriptor.displayName);
+            lines.push_back(
+                tr("%1 · %2 · %3")
+                    .arg(name, displayName, backend.check.available ? tr("可连接") : tr("不可用")));
+            lines.push_back(tr("  屏幕 %1  捕获 %2  注入 %3")
+                                .arg(backend.check.screens.supported ? tr("✓") : tr("✗"),
+                                     backend.check.capture.supported ? tr("✓") : tr("✗"),
+                                     backend.check.injection.supported ? tr("✓") : tr("✗")));
+            lines.push_back(tr("  %1").arg(QString::fromStdString(backend.check.detail)));
+            if (!backend.check.capture.supported && !backend.check.capture.detail.empty()) {
+                lines.push_back(
+                    tr("  捕获：%1").arg(QString::fromStdString(backend.check.capture.detail)));
+            }
+            if (!backend.check.injection.supported && !backend.check.injection.detail.empty()) {
+                lines.push_back(
+                    tr("  注入：%1").arg(QString::fromStdString(backend.check.injection.detail)));
+            }
+        }
+        guardedThis->mBackendCheckText = lines.join('\n');
+        guardedThis->mBackendChecking  = false;
+        emit guardedThis->backendStatusChanged();
+    }
+
     auto RuntimePresenter::quitApplication() -> void
     {
         if (!active()) {
@@ -388,11 +499,18 @@ namespace mks::gui
     {
         try {
             spdlog::set_level(parseLogLevel(logLevel()));
-            auto platform = Platform::create();
-            if (!platform) {
-                mRunError = tr("当前系统无法创建键鼠输入后端。");
+            const auto requirement = selectedMode() == ServerMode ? BackendRequirement::Capture
+                                                                  : BackendRequirement::Injection;
+            auto       selected    = co_await selectBackend(commonConfig().backend,
+                                                            BackendRequirement::Screens | requirement);
+            if (!selected) {
+                mRunError = tr("没有满足当前运行模式的可用输入后端：%1")
+                                .arg(QString::fromStdString(selected.error().message()));
                 co_return;
             }
+            auto platform      = std::move(selected->platform);
+            mActiveBackendName = QString::fromUtf8(selected->descriptor.displayName);
+            emit backendStatusChanged();
 
             mState = RunState::Running;
             setStatus(selectedMode() == ServerMode ? tr("服务端运行中") : tr("客户端运行中"),
@@ -459,7 +577,9 @@ namespace mks::gui
 
         mStopping = false;
         mState    = RunState::Idle;
+        mActiveBackendName.clear();
         emit stateChanged();
+        emit backendStatusChanged();
 
         if (mQuitWhenStopped) {
             QCoreApplication::quit();
@@ -487,6 +607,7 @@ namespace mks::gui
         emit selectedModeChanged();
         emit endpointChanged();
         emit logLevelChanged();
+        emit selectedBackendChanged();
         emit appConfigPathChanged();
     }
 

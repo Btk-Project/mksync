@@ -1,22 +1,23 @@
-#include "preinclude.hpp"
-#include <ilias/platform.hpp>
-#include <ilias/signal.hpp>
-#include <spdlog/sinks/basic_file_sink.h>
-#include <spdlog/sinks/stdout_color_sinks.h>
-#include "app/server.hpp"
 #include "app/client.hpp"
+#include "app/server.hpp"
 #include "config/app_config.hpp"
 #include "config/arg_config.hpp"
 #include "core.hpp"
+#include "platform/backend.hpp"
 #include "platform/platform.hpp"
+#include "preinclude.hpp"
 #include <cctype>
-#include <filesystem>
-#include <stacktrace>
 #include <csignal>
 #include <cstdlib>
+#include <filesystem>
+#include <ilias/platform.hpp>
+#include <ilias/signal.hpp>
 #include <iostream>
 #include <optional>
 #include <print>
+#include <spdlog/sinks/basic_file_sink.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
+#include <stacktrace>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -35,17 +36,17 @@ static void crashHandler()
 static auto logFilePath() -> std::filesystem::path
 {
     if (const auto *stateHome = std::getenv("XDG_STATE_HOME"); stateHome && *stateHome) {
-        return std::filesystem::path {stateHome} / "mksync" / "mksync.log";
+        return std::filesystem::path{stateHome} / "mksync" / "mksync.log";
     }
     if (const auto *home = std::getenv("HOME"); home && *home) {
-        return std::filesystem::path {home} / ".local" / "state" / "mksync" / "mksync.log";
+        return std::filesystem::path{home} / ".local" / "state" / "mksync" / "mksync.log";
     }
     return "mksync.log";
 }
 
 static auto parseLogLevel(std::string_view text) -> spdlog::level::level_enum
 {
-    auto normalized = std::string {};
+    auto normalized = std::string{};
     normalized.reserve(text.size());
     for (auto ch : text) {
         normalized.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
@@ -82,15 +83,11 @@ static void initializeLogging()
                 std::filesystem::create_directories(parent);
             }
 
-            auto sinks = std::vector<spdlog::sink_ptr> {
+            auto sinks = std::vector<spdlog::sink_ptr>{
                 std::make_shared<spdlog::sinks::stderr_color_sink_mt>(),
                 std::make_shared<spdlog::sinks::basic_file_sink_mt>(logPath.string(), true),
             };
-            auto logger = std::make_shared<spdlog::logger>(
-                "mksync",
-                sinks.begin(),
-                sinks.end()
-            );
+            auto logger = std::make_shared<spdlog::logger>("mksync", sinks.begin(), sinks.end());
             logger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] [%s:%#] %v");
             logger->flush_on(spdlog::level::info);
             spdlog::set_default_logger(std::move(logger));
@@ -129,44 +126,71 @@ static int _init = []() {
     return 0;
 }();
 
-static auto runPlatformCheck() -> mks::IoTask<void>
+static auto checkStatus(bool supported) -> std::string_view
 {
-    try {
-        auto platform = mks::Platform::create();
-        if (!platform) {
-            co_return mks::Err(std::make_error_code(std::errc::operation_not_supported));
-        }
+    return supported ? "yes" : "no";
+}
 
-        const auto screens = platform->screens();
-        SPDLOG_INFO("Platform reported {} screen(s)", screens.size());
-        for (auto index = 0U; index < screens.size(); ++index) {
-            SPDLOG_INFO("Screen {}: {}", index, screens[index]);
-        }
+static auto printBackendCheck(const mks::BackendDescriptor &descriptor,
+                              const mks::BackendCheck      &check) -> void
+{
+    std::println("{}\t{}", descriptor.name, descriptor.displayName);
+    std::println("  available: {} ({})", checkStatus(check.available), check.detail);
+    std::println("  screens:   {} ({})", checkStatus(check.screens.supported),
+                 check.screens.detail);
+    std::println("  capture:   {} ({})", checkStatus(check.capture.supported),
+                 check.capture.detail);
+    std::println("  injection: {} ({})", checkStatus(check.injection.supported),
+                 check.injection.detail);
+}
 
-        auto capture = platform->createCapture();
-        if (!capture) {
-            SPDLOG_ERROR("Current platform does not provide input capture");
-            co_return mks::Err(std::make_error_code(std::errc::operation_not_supported));
+static auto listBackends(bool checked) -> mks::Task<void>
+{
+    if (!checked) {
+        for (const auto &descriptor : mks::registeredBackends()) {
+            std::println("{}\t{}", descriptor.name, descriptor.displayName);
         }
-        ILIAS_CO_TRYV(co_await capture->initialize());
-        co_await capture->shutdown();
-        SPDLOG_INFO("Input capture initialized and shut down successfully");
-
-        auto injector = platform->createInjector();
-        if (!injector) {
-            SPDLOG_ERROR("Current platform does not provide input injection");
-            co_return mks::Err(std::make_error_code(std::errc::operation_not_supported));
-        }
-        ILIAS_CO_TRYV(co_await injector->initialize());
-        co_await injector->shutdown();
-        SPDLOG_INFO("Input injector initialized and shut down successfully");
-
-        co_return {};
+        co_return;
     }
-    catch (const std::exception &err) {
-        SPDLOG_ERROR("Platform check failed: {}", err.what());
-        co_return mks::Err(std::make_error_code(std::errc::operation_not_supported));
+
+    for (const auto &backend : co_await mks::checkBackends()) {
+        printBackendCheck(backend.descriptor, backend.check);
     }
+}
+
+static auto runPlatformCheck(std::string_view requestedBackend) -> mks::IoTask<void>
+{
+    const auto requirements = mks::BackendRequirement::Screens | mks::BackendRequirement::Capture |
+                              mks::BackendRequirement::Injection;
+    if (!requestedBackend.empty() && requestedBackend != "auto") {
+        for (const auto &descriptor : mks::registeredBackends()) {
+            if (descriptor.name != requestedBackend) {
+                continue;
+            }
+            const auto check = co_await mks::checkBackend(descriptor.name);
+            printBackendCheck(descriptor, check);
+            co_return check.supports(requirements)
+                ? mks::IoResult<void>{}
+                : mks::Err(std::make_error_code(std::errc::operation_not_supported));
+        }
+        SPDLOG_ERROR("Unknown platform backend '{}'", requestedBackend);
+        co_return mks::Err(std::make_error_code(std::errc::no_such_device));
+    }
+
+    for (const auto &backend : co_await mks::checkBackends()) {
+        printBackendCheck(backend.descriptor, backend.check);
+        if (backend.check.supports(requirements)) {
+            SPDLOG_INFO("Automatic platform check selected '{}'", backend.descriptor.name);
+            co_return {};
+        }
+    }
+    co_return mks::Err(std::make_error_code(std::errc::operation_not_supported));
+}
+
+static auto selectRuntimeBackend(std::string_view name, mks::BackendRequirement requirement)
+    -> mks::IoTask<mks::PlatformSelection>
+{
+    co_return co_await mks::selectBackend(name, mks::BackendRequirement::Screens | requirement);
 }
 
 static auto printHelp(int argc, char **argv, NekoProto::argparser::ArgParserConfig config) -> void
@@ -226,9 +250,14 @@ void ilias_main(int argc, char **argv)
         co_return;
     }
 
-    if (std::holds_alternative<mks::CheckPlatformCommand>(*command)) {
+    if (const auto *backendCommand = std::get_if<mks::BackendCommand>(&*command)) {
+        co_await listBackends(backendCommand->checked);
+        co_return;
+    }
+
+    if (const auto *checkCommand = std::get_if<mks::CheckPlatformCommand>(&*command)) {
         spdlog::set_level(parseLogLevel("trace"));
-        auto checked = co_await runPlatformCheck();
+        auto checked = co_await runPlatformCheck(checkCommand->backend);
         if (!checked) {
             SPDLOG_ERROR("Platform check failed: {}", checked.error().message());
             std::exit(EXIT_FAILURE);
@@ -247,12 +276,14 @@ void ilias_main(int argc, char **argv)
         if (!loaded) {
             co_return;
         }
-        auto platform = mks::Platform::create();
-        if (!platform) {
-            SPDLOG_ERROR("Failed to create platform backend");
+        auto selected = co_await selectRuntimeBackend(serverCommand->common.backend,
+                                                      mks::BackendRequirement::Capture);
+        if (!selected) {
+            SPDLOG_ERROR("Failed to select a platform backend for server mode: {}",
+                         selected.error().message());
             co_return;
         }
-        mks::Server server{std::move(platform), *endpoint, loaded->app, loaded->path};
+        mks::Server server{std::move(selected->platform), *endpoint, loaded->app, loaded->path};
         auto [serverResult, ctrlc] = co_await ilias::whenAny(server.run(), ilias::signal::ctrlC());
         if (ctrlc) {
             SPDLOG_WARN("Ctrl-C received, shutting down...");
@@ -275,12 +306,14 @@ void ilias_main(int argc, char **argv)
         if (!loaded) {
             co_return;
         }
-        auto platform = mks::Platform::create();
-        if (!platform) {
-            SPDLOG_ERROR("Failed to create platform backend");
+        auto selected = co_await selectRuntimeBackend(clientCommand->common.backend,
+                                                      mks::BackendRequirement::Injection);
+        if (!selected) {
+            SPDLOG_ERROR("Failed to select a platform backend for client mode: {}",
+                         selected.error().message());
             co_return;
         }
-        mks::Client client{std::move(platform), *endpoint, loaded->app};
+        mks::Client client{std::move(selected->platform), *endpoint, loaded->app};
         auto [clientResult, ctrlc] = co_await ilias::whenAny(client.run(), ilias::signal::ctrlC());
         if (ctrlc) {
             SPDLOG_WARN("Ctrl-C received, shutting down...");

@@ -1,5 +1,5 @@
-#include "model/settings_model.hpp"
 #include "config/arg_config.hpp"
+#include "model/settings_model.hpp"
 
 #include <gtest/gtest.h>
 
@@ -43,10 +43,9 @@ namespace
         const auto path = std::filesystem::temp_directory_path() / "mksync-gui-startup-cli.toml";
         std::filesystem::remove(path);
         const auto pathText = path.string();
-        const auto argv = std::array<const char *, 9>{
-            "mksync",       "server",        "0.0.0.0:4321",
-            "--config",     "screens.json",  "--log-level",
-            "trace",        "--export-toml", pathText.c_str(),
+        const auto argv     = std::array<const char *, 9>{
+            "mksync",      "server", "0.0.0.0:4321",  "--config",       "screens.json",
+            "--log-level", "trace",  "--export-toml", pathText.c_str(),
         };
 
         auto parsed = mks::parseCliArguments(static_cast<int>(argv.size()), argv.data());
@@ -67,10 +66,16 @@ namespace
     {
         const auto path = std::filesystem::temp_directory_path() / "mksync-gui-startup-model.toml";
         std::filesystem::remove(path);
-        const auto command = mks::CliCommand{mks::ClientCommand{
-            .endpoint = "192.0.2.8:9876",
-            .common   = {.configPath = "client-screens.json", .logLevel = "warn"},
-        }};
+        const auto command = mks::CliCommand{
+            mks::ClientCommand{
+                               .endpoint = "192.0.2.8:9876",
+                               .common =
+                    {
+                        .configPath = "client-screens.json",
+                        .logLevel   = "warn",
+                        .backend    = "wayland-wlr",
+                    }, }
+        };
 
         auto exported = mks::exportCliCommand(path, command);
         ASSERT_TRUE(exported.has_value()) << exported.error().message();
@@ -81,8 +86,30 @@ namespace
         EXPECT_EQ(client.endpoint, "192.0.2.8:9876");
         EXPECT_EQ(client.common.configPath, "client-screens.json");
         EXPECT_EQ(client.common.logLevel, "warn");
+        EXPECT_EQ(client.common.backend, "wayland-wlr");
 
         std::filesystem::remove(path);
+    }
+
+    TEST(CliBackendOptions, ParsesBackendSelectionForServer)
+    {
+        const auto argv   = std::array<const char *, 5>{"mksync", "server", "0.0.0.0:4321",
+                                                        "--backend", "wayland-wlr"};
+        auto       parsed = mks::parseCliArguments(static_cast<int>(argv.size()), argv.data());
+        ASSERT_TRUE(parsed.has_value()) << parsed.error().message();
+        ASSERT_TRUE(std::holds_alternative<mks::ServerCommand>(*parsed));
+        EXPECT_EQ(std::get<mks::ServerCommand>(*parsed).common.backend, "wayland-wlr");
+    }
+
+    TEST(CliBackendOptions, ParsesCheckedBackendListing)
+    {
+        const auto argv   = std::array<const char *, 4>{"mksync", "backend", "--list", "--checked"};
+        auto       parsed = mks::parseCliArguments(static_cast<int>(argv.size()), argv.data());
+        ASSERT_TRUE(parsed.has_value()) << parsed.error().message();
+        ASSERT_TRUE(std::holds_alternative<mks::BackendCommand>(*parsed));
+        const auto &backend = std::get<mks::BackendCommand>(*parsed);
+        EXPECT_TRUE(backend.list);
+        EXPECT_TRUE(backend.checked);
     }
 
 } // namespace

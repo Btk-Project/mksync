@@ -34,6 +34,7 @@
 #include <ilias/task.hpp>
 #include <spdlog/spdlog.h>
 
+#include "backend.hpp"
 #include "platform.hpp"
 
 MKS_BEGIN
@@ -1524,6 +1525,42 @@ auto Platform::create() -> Platform::Ptr {
         SPDLOG_ERROR("Failed to create XCB platform: {}", ex.what());
         return nullptr;
     }
+}
+
+namespace {
+    auto createX11Backend() -> Platform::Ptr {
+        return Platform::create();
+    }
+
+    auto checkX11Backend() -> Task<BackendCheck> {
+        if (isWaylandSession() || envIsSet("WAYLAND_DISPLAY")) {
+            co_return BackendCheck {
+                .available = false,
+                .detail = "Wayland session detected; XWayland must be a separate backend",
+                .screens = {
+                    .supported = false,
+                    .detail = "X11 output discovery is not used in a Wayland session",
+                },
+                .capture = {
+                    .supported = false,
+                    .detail = "XWayland cannot capture native Wayland input",
+                },
+                .injection = {
+                    .supported = false,
+                    .detail = "XWayland cannot inject into native Wayland windows",
+                },
+            };
+        }
+        co_return co_await probeBackend("X11", createX11Backend);
+    }
+
+    const BackendRegistration kX11BackendRegistration {BackendDescriptor {
+        .name = "x11",
+        .displayName = "X11 (legacy Xlib/XInput2/XTest)",
+        .order = 200,
+        .check = checkX11Backend,
+        .create = createX11Backend,
+    }};
 }
 
 MKS_END

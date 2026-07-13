@@ -61,6 +61,7 @@ public:
      * @return Platform::Ptr 
      */
     static auto create() -> Ptr;
+
 };
 
 MKS_END

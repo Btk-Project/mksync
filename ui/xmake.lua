@@ -10,18 +10,27 @@ target("mksync-gui")
     -- Explicit modules make this a Qt 6 Quick Controls application, including
     -- the QML FileDialog module used for import/export.
     add_rules("qt.quickapp")
+    if is_plat("linux") then
+        add_rules("mks.wayland_client_protocol")
+    end
     add_frameworks("QtCore", "QtGui", "QtQml", "QtQuick", "QtQuickControls2", "QtQuickDialogs2")
 
     add_packages("ilias", "spdlog", "neko-proto-tools")
     if is_plat("linux") then
         add_packages(
+            "pkgconfig::libportal",
+            "pkgconfig::libei-1.0",
             "libx11",
             "libxcb",
             "libxi",
             "libxrandr",
             "libxtst",
+            "libxkbcommon",
+            "wayland",
+            "wayland-protocols",
             "xcb-util-keysyms"
         )
+        add_files(path.join(os.projectdir(), "protocols/*.xml"))
     end
     if not has_config("has_std_format") then
         add_packages("fmt")

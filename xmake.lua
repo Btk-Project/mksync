@@ -21,6 +21,7 @@ add_defines("SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE")
 -- compile rules
 add_rules("mode.release", "mode.debug")
 add_rules("plugin.compile_commands.autoupdate", {lsp = "clangd", outputdir = ".vscode"})
+includes("lua/wayland_protocols.lua")
 
 -- compile configuration
 option("3rd_custom",   {showmenu = true, type = "boolean", default = false})
@@ -66,12 +67,16 @@ add_requires(
 )
 if is_plat("linux") then
     add_requires(
-        "libportal",
+        "pkgconfig::libportal",
+        "pkgconfig::libei-1.0",
         "libx11",
         "libxcb",
         "libxi",
         "libxrandr",
         "libxtst",
+        "libxkbcommon",
+        "wayland",
+        "wayland-protocols",
         "xcb-util-keysyms"
     )
     -- sudo apt install libx11-dev libxrandr-dev libxi-dev libxtst-dev libxcb-keysyms1-dev libxcb-util0-dev libxcb-xtest0-dev
@@ -91,12 +96,14 @@ add_requireconfs("**spdlog",    {override = true, system = useSystemSpdlog, vers
 add_requireconfs("**ilias",     {override = true, version = "x.x.x", configs = {debug = is_config("3rd_mode", "debug"), stdcxx = stdcxx_version(), fmt = not has_config("has_std_format")}})
 add_requireconfs("**neko-proto-tools", {override = true, version = "x.x.x", configs = {debug = is_config("3rd_mode", "debug"), enable_simdjson = false, enable_rapidjson = true, enable_communication = false, enable_fmt = false, enable_spdlog = false, enable_rapidxml = false, enable_jsonrpc = false, enable_protocol = false, enable_tomlplusplus = true}})
 -- configurations of dependency libraries
-add_requireconfs("**libportal",         {system = true, optional = true})
 add_requireconfs("**libx11",            {system = true})
 add_requireconfs("**libxcb",            {system = true})
 add_requireconfs("**libxi",             {system = true})
 add_requireconfs("**libxrandr",         {system = true})
 add_requireconfs("**libxtst",           {system = true})
+add_requireconfs("**libxkbcommon",      {system = true})
+add_requireconfs("**wayland",           {system = true})
+add_requireconfs("**wayland-protocols", {system = true})
 add_requireconfs("**xcb-util-keysyms",  {system = true})
     -- sudo apt install python3-pip libgirepository1.0-dev valac
 end
@@ -119,12 +126,19 @@ target("mksync")
     add_packages("neko-proto-tools")
     
     if is_plat("linux") then
+        add_rules("mks.wayland_client_protocol")
+        add_packages("pkgconfig::libportal")
+        add_packages("pkgconfig::libei-1.0")
         add_packages("libx11")
         add_packages("libxcb")
         add_packages("libxi")
         add_packages("libxrandr")
         add_packages("libxtst")
+        add_packages("libxkbcommon")
+        add_packages("wayland")
+        add_packages("wayland-protocols")
         add_packages("xcb-util-keysyms")
+        add_files("protocols/*.xml")
     end
 
     if is_plat("windows") then 

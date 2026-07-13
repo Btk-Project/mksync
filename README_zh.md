@@ -108,6 +108,23 @@ xmake run mksync-gui
 ```
 
 若 Xmake 未自动找到 Qt 6 SDK，在配置命令末尾增加 `--qt=/path/to/Qt/6.x/<kit>`。
+
+### 输入后端
+
+后端会在支持的平台自行注册并实现能力检查。自动模式按注册顺序选择第一个满足 server 或
+client 所需能力的后端，也可以在 CLI/GUI 中显式指定：
+
+```bash
+mksync backend --list --checked
+mksync server 0.0.0.0:1234 --backend x11
+mksync server 0.0.0.0:1234 --backend wayland-portal
+mksync client 192.0.2.10:1234 --backend wayland-portal
+```
+
+`wayland-portal` 使用 XDG InputCapture/RemoteDesktop Portal + libei 实现捕获与注入；
+`wayland-wlr` 仅负责 Wayland/wlroots 协议能力。两者不混用 X11 API，也不彼此交织。
+详细能力边界和运行时要求见
+[`docs/wayland_backend.md`](docs/wayland_backend.md)。
 # FIXME
 - [ ] 增加trace日志，跟踪事件流，以便调试复现完整捕获传输流程。
 - [ ] 鼠标移动到其他屏幕后其他屏幕未显示鼠标指针，也没有接收到事件的感觉（增加具体event日志以便调试）

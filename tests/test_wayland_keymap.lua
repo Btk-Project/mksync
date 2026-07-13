@@ -1,0 +1,6 @@
+target("test_wayland_keymap")
+    local test_file = path.join(os.scriptdir(), "test_wayland_keymap.cpp")
+    mks_apply_test_settings(test_file)
+    add_files(test_file)
+    add_ldflags("-lgmock", {force = true})
+target_end()

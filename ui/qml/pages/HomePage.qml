@@ -82,6 +82,12 @@ Item {
                             color: "#7b828c"
                             font.pixelSize: 11
                         }
+                        Text {
+                            text: "当前后端：" + root.runtime.backendName
+                            color: "#657180"
+                            font.pixelSize: 11
+                            font.weight: Font.Medium
+                        }
                     }
                     Components.MksButton {
                         text: "清空日志"

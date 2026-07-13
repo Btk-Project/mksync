@@ -23,6 +23,7 @@
 #include <ilias/task.hpp>
 #include <spdlog/spdlog.h>
 
+#include "backend.hpp"
 #include "platform.hpp"
 #include "win32_key.hpp"
 
@@ -1037,6 +1038,24 @@ auto Platform::create() -> Platform::Ptr {
         SPDLOG_ERROR("Failed to create Win32 platform: {}", ex.what());
         return nullptr;
     }
+}
+
+namespace {
+    auto createRegisteredWin32Backend() -> Platform::Ptr {
+        return Platform::create();
+    }
+
+    auto checkWin32Backend() -> Task<BackendCheck> {
+        co_return co_await probeBackend("Win32", createRegisteredWin32Backend);
+    }
+
+    const BackendRegistration kWin32BackendRegistration {BackendDescriptor {
+        .name = "win32",
+        .displayName = "Win32",
+        .order = 100,
+        .check = checkWin32Backend,
+        .create = createRegisteredWin32Backend,
+    }};
 }
 
 MKS_END

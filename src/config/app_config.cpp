@@ -103,7 +103,7 @@ auto isTrustedClient(
 auto serializeConfig(const AppConfig &config) -> IoResult<std::string> {
     auto buffer = std::vector<char> {};
     {
-        auto serializer = Serializer {buffer};
+        auto serializer = Serializer {buffer, JsonOutputFormatOptions::Default()};
         if (!serializer(config)) {
             return Err(ConfigError::SerializeFailed);
         }

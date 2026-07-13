@@ -139,6 +139,28 @@ Item {
                         }
 
                         Text {
+                            text: "输入后端"
+                            color: "#626a75"
+                            font.pixelSize: 12
+                        }
+                        ComboBox {
+                            model: root.runtime.backendOptions
+                            currentIndex: Math.max(
+                                0, root.runtime.backendOptions.indexOf(
+                                    root.runtime.selectedBackend))
+                            enabled: !root.runtime.active
+                            implicitHeight: 34
+                            Layout.preferredWidth: 220
+                            onActivated: root.runtime.selectedBackend = currentText
+                        }
+                        Text {
+                            visible: !root.narrowLayout
+                            text: "auto 按注册顺序选择"
+                            color: "#8a919b"
+                            font.pixelSize: 11
+                        }
+
+                        Text {
                             text: "网络端点"
                             color: "#626a75"
                             font.pixelSize: 12
@@ -190,6 +212,35 @@ Item {
                             Layout.fillWidth: true
                             Layout.columnSpan: root.narrowLayout ? 1 : 2
                         }
+                    }
+
+                    Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: "#e5e7ea" }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Text {
+                            text: "后端能力检查"
+                            color: "#4f5661"
+                            font.pixelSize: 12
+                            font.weight: Font.DemiBold
+                            Layout.fillWidth: true
+                        }
+                        Components.MksButton {
+                            text: root.runtime.backendChecking ? "检查中…" : "重新检查"
+                            secondary: true
+                            enabled: !root.runtime.backendChecking && !root.runtime.active
+                            implicitWidth: 86
+                            implicitHeight: 28
+                            onClicked: root.runtime.refreshBackendChecks()
+                        }
+                    }
+                    Text {
+                        text: root.runtime.backendCheckText
+                        color: "#626a75"
+                        font.family: "monospace"
+                        font.pixelSize: 10
+                        wrapMode: Text.WrapAnywhere
+                        Layout.fillWidth: true
                     }
 
                     Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: "#e5e7ea" }

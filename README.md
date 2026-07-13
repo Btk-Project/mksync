@@ -109,3 +109,20 @@ xmake run mksync-gui
 
 If Xmake cannot find Qt 6 automatically, append `--qt=/path/to/Qt/6.x/<kit>` to the configure
 command.
+
+### Input backends
+
+Backends self-register and provide capability checks. Automatic selection picks the first backend
+that satisfies the server or client requirements; CLI and GUI can also select one explicitly:
+
+```bash
+mksync backend --list --checked
+mksync server 0.0.0.0:1234 --backend x11
+mksync server 0.0.0.0:1234 --backend wayland-portal
+mksync client 192.0.2.10:1234 --backend wayland-portal
+```
+
+`wayland-portal` implements capture and injection with the XDG InputCapture/RemoteDesktop portals
+and libei. `wayland-wlr` is limited to Wayland/wlroots protocol capabilities. Neither backend mixes
+in X11 APIs or intertwines the two implementations. See
+[`docs/wayland_backend.md`](docs/wayland_backend.md) for the exact capability boundaries.

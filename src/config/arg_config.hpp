@@ -14,6 +14,7 @@ MKS_BEGIN
 struct CommonConfig {
     std::string configPath = "mksync.json";
     std::string logLevel   = "info";
+    std::string backend;
 };
 
 struct ServerCommand {
@@ -26,15 +27,23 @@ struct ClientCommand {
     CommonConfig common;
 };
 
-using CheckPlatformCommand = NekoProto::argparser::ArgCommand<1>;
+struct CheckPlatformCommand {
+    std::string backend;
+};
+
+struct BackendCommand {
+    bool list    = false;
+    bool checked = false;
+};
 
 struct CliCommands {
     ServerCommand        server;
     ClientCommand        client;
     CheckPlatformCommand checkPlatform;
+    BackendCommand       backend;
 };
 
-using CliCommand = std::variant<ServerCommand, ClientCommand, CheckPlatformCommand>;
+using CliCommand = std::variant<ServerCommand, ClientCommand, CheckPlatformCommand, BackendCommand>;
 
 auto makeCliParserConfig() -> NekoProto::argparser::ArgParserConfig;
 auto parseCliArguments(int argc, const char *const *argv) -> ilias::IoResult<CliCommand>;
@@ -85,7 +94,35 @@ namespace NekoProto
                 mksArgparser::arg_value_name<"LEVEL">,
                 mksArgparser::arg_choices<"trace", "info", "warn", "error", "critical", "off">,
                 mksArgparser::arg_default<"info"_cs>, mksArgparser::arg_env<"MKSYNC_LOG_LEVEL">,
-                mksArgparser::arg_help<"log level">>(&::mks::CommonConfig::logLevel));
+                mksArgparser::arg_help<"log level">>(&::mks::CommonConfig::logLevel),
+            "backend",
+            make_tags<mksArgparser::arg_long_name<"backend">, mksArgparser::arg_aliases<"backend">,
+                      mksArgparser::arg_value_name<"NAME">, mksArgparser::arg_env<"MKSYNC_BACKEND">,
+                      mksArgparser::arg_help<"platform backend (default: auto)">>(
+                &::mks::CommonConfig::backend));
+    };
+
+    template <>
+    struct Meta<::mks::CheckPlatformCommand, void> {
+        constexpr static auto value = Object(
+            "backend",
+            make_tags<mksArgparser::arg_long_name<"backend">, mksArgparser::arg_value_name<"NAME">,
+                      mksArgparser::arg_env<"MKSYNC_BACKEND">,
+                      mksArgparser::arg_help<"backend to check (default: auto)">>(
+                &::mks::CheckPlatformCommand::backend));
+    };
+
+    template <>
+    struct Meta<::mks::BackendCommand, void> {
+        constexpr static auto value =
+            Object("list",
+                   make_tags<mksArgparser::arg_long_name<"list">,
+                             mksArgparser::arg_help<"list registered backends">,
+                             mksArgparser::ArgTags{.flag = true}>(&::mks::BackendCommand::list),
+                   "checked",
+                   make_tags<mksArgparser::arg_long_name<"checked">,
+                             mksArgparser::arg_help<"run each backend check and show capabilities">,
+                             mksArgparser::ArgTags{.flag = true}>(&::mks::BackendCommand::checked));
     };
 
     template <>
@@ -100,7 +137,10 @@ namespace NekoProto
             "checkPlatform",
             make_tags<mksArgparser::arg_long_name<"check-platform">,
                       mksArgparser::arg_help<"validate platform capture and injection backends">,
-                      mksArgparser::ArgTags{.command = true}>(&::mks::CliCommands::checkPlatform));
+                      mksArgparser::ArgTags{.command = true}>(&::mks::CliCommands::checkPlatform),
+            "backend",
+            make_tags<mksArgparser::arg_help<"list and check platform backends">,
+                      mksArgparser::ArgTags{.command = true}>(&::mks::CliCommands::backend));
     };
 
 } // namespace NekoProto
