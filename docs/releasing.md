@@ -60,6 +60,6 @@ xmake pack -f targz -o dist
 
 Debian/Ubuntu 环境可使用 `-f deb`，Windows 可使用 `-f nsis,zip`。`lua/pack.lua` 同时绑定
 `mksync` 和 `mksync-gui`：Windows 上 Xmake 的 `qt.quickapp` 安装钩子会运行
-`windeployqt`；macOS 会打包 Qt `.app`；Linux 的 Qt、XCB、Wayland 和 portal 库按系统依赖
-处理，`.deb` 由原生工具生成依赖关系。当前没有 macOS 输入后端，因此 Release 暂不发布
-无实际功能的 macOS 安装包。
+`windeployqt`；macOS 会打包 Qt `.app`；Linux 会打包 Xmake 下载的 Qt 链接库，QML 导入
+模块、XCB、Wayland 和 portal 库仍按系统依赖处理，`.deb` 由原生工具生成依赖关系。当前
+没有 macOS 输入后端，因此 Release 暂不发布无实际功能的 macOS 安装包。

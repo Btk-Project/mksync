@@ -95,7 +95,8 @@ xmake build mksync-gui
 xmake run mksync-gui
 ```
 
-若 Xmake 未自动找到 Qt 6 SDK，在配置命令末尾增加 `--qt=/path/to/Qt/6.x/<kit>`。
+GUI 的 `requires` 会由 Xmake 自动下载受支持的 `qt6quick 6.8.3` SDK，无需单独安装 Qt
+或传入 `--qt` 路径。
 
 ### 安装包与 Release
 

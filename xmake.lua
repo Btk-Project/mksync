@@ -87,6 +87,7 @@ includes("tests/xmake.lua")
 
 -- The GUI stays opt-in so a normal command-line build never needs a Qt SDK.
 if has_config("enable_gui") then
+    add_requires("qt6quick 6.8.3")
     includes("ui/xmake.lua")
 end
 

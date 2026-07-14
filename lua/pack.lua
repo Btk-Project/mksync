@@ -65,8 +65,8 @@ xpack("mksync")
         -- qt.quickapp deploys the .app bundle before xpack creates these archives.
         set_formats("dmg", "zip")
     else
-        -- Linux Qt and backend libraries remain system dependencies. deb/rpm record them
-        -- through the native package tools; targz is a distro-oriented portable archive.
+        -- Linux QML import modules and backend libraries remain system dependencies. deb/rpm
+        -- record them through the native package tools; targz is a distro-oriented archive.
         set_formats("deb", "rpm", "targz")
     end
 xpack_end()

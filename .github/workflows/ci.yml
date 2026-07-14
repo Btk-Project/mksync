@@ -38,13 +38,6 @@ jobs:
             wayland-protocols \
             x11proto-dev
 
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: 6.8.3
-          modules: qtdeclarative
-          cache: true
-
       - name: Install Xmake
         uses: xmake-io/github-action-setup-xmake@v1
         with:
@@ -54,8 +47,8 @@ jobs:
 
       - name: Configure C++23
         run: >-
-          xmake f -c -m debug --stdcxx=23 --enable_gui=y --enable_tests=y
-          --ccache=n --qt="$QT_ROOT_DIR"
+          xmake f -c -y -m debug --stdcxx=23 --enable_gui=y --enable_tests=y
+          --ccache=n
 
       - name: Build CLI and GUI
         run: |
@@ -84,14 +77,6 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: 6.8.3
-          arch: win64_msvc2022_64
-          modules: qtdeclarative
-          cache: true
-
       - name: Install Xmake
         uses: xmake-io/github-action-setup-xmake@v1
         with:
@@ -102,8 +87,8 @@ jobs:
       - name: Configure C++23
         shell: pwsh
         run: >-
-          xmake f -c -p windows -a x64 -m debug --stdcxx=23 --enable_gui=y
-          --enable_tests=n --ccache=n --qt="$env:QT_ROOT_DIR"
+          xmake f -c -y -p windows -a x64 -m debug --stdcxx=23 --enable_gui=y
+          --enable_tests=n --ccache=n
 
       - name: Build CLI and GUI
         run: |

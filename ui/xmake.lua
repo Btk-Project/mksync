@@ -6,11 +6,11 @@ target("mksync-gui")
     set_group("applications")
     set_installdir(path.join(os.projectdir(), "build", "install"))
 
-    -- Xmake's Qt Quick rule runs rcc and moc and discovers the system Qt SDK.
-    -- Explicit modules make this a Qt 6 Quick Controls application, including
-    -- the QML FileDialog module used for import/export.
+    -- Xmake's Qt Quick rule runs rcc and moc. The qt6quick package supplies the
+    -- Qt SDK, while the explicit modules include the QML FileDialog support.
     add_rules("qt.quickapp")
     add_frameworks("QtCore", "QtGui", "QtQml", "QtQuick", "QtQuickControls2", "QtQuickDialogs2")
+    add_packages("qt6quick")
 
     add_packages("ilias", "spdlog", "neko-proto-tools")
     mks_add_backend_packages()
@@ -49,9 +49,9 @@ target("mksync-gui")
         add_rpathdirs("$ORIGIN/../lib", {installonly = true})
     end
 
-    -- Xmake's Qt xpack hook deploys Qt automatically on Windows/macOS. Linux packages use
-    -- distro Qt, so install the executable through the normal xpack binary path and retain
-    -- the package-local rpath for non-system shared dependencies.
+    -- Xmake's Qt xpack hook deploys Qt automatically on Windows/macOS. On Linux, install the
+    -- executable and its linked shared libraries through the normal xpack path and retain the
+    -- package-local rpath. QML import modules remain distribution runtime dependencies.
     on_installcmd("linux", function (target, batchcmds, opt)
         import("plugins.pack.batchcmds", {
             alias = "pack_batchcmds",

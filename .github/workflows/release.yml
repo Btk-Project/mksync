@@ -54,7 +54,7 @@ jobs:
         with:
           ref: ${{ env.RELEASE_REF }}
 
-      - name: Install packaging, Qt, and backend dependencies
+      - name: Install packaging and backend dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -71,12 +71,6 @@ jobs:
             libxcb-xtest0-dev \
             libxkbcommon-dev \
             pkg-config \
-            qml6-module-qtquick \
-            qml6-module-qtquick-controls \
-            qml6-module-qtquick-dialogs \
-            qml6-module-qtquick-layouts \
-            qt6-base-dev \
-            qt6-declarative-dev \
             wayland-protocols \
             x11proto-dev
 
@@ -89,8 +83,8 @@ jobs:
 
       - name: Configure release build
         run: >-
-          xmake f -c -m release --stdcxx=23 --enable_gui=y --enable_tests=n
-          --ccache=n --qt=/usr
+          xmake f -c -y -m release --stdcxx=23 --enable_gui=y --enable_tests=n
+          --ccache=n
 
       - name: Build Linux packages
         run: |
@@ -114,14 +108,6 @@ jobs:
         with:
           ref: ${{ env.RELEASE_REF }}
 
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: 6.8.3
-          arch: win64_msvc2022_64
-          modules: qtdeclarative
-          cache: true
-
       - name: Install Xmake
         uses: xmake-io/github-action-setup-xmake@v1
         with:
@@ -136,8 +122,8 @@ jobs:
       - name: Configure release build
         shell: pwsh
         run: >-
-          xmake f -c -p windows -a x64 -m release --stdcxx=23 --enable_gui=y
-          --enable_tests=n --ccache=n --qt="$env:QT_ROOT_DIR"
+          xmake f -c -y -p windows -a x64 -m release --stdcxx=23 --enable_gui=y
+          --enable_tests=n --ccache=n
 
       - name: Build Windows packages
         run: |
