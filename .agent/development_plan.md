@@ -4,7 +4,7 @@
 
 - `docs/development_plan.md`（功能里程碑 M1–M8 + 开放问题）
 - `docs/framework.md`（当前架构快照）
-- `docs/xcb_backend.md`（Linux/X11；本轮不改 xcb 实现）
+- `docs/xcb_backend.md`（Linux/X11 纯 XCB 边界与验收状态）
 
 当前关键决策：
 
@@ -16,7 +16,10 @@
 - `MouseMoveEvent` 可带 `deltaX/deltaY`；远端连续运动优先相对增量。
 - 当前阶段不做复杂手感或移速统一；DPI/DPS 策略后置。
 - 优先 Mock Platform 自动化测试；真机联调仍是未完成验收。
-- XCB/XInput2 capture 已使用 ilias poll；**后续 xcb 改动单独走 `xcb_backend.md`**。
+- X11 已改为纯 XCB；平台、capture、injector 各自独占连接与 reply/event queue。
+- 默认语言标准是 C++23，只允许显式切换到 C++26；低于 23 不受支持。
+- Xmake 后端依赖按编译选项启用；Linux 平台库只使用系统 `pkg-config`。
+- tag 发布通过 Xpack + GitHub Actions 生成 Linux/Windows 二进制包。
 - 代码风格：Result/IoTask、结构化并发、避免 god class / 巨型 dispatch 面条。
 
 当前进度（摘要）：
@@ -27,7 +30,7 @@
 - [x] 2026-07-10：完成代码 review；文档与 M8 债务清单同步。
 - [ ] M5/M6 真机注入与跨机联调验收。
 - [ ] M7 认证策略与“未授权不能注入”。
-- [ ] M8 可靠性与结构拆分（不碰 xcb）。
+- [ ] M8 可靠性与结构拆分。
 
 下一步（与 `docs/development_plan.md` M8 对齐）：
 

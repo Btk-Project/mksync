@@ -1,0 +1,189 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]*.[0-9]*.[0-9]*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to build, for example v0.1.0
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  RELEASE_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+jobs:
+  metadata:
+    name: Validate release metadata
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.value }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_REF }}
+
+      - id: version
+        name: Match the tag and project version
+        shell: bash
+        run: |
+          project_version="$(sed -n 's/^set_version("\([^"]*\)".*/\1/p' xmake.lua | head -n 1)"
+          tag_version="${RELEASE_TAG#v}"
+          if [[ -z "$project_version" || "$project_version" != "$tag_version" ]]; then
+            echo "Tag $RELEASE_TAG does not match xmake.lua version $project_version" >&2
+            exit 1
+          fi
+          echo "value=$project_version" >> "$GITHUB_OUTPUT"
+
+  linux:
+    name: Package Linux
+    needs: metadata
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_REF }}
+
+      - name: Install packaging, Qt, and backend dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            debhelper \
+            devscripts \
+            libei-dev \
+            libportal-dev \
+            libwayland-bin \
+            libwayland-dev \
+            libxcb1-dev \
+            libxcb-keysyms1-dev \
+            libxcb-randr0-dev \
+            libxcb-xinput-dev \
+            libxcb-xtest0-dev \
+            libxkbcommon-dev \
+            pkg-config \
+            qml6-module-qtquick \
+            qml6-module-qtquick-controls \
+            qml6-module-qtquick-dialogs \
+            qml6-module-qtquick-layouts \
+            qt6-base-dev \
+            qt6-declarative-dev \
+            wayland-protocols \
+            x11proto-dev
+
+      - name: Install Xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: 3.0.9
+          package-cache: true
+          project-path: .
+
+      - name: Configure release build
+        run: >-
+          xmake f -c -m release --stdcxx=23 --enable_gui=y --enable_tests=n
+          --ccache=n --qt=/usr
+
+      - name: Build Linux packages
+        run: |
+          xmake build mksync
+          xmake build mksync-gui
+          xmake pack -f targz,deb -o dist
+
+      - name: Upload Linux packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: mksync-linux-${{ needs.metadata.outputs.version }}
+          path: dist/*
+          if-no-files-found: error
+
+  windows:
+    name: Package Windows
+    needs: metadata
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_REF }}
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: 6.8.3
+          arch: win64_msvc2022_64
+          modules: qtdeclarative
+          cache: true
+
+      - name: Install Xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: 3.0.9
+          package-cache: true
+          project-path: .
+
+      - name: Install NSIS
+        shell: pwsh
+        run: choco install nsis --yes --no-progress
+
+      - name: Configure release build
+        shell: pwsh
+        run: >-
+          xmake f -c -p windows -a x64 -m release --stdcxx=23 --enable_gui=y
+          --enable_tests=n --ccache=n --qt="$env:QT_ROOT_DIR"
+
+      - name: Build Windows packages
+        run: |
+          xmake build mksync
+          xmake build mksync-gui
+          xmake pack -f nsis,zip -o dist
+
+      - name: Upload Windows packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: mksync-windows-${{ needs.metadata.outputs.version }}
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    needs: [metadata, linux, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all platform packages
+        uses: actions/download-artifact@v5
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Generate checksums
+        shell: bash
+        run: |
+          cd release-assets
+          find . -maxdepth 1 -type f ! -name SHA256SUMS -print0 \
+            | sort -z \
+            | xargs -0 sha256sum > SHA256SUMS
+
+      - name: Create the release and upload packages
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mapfile -d '' files < <(find release-assets -maxdepth 1 -type f -print0)
+          if (( ${#files[@]} == 0 )); then
+            echo "No release assets were downloaded" >&2
+            exit 1
+          fi
+          gh release create "$RELEASE_TAG" "${files[@]}" \
+            --verify-tag \
+            --generate-notes \
+            --title "mksync $RELEASE_TAG"

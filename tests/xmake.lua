@@ -39,7 +39,7 @@ function mks_apply_test_settings(file)
     set_group("tests/" .. group)
     add_includedirs(path.join(os.projectdir(), "src"))
     add_includedirs(test_root)
-    if stdcxx_version() == 26 then
+    if stdcxx_version() == 26 and is_tool("cxx", "gcc") then
         add_cxxflags("-freflection", {force = true})
     end
     add_common_test_packages()

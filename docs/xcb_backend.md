@@ -1,134 +1,73 @@
-# XCB 后端设计讨论
+# Linux/X11 XCB 后端
 
-本文档只讨论 Linux/X11 后端。当前 `src/platform/xcb.cpp` 已经能用 XInput2 捕获输入，
-并且捕获循环已经改为直接使用 ilias 的 IO 后端监听 X connection fd，不再创建独立
-`std::jthread`。
+`src/platform/xcb.cpp` 是纯 XCB 后端：连接、事件队列、XInput2、RandR、XTest、grab、
+光标和按键映射均使用 XCB API。代码只从 `X11/keysym.h` 与 `X11/XF86keysym.h` 读取
+keysym 常量，不链接或调用 Xlib、libXi、libXrandr、libXtst，也不存在一个连接同时由
+Xlib/XCB 消费事件的情况。
 
-## 目标
+## API 与所有权边界
 
-- [x] XCB/XInput2 capture 不再创建独立线程。
-- [x] X connection fd 通过 ilias `Poller` 注册到当前运行时。
-- [x] `InputCapture::initialize()` 完成 XInput2 事件选择并建立 poller。
-- [x] `InputCapture::nextEvent()` 在协程里等待 fd 可读并解析事件。
-- [x] `InputCapture::shutdown()` 取消 poller，关闭 display，清理队列。
-- [x] 保留 `Platform` / `InputCapture` / `InputInjector` 的跨平台抽象边界。
+`src/platform/xcb_connection.*` 是连接的 RAII 边界：
 
-## 当前注入器状态
+- `XcbConnection::connect()` 建立并检查连接；
+- 析构函数是唯一调用 `xcb_disconnect()` 的位置；
+- `check()` 处理 checked void request；
+- `flush()` 统一检查连接错误；
+- 持有者是对应 reply/event queue 的唯一消费者。
 
-- [x] `XcbPlatform::createInjector()` 已返回真实 `XcbInputInjector`。
-- [x] `XcbInputInjector` 使用独立 `Display *`，不复用平台枚举屏幕的 display。
-- [x] 鼠标移动使用目标 `screenIndex/x/y` 映射到 X root 坐标后 `XWarpPointer`。
-- [x] 鼠标按钮、滚轮和键盘事件使用 XTest 注入。
-- [x] Xmake Linux 依赖增加 `libxtst`。
-- [x] 新增 `mksync --check-platform`，用于真机 smoke check XInput2 capture 与 XTest injector 初始化。
-- [x] 当前 GCC 14.2 / C++23 环境下，Linux/XCB 主目标编译和链接通过。
-- [x] Linux/X11 真机 `mksync --check-platform` 通过，确认 XInput 2.0、XTest 2.2 可用。
-- [x] Linux/X11 真机捕获到连续 `MouseMoveEvent`，确认 XInput2 事件解码可用。
-- [ ] 尚未做 GCC 16.1 / C++26 Linux 真机编译和注入验收。
+后端有三条互不共享的连接：
 
-## 已移除的问题
+| 所有者 | 职责 | 是否消费事件 |
+| --- | --- | --- |
+| `XcbPlatform` | 查询 XI2/RandR、枚举屏幕 | 否，只读取同步 reply |
+| `XcbInputCapture` | 选择并解析 XI2 raw/core grab 事件 | 是，唯一调用 `xcb_poll_for_event` |
+| `XcbInputInjector` | XTest 注入、注入后位置检查 | 否，只读取自己的同步 reply |
 
-旧实现的核心流程是：
+这个拆分避免两类风险：不同线程/对象竞争同一 reply queue，以及 Xlib 内部队列已经读取
+socket 数据、但 XCB/ilias 仍在等待 fd 的混合队列死锁。
 
-1. `XcbInputCapture::initialize()` 创建 `mpsc` channel。
-2. 启动 `std::jthread`。
-3. 线程内打开 X display，选择 XInput2 raw events。
-4. 线程内用 `poll(XConnectionNumber(display), POLLIN, 100)` 等事件。
-5. 收到事件后翻译为 `InputEvent`，再写入 channel。
-6. `nextEvent()` 从 channel 读取事件。
+## 捕获
 
-这个方案已移除，原因是它和项目框架不完全一致：
+初始化流程：
 
-- X display connection 本质是 fd/socket，可由 ilias 原生 poll。
-- 独立线程绕开了结构化并发，取消和 shutdown 更难统一。
-- 线程内 `poll(..., 100)` 存在固定唤醒周期，不如运行时事件驱动。
-- channel 变成线程和协程之间的桥，但 capture 本身其实可以直接是协程。
+1. 打开 capture 专用 XCB connection；
+2. 用 `xcb_input_xi_query_version` 协商 XI 2.1；
+3. 用 `xcb_input_xi_select_events_checked` 选择 raw key/button/motion；
+4. 把 `xcb_get_file_descriptor()` 返回的借用 fd 注册到 ilias `Poller`；
+5. `nextEvent()` 先清空 `xcb_poll_for_event()` 队列，再异步等待 `POLLIN`。
 
-## 当前方案
+远端控制时使用 XCB core grab。XI 2.1 可在 grab 期间继续提供 raw event；旧服务器回退到
+grab window 的 core event。关闭时先 cancel/close poller，再释放 grab/cursor/key symbols，
+最后由 `XcbConnection` 关闭 socket。
 
-XCB/XInput2 后端把 X connection fd 当成 pollable fd：
+## 注入与屏幕
 
-```cpp
-const auto fd = ::XConnectionNumber(display);
-ILIAS_CO_TRY(auto poller, co_await ilias::Poller::make(fd, ilias::IoDescriptor::Socket));
-```
+- 屏幕优先通过 RandR 1.5 `GetMonitors` 枚举，旧服务器回退到 X setup roots；
+- 鼠标移动、按键、按钮和滚轮通过 `xcb_test_fake_input_checked` 注入；
+- keysym/keycode 转换使用 `xcb-keysyms`；
+- 每个 request 的协议错误通过 `IoResult` 返回，创建平台失败等致命初始化错误才抛异常；
+- Wayland 会话不会把 XWayland 误报成系统级捕获/注入后端。
 
-事件读取循环放在 `nextEvent()` 中：
+## 构建边界
 
-```cpp
-while (::XPending(display) == 0) {
-    ILIAS_CO_TRY(auto events, co_await mPoller.poll(POLLIN));
-    if ((events & POLLIN) == 0) {
-        continue;
-    }
-}
+`--enable_backend_x11=y` 才会添加 `xcb.cpp`、`xcb_connection.cpp` 以及下列系统
+`pkg-config` 依赖：
 
-XEvent event {};
-::XNextEvent(display, &event);
-```
+- `xcb`
+- `xcb-keysyms`
+- `xcb-randr`
+- `xcb-xinput`
+- `xcb-xtest`
 
-`nextEvent()` 直接循环读取并返回第一个可翻译的 `InputEvent`。这样 capture 不再需要
-独立线程，也不需要用 channel 把事件从线程送回运行时。
+这些依赖在 `lua/backends.lua` 中全部标记为 `system = true`。关闭选项后不会查找上述包，
+也不会编译任何 X11 后端源文件。
 
-## fd 所有权
+## 验证状态
 
-由 `XcbInputCapture` 持有捕获用 `Display *`：
-
-- `initialize()` 打开 display。
-- `initialize()` 调用 `XISelectEvents`。
-- `initialize()` 用 `XConnectionNumber(display)` 创建 ilias poller。
-- `shutdown()` 先 cancel/close poller，再 `XCloseDisplay`。
-
-注意：`Poller::make(fd, Socket)` 只负责把 fd 注册到 ilias，不应接管 Xlib display 的关闭。
-X display 的生命周期仍然由 `XCloseDisplay` 管理。
-
-## 取消语义
-
-`nextEvent()` 等待 `mPoller.poll(POLLIN)` 时，应自然接受 ilias coroutine cancellation。
-`shutdown()` 应调用：
-
-```cpp
-if (mPoller) {
-    mPoller.cancel();
-    mPoller.close();
-}
-```
-
-然后关闭 display。`IoTask<void>` 成功返回要 `co_return {};`，`Task<void>` 成功返回才使用
-裸 `co_return;`。
-
-## Xlib 与 XCB 的边界
-
-当前实现虽然文件名是 `xcb.cpp`，输入捕获主要走 Xlib/XInput2：
-
-- `XOpenDisplay`
-- `XISelectEvents`
-- `XPending`
-- `XNextEvent`
-- `XGetEventData`
-
-屏幕枚举使用了 `xcb_connect` / `xcb_setup_roots_iterator`。这可以暂时保留。
-后续如果完全切到 XCB，需要重新评估 XInput2 event cookie 的解析和 key symbol 映射。
-短期目标不是“纯 XCB”，而是“X connection fd 由 ilias poll，不再独立线程”。
-
-## 实现步骤
-
-- [x] 移除 `XcbInputCapture::mThread`。
-- [x] 移除 `XcbInputCapture::run()`。
-- [x] 移除 `std::stop_token` 和 `std::latch` 启动同步。
-- [x] `initialize()` 打开 capture display，并保存到成员。
-- [x] `initialize()` 选择 XInput2 raw events。
-- [x] `initialize()` 创建 `ilias::Poller`。
-- [x] `nextEvent()` 循环 `poll(POLLIN)` + `XPending` + `XNextEvent`。
-- [x] `shutdown()` 取消 poller 并关闭 display。
-- [x] 保留事件翻译函数：`translateMouseMove`、`translateButtonEvent`、`translateKeyEvent`。
-- [x] 补当前环境 GCC 14.2 / C++23 Linux 可编译检查。
-- [x] 补 Linux/X11 真机事件解码检查。
-- [ ] 补 GCC 16.1 / C++26 Linux 可编译检查。
-
-## 暂不处理
-
-- [ ] 不在本次改造中实现 Wayland 后端。
-- [ ] 不在本次改造中重写为纯 XCB。
-- [ ] 不在本次改造中实现复杂 DPI/DPS 鼠标手感策略。
-- [ ] 不在本次改造中处理远端 active screen 的连续鼠标移动。
+- [x] C++23 下 CLI 与 Qt GUI 都完成纯 XCB 源码的全量编译和链接；
+- [x] 全部 Linux 后端同时启用时构建通过；
+- [x] X11/Wayland/portal 全关闭时，目标不含对应源文件和库；
+- [x] Xpack 归档中包含 CLI、GUI 与项目共享库；
+- [ ] 纯 XCB 改造后仍需在真实 Xorg 会话运行 `mksync --check-platform --backend x11`；
+- [ ] 仍需做两台真实设备的捕获、grab、注入和多屏坐标验收；
+- [ ] GCC 16.1/C++26 由 Docker/GitHub CI 独立验证，不作为默认构建要求。

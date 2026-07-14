@@ -42,56 +42,45 @@ Implementing the file transfer. (At this point, mksync will be launching the off
 We will implement file dragging and dropping and support for more systems (e.g. mocOS) on demand only after the official version is available. Of course, the GUI is also planned to be implemented after the official released version.
 
 ## How to build?
-mksync is currently only a beta version, there is no release installer, you need to compile and install it yourself from the source code.
+mksync requires Xmake 3.0.9 or newer. C++23 is both the default and the minimum supported
+language level. C++26 is an optional GCC 16.1 compatibility lane; C++20 and older are unsupported.
 
-mksync is built using xmake, for a related xmake tutorial check out [xmake-io](https://xmake.io/).
+The full set of Debian/Ubuntu development packages for the Linux backends can be installed with:
+
+```bash
+sudo apt install libei-dev libportal-dev libwayland-bin libwayland-dev \
+  libxcb1-dev libxcb-keysyms1-dev libxcb-randr0-dev libxcb-xinput-dev \
+  libxcb-xtest0-dev libxkbcommon-dev wayland-protocols x11proto-dev
+```
 
 ### configure
 
-Before building, you need to configure the project.
+A normal CLI build does not require Qt:
 
-#### For windows with msvc
+```bash
+xmake f -c -m debug --stdcxx=23 --enable_gui=n
+xmake build mksync
 ```
-xmake f -p windows -a x64 -m releasedbg -k shared --runtimes=MD --3rd_kind=shared -cv
+
+Each backend has an independent build option. Disabling one skips both dependency discovery and
+its source files:
+
+```bash
+xmake f -c --stdcxx=23 \
+  --enable_backend_x11=y \
+  --enable_backend_wayland_wlr=n \
+  --enable_backend_wayland_portal=n
 ```
-#### For windows with clang-cl
-```
-xmake f -p windows -a x64 -m releasedbg -k shared --runtimes=MD --toolchain=clang-cl --3rd_kind=shared -cv
-```
-#### For windows with mingw
-```
-xmake f -p mingw -a x86_64 -m releasedbg -k shared --runtimes=stdc++_shared --3rd_kind=shared -cv
-```
-#### For linux with gcc
-```
-xmake f -a x86_64 -m releasedbg -k shared --runtimes=stdc++_shared --3rd_kind=shared -cv
-```
-#### For linux with gcc-13
-```
-xmake f -a x86_64 -m releasedbg -k shared --runtimes=stdc++_shared --toolchain=gcc-13 --3rd_kind=shared -cv
-```
-#### For linux with llvm
-```
-xmake f -a x86_64 -m releasedbg -k shared --runtimes=stdc++_shared --toolchain=llvm --3rd_kind=shared -cv
-```
+
+Windows uses `--enable_backend_win32`. Linux XCB, Wayland, libei, and portal libraries are
+platform-bound system dependencies and are therefore resolved only through system `pkg-config`.
 
 ### compile
 
-After configure, it's time to compile this project with this command:
-```
-xmake
-```
-Or you can use this command to recompile it all:
-```
-xmake -r
-```
-Or you can use this command to display compilation details:
-```
-xmake -v
-```
-And their combinations:
-```
-xmake -rv
+Run the complete test suite with:
+
+```bash
+xmake test
 ```
 
 ### Qt 6 GUI
@@ -109,6 +98,20 @@ xmake run mksync-gui
 
 If Xmake cannot find Qt 6 automatically, append `--qt=/path/to/Qt/6.x/<kit>` to the configure
 command.
+
+### Packages and releases
+
+`lua/pack.lua` gives Xpack both the CLI and the enabled GUI target:
+
+```bash
+xmake f -c -m release --stdcxx=23 --enable_gui=y --enable_tests=n
+xmake pack -f targz -o dist       # Linux archive
+xmake pack -f deb -o dist         # Debian/Ubuntu package
+```
+
+On Windows, use `xmake pack -f nsis,zip -o dist`; Xmake's Qt install hook invokes
+`windeployqt`. Pushing a `vX.Y.Z` tag makes GitHub Actions build Linux and Windows packages and
+attach them to a GitHub Release. See [`docs/releasing.md`](docs/releasing.md) for the exact flow.
 
 ### Input backends
 

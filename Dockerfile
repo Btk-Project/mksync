@@ -8,24 +8,29 @@ ARG USER_GID=1000
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV XMAKE_ROOT=y
-ENV CC=gcc
-ENV CXX=g++
+ENV CC=gcc-16
+ENV CXX=g++-16
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
         cmake \
+        cpp-16 \
         curl \
         file \
         g++-16 \
         gcc-16 \
         git \
+        libei-dev \
         libportal-dev \
-        libx11-dev \
+        libwayland-bin \
+        libwayland-dev \
+        libxcb1-dev \
         libxcb-keysyms1-dev \
-        libxcb-util0-dev \
+        libxcb-randr0-dev \
+        libxcb-xinput-dev \
         libxcb-xtest0-dev \
-        libxi-dev \
+        libxkbcommon-dev \
         make \
         ninja-build \
         patchelf \
@@ -33,18 +38,11 @@ RUN apt-get update \
         python3 \
         tar \
         unzip \
+        wayland-protocols \
+        x11proto-dev \
         xmake \
         xz-utils \
         zip \
-    && apt-get purge -y --auto-remove \
-        cpp \
-        cpp-15 \
-        g++ \
-        g++-15 \
-        gcc \
-        gcc-15 \
-        libgcc-15-dev \
-        libstdc++-15-dev \
     && ln -sf /usr/bin/gcc-16 /usr/local/bin/gcc \
     && ln -sf /usr/bin/g++-16 /usr/local/bin/g++ \
     && ln -sf /usr/bin/gcc-16 /usr/local/bin/cc \

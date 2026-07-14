@@ -3,7 +3,7 @@
 target("export")
     set_default(false)
     set_kind("phony")
-    set_targetdir(get_config("libdir"))
+    set_targetdir(mks_output_dir("lib"))
 
     after_build(function (target)
         import("core.project.project")

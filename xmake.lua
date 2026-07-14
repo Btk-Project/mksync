@@ -1,7 +1,7 @@
 -- project configuration
 set_project("mksync")
 set_version("0.0.1", {build = "$(buildversion)", soname = true})
-set_xmakever("2.9.9")
+set_xmakever("3.0.9")
 option("alias", {showmenu = false, default = "mks"}) -- project abbreviation
 
 set_configvar("LEGAL_COPYRIGHT", "Copyright (C) 2024 Btk-Project")
@@ -9,7 +9,7 @@ set_configvar("PROJECT_NAME", "mksync")
 
 -- global configuration
 option("stdc",   {showmenu = true, default = 23, values = {23, 17, 11, 99}})
-option("stdcxx", {showmenu = true, default = 23, values = {26, 23, 17, 11}})
+option("stdcxx", {showmenu = true, default = 23, values = {26, 23}})
 includes("lua/config_helpers.lua")
 
 set_languages(stdc(), stdcxx())
@@ -43,16 +43,15 @@ check_macros("has_std_format",          "__cpp_lib_format >= 202207L",  {languag
 check_system_pkgconfig_package("has_system_fmt",              "fmt")
 check_system_pkgconfig_package("has_system_spdlog",           "spdlog")
 check_system_pkgconfig_package("has_system_gtest",            {"gtest", "gmock"})
-check_system_pkgconfig_package("has_system_xtst",             "xtst")
-check_system_pkgconfig_package("has_system_xrandr",           "xrandr")
 
 -- hide options, hide targets, pack targets
 includes("lua/hideoptions.lua")
 includes("lua/hidetargets.lua")
-includes("lua/pack.lua")
 
 -- some of the required libraries use our own repository
 add_repositories("btk-repo https://github.com/Btk-Project/xmake-repo.git")
+includes("lua/backends.lua")
+includes("lua/pack.lua")
 
 -- header-only libraries
 if not has_config("has_std_out_ptr")  then add_requires("out_ptr") end
@@ -65,22 +64,6 @@ add_requires(
     "ilias",
     "neko-proto-tools"
 )
-if is_plat("linux") then
-    add_requires(
-        "pkgconfig::libportal",
-        "pkgconfig::libei-1.0",
-        "libx11",
-        "libxcb",
-        "libxi",
-        "libxrandr",
-        "libxtst",
-        "libxkbcommon",
-        "wayland",
-        "wayland-protocols",
-        "xcb-util-keysyms"
-    )
-    -- sudo apt install libx11-dev libxrandr-dev libxi-dev libxtst-dev libxcb-keysyms1-dev libxcb-util0-dev libxcb-xtest0-dev
-end
 
 -- msvc flags
 add_cxxflags("cl::/Zc:preprocessor")
@@ -95,17 +78,6 @@ add_requireconfs("**fmt",      {override = true, system = useSystemFmt, version 
 add_requireconfs("**spdlog",    {override = true, system = useSystemSpdlog, version = "x.x.x", configs = {shared = is_config("3rd_kind", "shared"), debug = is_config("3rd_mode", "debug"), header_only = false, fmt_external = useSystemSpdlog or not has_config("has_std_format"), std_format = not useSystemSpdlog and has_config("has_std_format"), wchar = true, wchar_console = true}})
 add_requireconfs("**ilias",     {override = true, version = "x.x.x", configs = {debug = is_config("3rd_mode", "debug"), stdcxx = stdcxx_version(), fmt = not has_config("has_std_format")}})
 add_requireconfs("**neko-proto-tools", {override = true, version = "x.x.x", configs = {debug = is_config("3rd_mode", "debug"), enable_simdjson = false, enable_rapidjson = true, enable_communication = false, enable_fmt = false, enable_spdlog = false, enable_rapidxml = false, enable_jsonrpc = false, enable_protocol = false, enable_tomlplusplus = true}})
--- configurations of dependency libraries
-add_requireconfs("**libx11",            {system = true})
-add_requireconfs("**libxcb",            {system = true})
-add_requireconfs("**libxi",             {system = true})
-add_requireconfs("**libxrandr",         {system = true})
-add_requireconfs("**libxtst",           {system = true})
-add_requireconfs("**libxkbcommon",      {system = true})
-add_requireconfs("**wayland",           {system = true})
-add_requireconfs("**wayland-protocols", {system = true})
-add_requireconfs("**xcb-util-keysyms",  {system = true})
-    -- sudo apt install python3-pip libgirepository1.0-dev valac
 end
 
 -- subdirectories
@@ -125,32 +97,19 @@ target("mksync")
     add_packages("spdlog")
     add_packages("neko-proto-tools")
     
-    if is_plat("linux") then
-        add_rules("mks.wayland_client_protocol")
-        add_packages("pkgconfig::libportal")
-        add_packages("pkgconfig::libei-1.0")
-        add_packages("libx11")
-        add_packages("libxcb")
-        add_packages("libxi")
-        add_packages("libxrandr")
-        add_packages("libxtst")
-        add_packages("libxkbcommon")
-        add_packages("wayland")
-        add_packages("wayland-protocols")
-        add_packages("xcb-util-keysyms")
-        add_files("protocols/*.xml")
-    end
-
-    if is_plat("windows") then 
-        add_syslinks("user32", "shcore")
-    end
+    mks_add_backend_packages()
 
     if not has_config("has_std_format") then
         add_packages("fmt")
     end
     
     add_includedirs("src")
-    add_files("src/**.cpp")
+    add_files("src/*.cpp")
+    add_files("src/app/**.cpp")
+    add_files("src/config/**.cpp")
+    add_files("src/core/**.cpp")
+    add_files("src/rpc/**.cpp")
+    mks_add_backend_sources()
     add_installfiles("LICENSE", "README.md", "README_zh.md", {prefixdir = "share/doc/mksync"})
 
     -- Pch
@@ -168,7 +127,7 @@ target("mksync")
     end
 
     -- Reflection
-    if stdcxx_version() == 26 then
+    if stdcxx_version() == 26 and is_tool("cxx", "gcc") then
         add_cxxflags("-freflection", {force = true})
     end
 

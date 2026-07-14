@@ -21,7 +21,7 @@ v0.1 的目标是跑通最小可用的跨机器输入链路：
 
 ## 当前进度
 
-最后更新：2026-07-10（代码 review / 文档同步）。
+最后更新：2026-07-14（纯 XCB、Xmake 后端选项、Xpack、CI/Release）。
 
 当前 checklist：
 
@@ -63,6 +63,9 @@ v0.1 的目标是跑通最小可用的跨机器输入链路：
 - [x] 当前 GCC 14.2 / C++23 环境下，Linux/XCB 主目标已完成编译和链接检查。
 - [x] Linux/X11 真机 `mksync --check-platform` 初始化检查通过，确认 XInput 2.0 和 XTest 2.2 可用。
 - [x] Linux/X11 真机捕获到连续 `MouseMoveEvent`，确认 XInput2 事件解码可用。
+- [x] X11 后端移除 Xlib/libXi/libXrandr/libXtst API，统一为纯 XCB 边界。
+- [x] Xmake 按后端选项添加系统依赖和源文件，Linux 平台库不再由 xrepo 构建。
+- [x] Xpack 同时打包 CLI/Qt GUI，并建立 Linux/Windows tag Release 工作流。
 - [x] 远端 active screen 上按本机 `MouseMoveEvent` delta 连续发送远端鼠标移动。
 - [x] 处理远端屏幕切回本机屏幕。
 - [x] 处理跨多个远端屏幕。
@@ -87,8 +90,8 @@ v0.1 的目标是跑通最小可用的跨机器输入链路：
 - [x] 归一化比例只作为边缘入口映射的临时计算，不作为运行时坐标系统。
 - [x] 自动布局只是临时策略，正式布局应来自配置。
 - [x] 远端 active screen 上的连续 `MouseMoveEvent` 已按 `targetDelta = sourceDelta` 基线实现。
-- [x] Win32 capture 在远端控制模式下已实现本机光标锚点固定/回拉（XCB 侧策略见
-  `xcb_backend.md`，本轮不改 xcb）。
+- [x] Win32 capture 在远端控制模式下已实现本机光标锚点固定/回拉；XCB 侧策略见
+  `xcb_backend.md`。
 
 ## 屏幕拓扑决策
 
@@ -492,9 +495,10 @@ Todo：
 - [x] Win32 鼠标按钮、滚轮和键盘事件使用 `SendInput`。
 - [x] Win32 注入器已接入 `Win32Platform::createInjector()`。
 - [x] 已在 `src/platform/xcb.cpp` 新增 `XcbInputInjector`。
-- [x] XCB/Linux 注入器使用 XTest/Xlib 注入鼠标移动、按钮、滚轮和键盘事件。
+- [x] XCB/Linux 注入器使用 XCB XTest 扩展注入鼠标移动、按钮、滚轮和键盘事件。
 - [x] XCB/Linux 注入器已接入 `XcbPlatform::createInjector()`。
-- [x] Linux 构建依赖增加 `libxtst`。
+- [x] Linux X11 依赖改为系统 `xcb`、`xcb-keysyms`、`xcb-randr`、`xcb-xinput`、
+  `xcb-xtest`，不再链接 Xlib 扩展库。
 - [x] 修复 `xmake f --stdcxx=26` 命令行配置会把 `stdcxx` 作为字符串传给 `ilias` 的问题。
 - [x] 新增 `mksync --check-platform`，可在真机上枚举屏幕并初始化/关闭 capture 与 injector。
 - [x] Linux/X11 真机运行 `mksync --check-platform` 已通过，环境报告单屏 3600x1080、XInput 2.0、XTest 2.2。
@@ -622,7 +626,7 @@ Todo：
 - [ ] 拒绝握手时向对端写 `ErrorMessage` 再关闭。
 - [ ] capture/injector 常规失败路径尽量 `Result`/`cancellation`，避免 `nextEvent` 用异常表达可预期关闭。
 
-结构（不碰 xcb）：
+结构：
 
 - [ ] 拆分 `Server`：例如 connection session、screen registry/layout、input router（文件或协作类型）。
 - [ ] 去掉 app 层 `void*` 协程参数，改为类型化引用/`shared_ptr`/成员持有。
@@ -634,7 +638,7 @@ Todo：
 
 - [ ] Server 订阅本机屏幕变化（或轮询）后重新注册本地拓扑。
 - [ ] Client 实现 Ping/Pong keepalive（替换空 `sleep` 循环）。
-- [ ] 真机 Server/Client 联调验收（Win32 + Linux；Linux 细节见 xcb 文档，实现仍可不在本轮改 xcb）。
+- [ ] 真机 Server/Client 联调验收（Win32 + Linux；Linux 细节见 xcb 文档）。
 - [ ] 配置认证策略与“未授权不能注入”验收。
 - [ ] 可选：边缘吸附阈值、DPI 缩放策略、`CursorEnterMessage`。
 
@@ -650,12 +654,12 @@ Todo：
 记录：
 
 - [x] 2026-07-10：完成代码 review；刷新 `docs/framework.md`；新增本里程碑。
-- [x] 审查范围刻意排除 xcb 实现改动。
+- [x] 2026-07-10 的审查范围当时排除了 xcb；其后已由独立任务完成纯 XCB 改造。
 
 ## 当前开放问题
 
 - `ScreenKey.ownerId` 已优先使用稳定 `machineId`；后续需要考虑旧配置和 endpoint 回退数据的迁移。
-- Win32 已实现远端控制下的本机光标固定/回拉；Linux/XCB 侧边界行为与跨平台统一策略仍需对照验收（不在本轮改 xcb 代码）。
+- Win32 已实现远端控制下的本机光标固定/回拉；Linux/XCB 侧边界行为与跨平台统一策略仍需真机对照验收。
 - 自动布局只能作为临时策略，正式体验应以配置文件为准。
 - 是否需要边缘吸附阈值，例如距离边缘 1-2 像素就触发，而不是必须等于边界。
 - 鼠标速度按 DPI、DPS、系统指针速度还是原始输入缩放，需要后续定义策略。

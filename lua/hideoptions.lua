@@ -1,54 +1,10 @@
 
 
-option("libdir")
-    add_deps("outputdir")
-    set_showmenu(false)
-    on_check(function (option)
-        option:set_value(path.translate(
-            vformat("$(outputdir)/lib/$(plat)-$(arch)-$(kind)-$(runtimes)", xmake)
-        ))
-    end)
-option_end()
-
-option("bindir")
-    add_deps("outputdir")
-    set_showmenu(false)
-    on_check(function (option)
-        option:set_value(path.translate(
-            vformat("$(outputdir)/bin/$(plat)-$(arch)-$(kind)-$(runtimes)", xmake)
-        ))
-    end)
-option_end()
-
-option("testdir")
-    add_deps("outputdir")
-    set_showmenu(false)
-    on_check(function (option)
-        option:set_value(path.translate(
-            vformat("$(outputdir)/test/$(plat)-$(arch)-$(kind)-$(runtimes)", xmake)
-        ))
-    end)
-option_end()
-
-option("plugindir")
-    add_deps("outputdir")
-    set_showmenu(false)
-    on_check(function (option)
-        option:set_value(path.translate(
-            vformat("$(outputdir)/plugin/$(plat)-$(arch)-$(kind)-$(runtimes)", xmake)
-        ))
-    end)
-option_end()
-
-option("datadir")
-    add_deps("outputdir")
-    set_showmenu(false)
-    on_check(function (option)
-        option:set_value(path.translate(
-            vformat("$(outputdir)/data", xmake)
-        ))
-    end)
-option_end()
+-- Do not define options named bindir/libdir: those names belong to Xmake's install API and
+-- shadowing them breaks target:bindir()/target:libdir(), including Qt's xpack install hook.
+function mks_output_dir(kind)
+    return path.join(get_config("outputdir"), kind, "$(plat)-$(arch)-$(kind)-$(runtimes)")
+end
 
 rule("mode.mydebug")
     on_config(function (target)

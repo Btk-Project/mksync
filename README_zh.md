@@ -43,56 +43,44 @@ Mksync 是基于 synergy、barrier 和 input-leap 的灵感而开发的。你也
 只有在正式版本推出后，我们才会根据需要实现文件拖放和对更多系统（如 mocOS）的支持。 当然，图形用户界面也计划在正式版本发布后实现。
 
 ## 如何构建?
-mksync 目前只是测试版，没有发布安装程序，你需要自己从源代码中编译和安装。
+mksync 使用 Xmake 3.0.9 或更高版本构建。默认且最低支持 C++23；C++26 仅用于
+GCC 16.1 兼容性验证，不支持 C++20 或更低标准。
 
-mksync 使用 xmake 构建，相关 xmake 教程请查看 [xmake-io](https://xmake.io/).
+Debian/Ubuntu 上完整 Linux 后端所需的系统开发包示例：
+
+```bash
+sudo apt install libei-dev libportal-dev libwayland-bin libwayland-dev \
+  libxcb1-dev libxcb-keysyms1-dev libxcb-randr0-dev libxcb-xinput-dev \
+  libxcb-xtest0-dev libxkbcommon-dev wayland-protocols x11proto-dev
+```
 
 ### 配置
 
-在构建之前，您需要对项目进行配置。
+普通 CLI 构建不要求 Qt：
 
-#### Windows 上使用 msvc
+```bash
+xmake f -c -m debug --stdcxx=23 --enable_gui=n
+xmake build mksync
 ```
-xmake f -p windows -a x64 -m releasedbg -k shared --runtimes=MD --3rd_kind=shared -cv
+
+后端是独立的编译选项；关闭后不会探测其系统包，也不会编译相应源文件：
+
+```bash
+xmake f -c --stdcxx=23 \
+  --enable_backend_x11=y \
+  --enable_backend_wayland_wlr=n \
+  --enable_backend_wayland_portal=n
 ```
-#### Windows 上使用 clang-cl
-```
-xmake f -p windows -a x64 -m releasedbg -k shared --runtimes=MD --toolchain=clang-cl --3rd_kind=shared -cv
-```
-#### Windows 上使用 mingw
-```
-xmake f -p mingw -a x86_64 -m releasedbg -k shared --runtimes=stdc++_shared --3rd_kind=shared -cv
-```
-#### Linux 上使用 gcc
-```
-xmake f -a x86_64 -m releasedbg -k shared --runtimes=stdc++_shared --3rd_kind=shared -cv
-```
-#### Linux 上使用 gcc-13
-```
-xmake f -a x86_64 -m releasedbg -k shared --runtimes=stdc++_shared --toolchain=gcc-13 --3rd_kind=shared -cv
-```
-#### Linux 上使用 llvm
-```
-xmake f -a x86_64 -m releasedbg -k shared --runtimes=stdc++_shared --toolchain=llvm --3rd_kind=shared -cv
-```
+
+Windows 使用 `--enable_backend_win32`。Linux 的 XCB、Wayland、libei 和 portal 是
+系统强相关依赖，因此构建文件只通过系统 `pkg-config` 查找，不会由 Xmake 下载另一份。
 
 ### 编译
 
-配置完成后，就可以使用此命令编译此项目了：
-```
-xmake
-```
-或者使用此命令全部重新编译：
-```
-xmake -r
-```
-或者使用此命令显示编译详情：
-```
-xmake -v
-```
-以及它们的组合：
-```
-xmake -rv
+运行全部测试：
+
+```bash
+xmake test
 ```
 
 ### Qt 6 图形界面
@@ -108,6 +96,21 @@ xmake run mksync-gui
 ```
 
 若 Xmake 未自动找到 Qt 6 SDK，在配置命令末尾增加 `--qt=/path/to/Qt/6.x/<kit>`。
+
+### 安装包与 Release
+
+`lua/pack.lua` 会把 CLI 和启用后的 GUI 一起交给 Xpack。示例：
+
+```bash
+xmake f -c -m release --stdcxx=23 --enable_gui=y --enable_tests=n
+xmake pack -f targz -o dist       # Linux 归档
+xmake pack -f deb -o dist         # Debian/Ubuntu 安装包
+```
+
+Windows 使用 `xmake pack -f nsis,zip -o dist`；Xmake 的 Qt 安装钩子会自动调用
+`windeployqt`。推送 `vX.Y.Z` tag 后，GitHub Actions 会自动生成 Linux 和 Windows
+安装包并附加到 Release。完整操作与临时 artifact/正式 Release asset 的区别见
+[`docs/releasing.md`](docs/releasing.md)。
 
 ### 输入后端
 

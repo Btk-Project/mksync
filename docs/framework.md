@@ -11,7 +11,7 @@ Client/Server、RPC 消息、平台抽象、输入事件模型、屏幕拓扑、
 ## 构建与基础约定
 
 - 构建系统：Xmake。
-- 主要语言：C++26，当前工程选项默认 `stdcxx=23`，可配置到 26。
+- 主要语言：C++23；仅支持 23/26，C++26 由 GCC 16.1 兼容性构建验证。
 - 异步运行时：ilias，使用 `Task<T>` / `IoTask<T>` 表示任务。
 - 错误处理：`Result<T, E>` 与 `IoResult<T>`，通过 `Err(...)` 返回错误。
 - `IoTask<T>` 的实际结果是 `IoResult<T>`，也就是 `std::expected<T, std::error_code>`。
@@ -94,8 +94,8 @@ Client/Server、RPC 消息、平台抽象、输入事件模型、屏幕拓扑、
 - `InputInjector`：初始化、关闭、注入 `InputEvent`。
 - **Windows**：`win32.cpp`（UI 线程 + LL hook + 远端锚点回拉 + SendInput 注入）。
   文件体量已接近拆分阈值（约 1k 行），见 M8。
-- **Linux/X11**：`xcb.cpp`（XInput2 capture 经 ilias poll；XTest 注入）。
-  细节与状态见 `docs/xcb_backend.md`；**本轮 review 不改 xcb**。
+- **Linux/X11**：`xcb.cpp`（纯 XCB + XInput2 capture + XTest 注入；独立连接边界）。
+  细节与状态见 `docs/xcb_backend.md`。
 
 ### refl
 

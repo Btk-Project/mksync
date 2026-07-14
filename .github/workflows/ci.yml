@@ -1,0 +1,133 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux-cpp23:
+    name: Linux / C++23 / tests and GUI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Linux backend dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libei-dev \
+            libportal-dev \
+            libwayland-bin \
+            libwayland-dev \
+            libxcb1-dev \
+            libxcb-keysyms1-dev \
+            libxcb-randr0-dev \
+            libxcb-xinput-dev \
+            libxcb-xtest0-dev \
+            libxkbcommon-dev \
+            pkg-config \
+            wayland-protocols \
+            x11proto-dev
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: 6.8.3
+          modules: qtdeclarative
+          cache: true
+
+      - name: Install Xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: 3.0.9
+          package-cache: true
+          project-path: .
+
+      - name: Configure C++23
+        run: >-
+          xmake f -c -m debug --stdcxx=23 --enable_gui=y --enable_tests=y
+          --ccache=n --qt="$QT_ROOT_DIR"
+
+      - name: Build CLI and GUI
+        run: |
+          xmake build mksync
+          xmake build mksync-gui
+
+      - name: Run tests
+        run: xmake test
+
+      - name: Verify a backend-free build
+        run: |
+          xmake f -c -m debug --stdcxx=23 --enable_gui=n --enable_tests=n --ccache=n \
+            --enable_backend_x11=n \
+            --enable_backend_wayland_wlr=n \
+            --enable_backend_wayland_portal=n
+          xmake show -t mksync > /tmp/mksync-target.txt
+          if grep -Eq 'src/platform/(xcb|wayland|wayland_portal)\.cpp' /tmp/mksync-target.txt; then
+            echo "A disabled Linux backend is still part of the target" >&2
+            exit 1
+          fi
+          xmake build mksync
+
+  windows-cpp23:
+    name: Windows / C++23 / CLI and GUI
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: 6.8.3
+          arch: win64_msvc2022_64
+          modules: qtdeclarative
+          cache: true
+
+      - name: Install Xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: 3.0.9
+          package-cache: true
+          project-path: .
+
+      - name: Configure C++23
+        shell: pwsh
+        run: >-
+          xmake f -c -p windows -a x64 -m debug --stdcxx=23 --enable_gui=y
+          --enable_tests=n --ccache=n --qt="$env:QT_ROOT_DIR"
+
+      - name: Build CLI and GUI
+        run: |
+          xmake build mksync
+          xmake build mksync-gui
+
+  linux-cpp26:
+    name: Linux / GCC 16.1 / C++26
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build GCC 16.1 image
+        run: docker build --tag mksync-gcc16 .
+
+      - name: Build the C++26 compatibility lane
+        run: |
+          docker run --rm \
+            --volume "$PWD:/workspace/mksync" \
+            --workdir /workspace/mksync \
+            mksync-gcc16 \
+            xmake f -c -m debug --stdcxx=26 --enable_gui=n --enable_tests=n --ccache=n
+          docker run --rm \
+            --volume "$PWD:/workspace/mksync" \
+            --workdir /workspace/mksync \
+            mksync-gcc16 \
+            xmake build mksync

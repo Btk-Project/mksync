@@ -88,9 +88,9 @@ portal 后端是否实现 InputCapture，以及 RemoteDesktop 是否提供 v2 `C
 
 ## X11 与 XWayland 的边界
 
-现有 `x11` 注册项仍复用旧 X11 实现，本轮没有改写其内部 Xlib/XInput2/XTest 代码。在
-Wayland 会话中，`x11.check()` 会直接报告不适用，不再尝试连接 `DISPLAY`，因为 XWayland
-不能捕获或注入原生 Wayland 窗口。
+`x11` 注册项是独立的纯 XCB/XInput2/XTest 实现，不复用任何 Wayland 对象，也不调用
+Xlib。在 Wayland 会话中，`x11.check()` 会直接报告不适用，不再尝试把 `DISPLAY` 上的
+XWayland 当作系统级后端，因为 XWayland 不能捕获或注入原生 Wayland 窗口。
 
 如果后续需要 XWayland 回退，应新增独立的 `xwayland` 注册项并明确它只能覆盖 XWayland
 窗口，不能把它混入 `wayland-wlr`，也不能把它报告为系统级 Wayland 输入能力。
