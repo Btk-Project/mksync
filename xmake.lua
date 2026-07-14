@@ -77,7 +77,7 @@ add_requireconfs("**zeus_expected", {override = true, version = "x.x.x"})
 add_requireconfs("**fmt",      {override = true, system = useSystemFmt, version = "x.x.x", configs = {shared = is_config("3rd_kind", "shared"), debug = is_config("3rd_mode", "debug"), header_only = false}})
 add_requireconfs("**spdlog",    {override = true, system = useSystemSpdlog, version = "x.x.x", configs = {shared = is_config("3rd_kind", "shared"), debug = is_config("3rd_mode", "debug"), header_only = false, fmt_external = useSystemSpdlog or not has_config("has_std_format"), std_format = not useSystemSpdlog and has_config("has_std_format"), wchar = true, wchar_console = true}})
 add_requireconfs("**ilias",     {override = true, version = "x.x.x", configs = {debug = is_config("3rd_mode", "debug"), stdcxx = stdcxx_version(), fmt = not has_config("has_std_format")}})
-add_requireconfs("**neko-proto-tools", {override = true, version = "x.x.x", configs = {debug = is_config("3rd_mode", "debug"), enable_simdjson = false, enable_rapidjson = true, enable_communication = false, enable_fmt = false, enable_spdlog = false, enable_rapidxml = false, enable_jsonrpc = false, enable_protocol = false, enable_tomlplusplus = true}})
+add_requireconfs("**neko-proto-tools", {override = true, version = "x.x.x", configs = {debug = is_config("3rd_mode", "debug"), enable_simdjson = false, enable_rapidjson = true, enable_communication = false, enable_fmt = false, enable_spdlog = false, enable_jsonrpc = false, enable_protocol = false, enable_tomlplusplus = true}})
 end
 
 -- subdirectories
