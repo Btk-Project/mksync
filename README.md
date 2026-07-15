@@ -44,13 +44,18 @@ We will implement file dragging and dropping and support for more systems (e.g. 
 ## How to build?
 mksync requires Xmake 3.0.9 or newer. C++23 is both the default and the minimum supported
 language level. C++26 is an optional GCC 16.1 compatibility lane; C++20 and older are unsupported.
+Ubuntu 24.04 with GCC 14 and Qt 6 is the minimum supported Linux build and package baseline.
 
-The full set of Debian/Ubuntu development packages for the Linux backends can be installed with:
+Install the complete Ubuntu 24.04 build environment with:
 
 ```bash
-sudo apt install libei-dev libportal-dev libwayland-bin libwayland-dev \
+sudo apt install gcc-14 g++-14 libei-dev libfmt-dev libgmock-dev libgtest-dev \
+  libportal-dev libspdlog-dev libwayland-bin libwayland-dev \
   libxcb1-dev libxcb-keysyms1-dev libxcb-randr0-dev libxcb-xinput-dev \
-  libxcb-xtest0-dev libxkbcommon-dev wayland-protocols x11proto-dev
+  libxcb-xtest0-dev libxkbcommon-dev pkg-config qt6-base-dev qt6-declarative-dev \
+  qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-dialogs \
+  qml6-module-qtquick-layouts wayland-protocols x11proto-dev
+export CC=gcc-14 CXX=g++-14
 ```
 
 ### configure
@@ -96,8 +101,8 @@ xmake build mksync-gui
 xmake run mksync-gui
 ```
 
-The GUI requirement downloads the supported `qt6quick 6.8.3` SDK through Xmake; no separate Qt
-installation or `--qt` path is needed.
+On Linux, Xmake checks for a complete system Qt 6 Quick SDK first and only declares its `qt6quick`
+package when the system SDK is missing. Windows CI and release builds use the Xmake-provided SDK.
 
 ### Packages and releases
 
@@ -112,6 +117,8 @@ xmake pack -f deb -o dist         # Debian/Ubuntu package
 On Windows, use `xmake pack -f nsis,zip -o dist`; Xmake's Qt install hook invokes
 `windeployqt`. Pushing a `vX.Y.Z` tag makes GitHub Actions build Linux and Windows packages and
 attach them to a GitHub Release. See [`docs/releasing.md`](docs/releasing.md) for the exact flow.
+The Linux package currently targets Ubuntu 24.04; a Flatpak package is planned as the future
+distribution-independent runtime.
 
 ### Input backends
 

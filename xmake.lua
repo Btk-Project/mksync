@@ -43,6 +43,7 @@ check_macros("has_std_format",          "__cpp_lib_format >= 202207L",  {languag
 check_system_pkgconfig_package("has_system_fmt",              "fmt")
 check_system_pkgconfig_package("has_system_spdlog",           "spdlog")
 check_system_pkgconfig_package("has_system_gtest",            {"gtest", "gmock"})
+check_system_qt6quick("has_system_qt6quick")
 
 -- hide options, hide targets, pack targets
 includes("lua/hideoptions.lua")
@@ -53,10 +54,19 @@ add_repositories("btk-repo https://github.com/Btk-Project/xmake-repo.git")
 includes("lua/backends.lua")
 includes("lua/pack.lua")
 
+-- Prefer distribution-provided fmt/spdlog when their pkg-config files are available. System
+-- spdlog is built against system fmt on the supported Linux baseline, so keep the pair together.
+local useSystemSpdlog = has_config("has_system_spdlog")
+local useSystemFmt = has_config("has_system_fmt") or useSystemSpdlog
+local requireFmt = useSystemSpdlog or not has_config("has_std_format")
+if useSystemSpdlog and not has_config("has_system_fmt") then
+    raise(system_fmt_missing_message())
+end
+
 -- header-only libraries
 if not has_config("has_std_out_ptr")  then add_requires("out_ptr") end
 if not has_config("has_std_expected") then add_requires("zeus_expected") end
-if not has_config("has_std_format")  then add_requires("fmt") end
+if requireFmt then add_requires("fmt") end
 
 -- normal libraries
 add_requires(
@@ -87,7 +97,9 @@ includes("tests/xmake.lua")
 
 -- The GUI stays opt-in so a normal command-line build never needs a Qt SDK.
 if has_config("enable_gui") then
-    add_requires("qt6quick")
+    if not has_config("has_system_qt6quick") then
+        add_requires("qt6quick")
+    end
     includes("ui/xmake.lua")
 end
 
@@ -100,7 +112,7 @@ target("mksync")
     
     mks_add_backend_packages()
 
-    if not has_config("has_std_format") then
+    if requireFmt then
         add_packages("fmt")
     end
     

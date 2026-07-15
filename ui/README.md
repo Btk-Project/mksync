@@ -31,7 +31,9 @@ xmake build mksync-gui
 xmake run mksync-gui
 ```
 
-Xmake 通过 `qt6quick 6.8.3` 的 `requires` 自动下载 Qt SDK，并由 `qt.quickapp` 规则链接 Qt 6 Core、Gui、Qml、Quick、Quick Controls 2 与 Quick Dialogs 2，无需预先安装 Qt 或传入 `--qt`。
+Linux 构建先检测 Ubuntu 24.04 系统提供的完整 Qt 6 Quick SDK，仅在未找到时声明 Xmake
+的 `qt6quick` 包；Windows 构建使用 Xmake 提供的 SDK。`qt.quickapp` 规则负责链接 Qt 6
+Core、Gui、Qml、Quick、Quick Controls 2 与 Quick Dialogs 2，无需手工传入 `--qt`。
 
 GUI 启动时会载入或创建当前目录的 `mksync.json`。该 JSON 只保存屏幕布局、设备 ID 和
 可信设备。配置页可以导入命令行 `--export-toml` 生成的启动参数，也可以把当前运行模式、

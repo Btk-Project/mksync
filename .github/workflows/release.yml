@@ -25,7 +25,7 @@ env:
 jobs:
   metadata:
     name: Validate release metadata
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       version: ${{ steps.version.outputs.value }}
     steps:
@@ -48,20 +48,27 @@ jobs:
   linux:
     name: Package Linux
     needs: metadata
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    env:
+      CC: gcc-14
+      CXX: g++-14
     steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ env.RELEASE_REF }}
 
-      - name: Install packaging and backend dependencies
+      - name: Install packaging and Linux build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             debhelper \
             devscripts \
+            g++-14 \
+            gcc-14 \
             libei-dev \
+            libfmt-dev \
             libportal-dev \
+            libspdlog-dev \
             libwayland-bin \
             libwayland-dev \
             libxcb1-dev \
@@ -71,6 +78,12 @@ jobs:
             libxcb-xtest0-dev \
             libxkbcommon-dev \
             pkg-config \
+            qml6-module-qtquick \
+            qml6-module-qtquick-controls \
+            qml6-module-qtquick-dialogs \
+            qml6-module-qtquick-layouts \
+            qt6-base-dev \
+            qt6-declarative-dev \
             wayland-protocols \
             x11proto-dev
 
@@ -84,7 +97,7 @@ jobs:
       - name: Configure release build
         run: >-
           xmake f -c -y -m release --stdcxx=23 --enable_gui=y --enable_tests=n
-          --ccache=n
+          --ccache=n --qt=/usr
 
       - name: Build Linux packages
         run: |
@@ -141,7 +154,7 @@ jobs:
   publish:
     name: Publish GitHub Release
     needs: [metadata, linux, windows]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:

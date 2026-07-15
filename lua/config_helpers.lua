@@ -48,6 +48,62 @@ function check_system_pkgconfig_package(name, packageNames)
     add_options(name)
 end
 
+function check_system_qt6quick(name)
+    interp_save_scope()
+    option(name)
+        set_showmenu(false)
+        on_check(function(option)
+            if not is_plat("linux") then
+                return
+            end
+
+            import("lib.detect.find_tool")
+            local qmake = find_tool("qmake6") or find_tool("qmake")
+            if not qmake then
+                return
+            end
+
+            local ok = try {
+                function()
+                    local version = os.iorunv(qmake.program, {"-query", "QT_VERSION"}):trim()
+                    if not version:match("^6%.") then
+                        return false
+                    end
+
+                    local libdir = os.iorunv(
+                        qmake.program,
+                        {"-query", "QT_INSTALL_LIBS"}
+                    ):trim()
+                    for _, component in ipairs({
+                        "Core",
+                        "Gui",
+                        "Qml",
+                        "Quick",
+                        "QuickControls2",
+                        "QuickDialogs2"
+                    }) do
+                        local config = path.join(
+                            libdir,
+                            "cmake",
+                            "Qt6" .. component,
+                            "Qt6" .. component .. "Config.cmake"
+                        )
+                        if not os.isfile(config) then
+                            return false
+                        end
+                    end
+                    return true
+                end
+            }
+            if ok then
+                option:enable(true)
+            end
+        end)
+    option_end()
+    interp_restore_scope()
+    add_options(name)
+end
+
 function read_os_release()
     local values = {}
     local file = io.open("/etc/os-release", "r")

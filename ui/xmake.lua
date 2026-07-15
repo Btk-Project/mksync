@@ -6,15 +6,17 @@ target("mksync-gui")
     set_group("applications")
     set_installdir(path.join(os.projectdir(), "build", "install"))
 
-    -- Xmake's Qt Quick rule runs rcc and moc. The qt6quick package supplies the
-    -- Qt SDK, while the explicit modules include the QML FileDialog support.
+    -- Xmake's Qt Quick rule runs rcc and moc. Linux uses the distribution Qt SDK;
+    -- other platforms use the qt6quick package. Explicit modules include QML FileDialog support.
     add_rules("qt.quickapp")
     add_frameworks("QtCore", "QtGui", "QtQml", "QtQuick", "QtQuickControls2", "QtQuickDialogs2")
-    add_packages("qt6quick")
+    if not has_config("has_system_qt6quick") then
+        add_packages("qt6quick")
+    end
 
     add_packages("ilias", "spdlog", "neko-proto-tools")
     mks_add_backend_packages()
-    if not has_config("has_std_format") then
+    if has_config("has_system_spdlog") or not has_config("has_std_format") then
         add_packages("fmt")
     end
 
