@@ -100,7 +100,8 @@ xmake build mksync-gui
 xmake run mksync-gui
 ```
 
-Linux 上先独立检测完整的系统 Qt 6 Quick SDK，仅在未找到时声明 Xmake 的 `qt6quick` 包；
+Linux GUI 构建要求发行版提供完整的 Qt 6 Quick SDK；若 Xmake 未自动选中，请传入
+`--qt=/usr`。缺少 Linux SDK 时会直接报告错误，不再回退到 Xmake 的预编译 `qt6quick` 包；
 Windows CI 和发布构建使用 Xmake 提供的 SDK。
 
 ### 安装包与 Release

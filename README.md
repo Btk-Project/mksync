@@ -101,8 +101,9 @@ xmake build mksync-gui
 xmake run mksync-gui
 ```
 
-On Linux, Xmake checks for a complete system Qt 6 Quick SDK first and only declares its `qt6quick`
-package when the system SDK is missing. Windows CI and release builds use the Xmake-provided SDK.
+Linux GUI builds require the distribution Qt 6 Quick SDK; pass `--qt=/usr` if Xmake does not select
+it automatically. A missing Linux SDK is reported directly instead of falling back to Xmake's
+prebuilt `qt6quick` package. Windows CI and release builds use the Xmake-provided SDK.
 
 ### Packages and releases
 

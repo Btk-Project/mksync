@@ -43,7 +43,6 @@ check_macros("has_std_format",          "__cpp_lib_format >= 202207L",  {languag
 check_system_pkgconfig_package("has_system_fmt",              "fmt")
 check_system_pkgconfig_package("has_system_spdlog",           "spdlog")
 check_system_pkgconfig_package("has_system_gtest",            {"gtest", "gmock"})
-check_system_qt6quick("has_system_qt6quick")
 
 -- hide options, hide targets, pack targets
 includes("lua/hideoptions.lua")
@@ -97,7 +96,10 @@ includes("tests/xmake.lua")
 
 -- The GUI stays opt-in so a normal command-line build never needs a Qt SDK.
 if has_config("enable_gui") then
-    if not has_config("has_system_qt6quick") then
+    -- Linux builds use the distribution SDK selected by qt.quickapp. Do not turn a missing SDK
+    -- into an xrepo download: qt6quick's aqt-based prebuilt installer is not a reliable Linux
+    -- fallback, and the Qt rule already reports an actionable SDK error during configuration.
+    if not is_plat("linux") then
         add_requires("qt6quick")
     end
     includes("ui/xmake.lua")

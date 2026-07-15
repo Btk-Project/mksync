@@ -10,7 +10,7 @@ target("mksync-gui")
     -- other platforms use the qt6quick package. Explicit modules include QML FileDialog support.
     add_rules("qt.quickapp")
     add_frameworks("QtCore", "QtGui", "QtQml", "QtQuick", "QtQuickControls2", "QtQuickDialogs2")
-    if not has_config("has_system_qt6quick") then
+    if not is_plat("linux") then
         add_packages("qt6quick")
     end
 
