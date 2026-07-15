@@ -28,7 +28,7 @@ end
 
 if is_plat("linux") and has_config("enable_backend_wayland_portal") then
     add_requires("pkgconfig::libei-1.0", {system = true})
-    add_requires("pkgconfig::libportal", {system = true})
+    add_requires("pkgconfig::libportal >=0.8.0", {system = true})
 end
 
 function mks_add_backend_packages()

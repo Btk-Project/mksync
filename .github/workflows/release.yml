@@ -46,9 +46,9 @@ jobs:
           echo "value=$project_version" >> "$GITHUB_OUTPUT"
 
   linux:
-    name: Package Linux with Clang 19
+    name: Package Linux on Ubuntu 26.04 with Clang 19
     needs: metadata
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     env:
       CC: clang-19
       CXX: clang++-19
@@ -64,7 +64,7 @@ jobs:
             clang-19 \
             debhelper \
             devscripts \
-            g++-14 \
+            g++ \
             libei-dev \
             libfmt-dev \
             libportal-dev \
@@ -91,6 +91,17 @@ jobs:
         run: |
           "$CXX" --version
           "$CXX" -v -E -x c++ /dev/null
+          portal_version="$(pkg-config --modversion libportal)"
+          echo "libportal $portal_version"
+          if ! pkg-config --atleast-version=0.8.0 libportal; then
+            echo "libportal 0.8.0 or newer is required; found $portal_version" >&2
+            exit 1
+          fi
+          portal_header="$(pkg-config --variable=includedir libportal)/libportal/inputcapture.h"
+          if [[ ! -f "$portal_header" ]]; then
+            echo "libportal InputCapture header is missing: $portal_header" >&2
+            exit 1
+          fi
           printf '%s\n' \
             '#include <expected>' \
             'template <typename T> struct Aggregate { T value; };' \

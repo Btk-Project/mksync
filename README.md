@@ -44,12 +44,13 @@ We will implement file dragging and dropping and support for more systems (e.g. 
 ## How to build?
 mksync requires Xmake 3.0.9 or newer. C++23 is both the default and the minimum supported
 language level. C++26 is an optional GCC 16.1 compatibility lane; C++20 and older are unsupported.
-Ubuntu 24.04 with Clang 19, libstdc++ 14, and Qt 6 is the supported Linux CI and package baseline.
+Ubuntu 26.04 with Clang 19, libstdc++ 15, Qt 6, and libportal 0.8.0 or newer is the
+supported Linux CI and package baseline.
 
-Install the complete Ubuntu 24.04 build environment with:
+Install the complete Ubuntu 26.04 build environment with:
 
 ```bash
-sudo apt install clang-19 g++-14 libei-dev libfmt-dev libgmock-dev libgtest-dev \
+sudo apt install clang-19 g++ libei-dev libfmt-dev libgmock-dev libgtest-dev \
   libportal-dev libspdlog-dev libwayland-bin libwayland-dev \
   libxcb1-dev libxcb-keysyms1-dev libxcb-randr0-dev libxcb-xinput-dev \
   libxcb-xtest0-dev libxkbcommon-dev pkg-config qt6-base-dev qt6-declarative-dev \
@@ -79,6 +80,8 @@ xmake f -c --stdcxx=23 \
 
 Windows uses `--enable_backend_win32`. Linux XCB, Wayland, libei, and portal libraries are
 platform-bound system dependencies and are therefore resolved only through system `pkg-config`.
+The portal backend requires libportal 0.8.0, the first release with InputCapture support. On a
+distribution with an older libportal, configure with `--enable_backend_wayland_portal=n`.
 
 ### compile
 
@@ -118,7 +121,7 @@ xmake pack -f deb -o dist         # Debian/Ubuntu package
 On Windows, use `xmake pack -f nsis,zip -o dist`; Xmake's Qt install hook invokes
 `windeployqt`. Pushing a `vX.Y.Z` tag makes GitHub Actions build Linux and Windows packages and
 attach them to a GitHub Release. See [`docs/releasing.md`](docs/releasing.md) for the exact flow.
-The Linux package currently targets Ubuntu 24.04; a Flatpak package is planned as the future
+The Linux package currently targets Ubuntu 26.04; a Flatpak package is planned as the future
 distribution-independent runtime.
 
 ### Input backends

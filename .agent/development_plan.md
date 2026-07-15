@@ -18,8 +18,8 @@
 - 优先 Mock Platform 自动化测试；真机联调仍是未完成验收。
 - X11 已改为纯 XCB；平台、capture、injector 各自独占连接与 reply/event queue。
 - 默认语言标准是 C++23，只允许显式切换到 C++26；低于 23 不受支持。
-- Linux CI 和安装包基线是 Ubuntu 24.04、Clang 19、libstdc++ 14 与 Qt 6，不为旧 glibc 降低
-  C++/Qt 基线。
+- Linux CI 和安装包基线是 Ubuntu 26.04、Clang 19、libstdc++ 15、Qt 6 与 libportal 0.8.0；
+  不为旧 glibc 降低 C++/Qt 基线。
 - Xmake 后端依赖按编译选项启用；Linux 平台库只使用系统 `pkg-config`。
 - tag 发布通过 Xpack + GitHub Actions 生成 Linux/Windows 二进制包。
 - 后续增加 Flatpak 作为与宿主发行版运行库解耦的 Linux 分发方式。
