@@ -43,5 +43,6 @@ inline auto _refl_fmt_inline(const VirtualScreen &value, auto it) {
         value.info
     );
 }
+REFL_FORMAT_AS(VirtualScreen);
 
 MKS_END

@@ -12,13 +12,16 @@
 
 #include <type_traits>
 #include <concepts>
+#include <iterator>
 #include <variant>
 #include <string>
 
 #if __cpp_lib_format >= 202207L
+#define MKS_USE_STD_FORMAT 1
 #include <format>
 namespace fmtlib = std;
 #else
+#define MKS_USE_STD_FORMAT 0
 #include <fmt/core.h>
 #include <fmt/format.h>
 #include <fmt/ranges.h>
@@ -38,25 +41,42 @@ namespace fmt {
 #define NEKO_ENUM_SEARCH_DEPTH 256
 #include <nekoproto/serialization/reflection.hpp>
 
+// {fmt} supports user-defined types through an ADL-found format_as overload. Prefer that
+// extension point over a constrained partial specialization of fmt::formatter: Clang does not
+// reliably select the latter for the reflected aliases and structs used by this project.
+#if MKS_USE_STD_FORMAT
+#define REFL_FORMAT_AS(TYPE)
+#else
+#define REFL_FORMAT_AS(TYPE)                                      \
+    inline auto format_as(const TYPE &value) -> std::string {     \
+        auto output = std::string {};                             \
+        _refl_fmt_inline(value, std::back_inserter(output));      \
+        return output;                                            \
+    }
+#endif
+
 // MARK: Inline
 // Generic Formatter for enums and structs/classes
-#define FORMATTER(TYPE)                                          \
-    inline auto _refl_fmt_inline(const TYPE &value, auto it) {   \
-        return ::refl::detail::formatTo(value, it);              \
-    }                                                            \
+#define FORMATTER(TYPE)                                           \
+    inline auto _refl_fmt_inline(const TYPE &value, auto it) {    \
+        return ::refl::detail::formatTo(value, it);               \
+    }                                                             \
+    REFL_FORMAT_AS(TYPE)
 
 // Formatter for enum flags
-#define FLAGS_FORMATTER(ENUM)                            \
-    inline auto _refl_fmt_inline(ENUM value, auto it) {  \
-        return ::refl::detail::formatFlags(value, it);   \
-    }                                                             
+#define FLAGS_FORMATTER(ENUM)                                     \
+    inline auto _refl_fmt_inline(ENUM value, auto it) {           \
+        return ::refl::detail::formatFlags(value, it);            \
+    }                                                             \
+    REFL_FORMAT_AS(ENUM)
 
 // Formatter for variant
-#define VARIANT_FORMATTER(TYPE)                                       \
-    template <char = 0>                                               \
-    inline auto _refl_fmt_inline(const TYPE &value, auto it) {        \
-        return ::refl::detail::formatVariant(#TYPE, value, it);       \
-    }
+#define VARIANT_FORMATTER(TYPE)                                   \
+    template <char = 0>                                           \
+    inline auto _refl_fmt_inline(const TYPE &value, auto it) {    \
+        return ::refl::detail::formatVariant(#TYPE, value, it);   \
+    }                                                             \
+    REFL_FORMAT_AS(TYPE)
 
 // MARK: Extern
 #define EXTERN_FORMATTER(TYPE) \
@@ -74,7 +94,8 @@ concept Formattable = requires(T t) {
     _refl_fmt_extern(t);   
 };
 
-// Bridges to reflection formatter
+// std::format has no format_as extension point, so retain the formatter bridge for that path.
+#if MKS_USE_STD_FORMAT
 template <Formattable T>
 struct fmtlib::formatter<T> {
     constexpr auto parse(fmtlib::format_parse_context &ctxt) const -> decltype(ctxt.begin()) {
@@ -91,6 +112,7 @@ struct fmtlib::formatter<T> {
         }
     }
 };
+#endif
 
 #if defined(__cpp_lib_print) && __cpp_lib_print >= 202406L
 template <Formattable T>
