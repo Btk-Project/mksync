@@ -3,7 +3,7 @@
 项目现在把“编译”“临时产物”和“正式发布”分成两条工作流：
 
 - `.github/workflows/ci.yml`：每次推送到 `main` 或提交 PR 时运行。Linux C++23
-  固定在 Ubuntu 24.04/GCC 14，使用系统 Qt 6、fmt、spdlog 和 gtest 构建 CLI、GUI 并
+  固定在 Ubuntu 24.04/Clang 18/libstdc++ 14，使用系统 Qt 6、fmt、spdlog 和 gtest 构建 CLI、GUI 并
   执行测试；Windows C++23 构建 CLI 与 GUI；Docker 额外验证
   GCC 16.1/C++26，但它不是默认发布标准。
 - `.github/workflows/release.yml`：只在推送 `vX.Y.Z` tag 或手工指定已有 tag 时运行。

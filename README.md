@@ -44,18 +44,18 @@ We will implement file dragging and dropping and support for more systems (e.g. 
 ## How to build?
 mksync requires Xmake 3.0.9 or newer. C++23 is both the default and the minimum supported
 language level. C++26 is an optional GCC 16.1 compatibility lane; C++20 and older are unsupported.
-Ubuntu 24.04 with GCC 14 and Qt 6 is the minimum supported Linux build and package baseline.
+Ubuntu 24.04 with Clang 18, libstdc++ 14, and Qt 6 is the supported Linux CI and package baseline.
 
 Install the complete Ubuntu 24.04 build environment with:
 
 ```bash
-sudo apt install gcc-14 g++-14 libei-dev libfmt-dev libgmock-dev libgtest-dev \
+sudo apt install clang-18 g++-14 libei-dev libfmt-dev libgmock-dev libgtest-dev \
   libportal-dev libspdlog-dev libwayland-bin libwayland-dev \
   libxcb1-dev libxcb-keysyms1-dev libxcb-randr0-dev libxcb-xinput-dev \
   libxcb-xtest0-dev libxkbcommon-dev pkg-config qt6-base-dev qt6-declarative-dev \
   qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-dialogs \
   qml6-module-qtquick-layouts wayland-protocols x11proto-dev
-export CC=gcc-14 CXX=g++-14
+export CC=clang-18 CXX=clang++-18
 ```
 
 ### configure

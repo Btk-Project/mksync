@@ -15,11 +15,11 @@ concurrency:
 
 jobs:
   linux-cpp23:
-    name: Linux / C++23 / tests and GUI
+    name: Linux / Clang 18 / C++23 / tests and GUI
     runs-on: ubuntu-24.04
     env:
-      CC: gcc-14
-      CXX: g++-14
+      CC: clang-18
+      CXX: clang++-18
     steps:
       - uses: actions/checkout@v6
 
@@ -27,8 +27,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
+            clang-18 \
             g++-14 \
-            gcc-14 \
             libei-dev \
             libfmt-dev \
             libgmock-dev \
@@ -52,6 +52,11 @@ jobs:
             qt6-declarative-dev \
             wayland-protocols \
             x11proto-dev
+
+      - name: Report Linux compiler toolchain
+        run: |
+          "$CXX" --version
+          "$CXX" -v -E -x c++ /dev/null
 
       - name: Install Xmake
         uses: xmake-io/github-action-setup-xmake@v1
