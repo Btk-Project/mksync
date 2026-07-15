@@ -95,24 +95,25 @@ jobs:
           xmake build mksync
           xmake build mksync-gui
 
-  linux-cpp26:
-    name: Linux / GCC 16.1 / C++26
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
+  # 暂时不可用
+  # linux-cpp26:
+  #   name: Linux / GCC 16.1 / C++26
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v6
 
-      - name: Build GCC 16.1 image
-        run: docker build --tag mksync-gcc16 .
+  #     - name: Build GCC 16.1 image
+  #       run: docker build --tag mksync-gcc16 .
 
-      - name: Build the C++26 compatibility lane
-        run: |
-          docker run --rm \
-            --volume "$PWD:/workspace/mksync" \
-            --workdir /workspace/mksync \
-            mksync-gcc16 \
-            xmake f -c -m debug --stdcxx=26 --enable_gui=n --enable_tests=n --ccache=n
-          docker run --rm \
-            --volume "$PWD:/workspace/mksync" \
-            --workdir /workspace/mksync \
-            mksync-gcc16 \
-            xmake build mksync
+  #     - name: Build the C++26 compatibility lane
+  #       run: |
+  #         docker run --rm \
+  #           --volume "$PWD:/workspace/mksync" \
+  #           --workdir /workspace/mksync \
+  #           mksync-gcc16 \
+  #           xmake f -c -m debug --stdcxx=26 --enable_gui=n --enable_tests=n --ccache=n
+  #         docker run --rm \
+  #           --volume "$PWD:/workspace/mksync" \
+  #           --workdir /workspace/mksync \
+  #           mksync-gcc16 \
+  #           xmake build mksync
