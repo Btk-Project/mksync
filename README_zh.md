@@ -45,18 +45,18 @@ Mksync 是基于 synergy、barrier 和 input-leap 的灵感而开发的。你也
 ## 如何构建?
 mksync 使用 Xmake 3.0.9 或更高版本构建。默认且最低支持 C++23；C++26 仅用于
 GCC 16.1 兼容性验证，不支持 C++20 或更低标准。Linux 最低构建和安装包基线为
-Ubuntu 24.04、Clang 18、libstdc++ 14 与 Qt 6。
+Ubuntu 24.04、Clang 19、libstdc++ 14 与 Qt 6。
 
 Ubuntu 24.04 上完整构建环境的安装示例：
 
 ```bash
-sudo apt install clang-18 g++-14 libei-dev libfmt-dev libgmock-dev libgtest-dev \
+sudo apt install clang-19 g++-14 libei-dev libfmt-dev libgmock-dev libgtest-dev \
   libportal-dev libspdlog-dev libwayland-bin libwayland-dev \
   libxcb1-dev libxcb-keysyms1-dev libxcb-randr0-dev libxcb-xinput-dev \
   libxcb-xtest0-dev libxkbcommon-dev pkg-config qt6-base-dev qt6-declarative-dev \
   qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-dialogs \
   qml6-module-qtquick-layouts wayland-protocols x11proto-dev
-export CC=clang-18 CXX=clang++-18
+export CC=clang-19 CXX=clang++-19
 ```
 
 ### 配置

@@ -46,12 +46,12 @@ jobs:
           echo "value=$project_version" >> "$GITHUB_OUTPUT"
 
   linux:
-    name: Package Linux with Clang 18
+    name: Package Linux with Clang 19
     needs: metadata
     runs-on: ubuntu-24.04
     env:
-      CC: clang-18
-      CXX: clang++-18
+      CC: clang-19
+      CXX: clang++-19
     steps:
       - uses: actions/checkout@v6
         with:
@@ -61,7 +61,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            clang-18 \
+            clang-19 \
             debhelper \
             devscripts \
             g++-14 \
@@ -91,6 +91,13 @@ jobs:
         run: |
           "$CXX" --version
           "$CXX" -v -E -x c++ /dev/null
+          printf '%s\n' \
+            '#include <expected>' \
+            'template <typename T> struct Aggregate { T value; };' \
+            'template <typename T> using Alias = Aggregate<T>;' \
+            'Alias alias{42};' \
+            'static_assert(std::expected<int, int>{42}.has_value());' \
+            | "$CXX" -std=c++23 -fsyntax-only -x c++ -
 
       - name: Install Xmake
         uses: xmake-io/github-action-setup-xmake@v1
