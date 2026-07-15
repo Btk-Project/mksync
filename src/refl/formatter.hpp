@@ -41,17 +41,37 @@ namespace fmt {
 #define NEKO_ENUM_SEARCH_DEPTH 256
 #include <nekoproto/serialization/reflection.hpp>
 
-// {fmt} supports user-defined types through an ADL-found format_as overload. Prefer that
-// extension point over a constrained partial specialization of fmt::formatter: Clang does not
-// reliably select the latter for the reflected aliases and structs used by this project.
+// {fmt} supports user-defined types through an ADL-found format_as overload. Map reflected
+// values to a project-owned view so formatting stays allocation-free and its implementation is
+// instantiated only where the value is actually formatted. The delayed instantiation matters
+// for flags whose operators can be declared later in the same header.
 #if MKS_USE_STD_FORMAT
 #define REFL_FORMAT_AS(TYPE)
 #else
-#define REFL_FORMAT_AS(TYPE)                                      \
-    inline auto format_as(const TYPE &value) -> std::string {     \
-        auto output = std::string {};                             \
-        _refl_fmt_inline(value, std::back_inserter(output));      \
-        return output;                                            \
+namespace refl {
+template <typename T>
+struct FormatView {
+    const T &value;
+};
+}
+
+template <typename T, typename Char>
+struct fmt::formatter<::refl::FormatView<T>, Char> {
+    constexpr auto parse(fmt::basic_format_parse_context<Char> &context) const
+        -> decltype(context.begin()) {
+        return context.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const ::refl::FormatView<T> &view, FormatContext &context) const
+        -> decltype(context.out()) {
+        return _refl_fmt_inline(view.value, context.out());
+    }
+};
+
+#define REFL_FORMAT_AS(TYPE)                                               \
+    inline auto format_as(const TYPE &value) -> ::refl::FormatView<TYPE> { \
+        return {value};                                                    \
     }
 #endif
 

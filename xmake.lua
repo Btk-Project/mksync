@@ -29,6 +29,12 @@ option("3rd_kind",     {showmenu = true, type = "string",  default = get_config(
 option("3rd_mode",     {showmenu = true, type = "string",  default = "release",          values = {"release", "debug"}})
 option("outputdir",    {showmenu = true, type = "string",  default = path.join(os.projectdir(), "bin")})
 option("buildversion", {showmenu = true, type = "number",  default = 0})
+option("use_system_format_stack")
+    set_default(false)
+    set_showmenu(true)
+    set_description("Use the system fmt and spdlog packages instead of the pinned versions")
+    set_category("mksync dependencies")
+option_end()
 option("enable_gui")
     set_default(false)
     set_showmenu(true)
@@ -53,13 +59,16 @@ add_repositories("btk-repo https://github.com/Btk-Project/xmake-repo.git")
 includes("lua/backends.lua")
 includes("lua/pack.lua")
 
--- Prefer distribution-provided fmt/spdlog when their pkg-config files are available. System
--- spdlog is built against system fmt on the supported Linux baseline, so keep the pair together.
-local useSystemSpdlog = has_config("has_system_spdlog")
-local useSystemFmt = has_config("has_system_fmt") or useSystemSpdlog
+-- Keep fmt and spdlog on a tested version pair by default. In particular, fmt 10's consteval
+-- format-string parser is not compatible with newer Clang constant evaluators. Distribution
+-- packagers may explicitly select the system pair, but never mix one system package with one
+-- pinned package because spdlog's external-fmt mode shares fmt's ABI and headers.
+local useSystemFormatStack = has_config("use_system_format_stack")
+local useSystemSpdlog = useSystemFormatStack and has_config("has_system_spdlog")
+local useSystemFmt = useSystemFormatStack and has_config("has_system_fmt")
 local requireFmt = useSystemSpdlog or not has_config("has_std_format")
-if useSystemSpdlog and not has_config("has_system_fmt") then
-    raise(system_fmt_missing_message())
+if useSystemFormatStack and not (useSystemSpdlog and useSystemFmt) then
+    raise("--use_system_format_stack=y requires pkg-config packages for both fmt and spdlog")
 end
 
 -- header-only libraries
@@ -83,8 +92,8 @@ if not has_config("3rd_custom") then
 add_requireconfs("**out_ptr",       {override = true, version = "x.x.x"})
 add_requireconfs("**zeus_expected", {override = true, version = "x.x.x"})
 -- normal libraries' dependencies configurations
-add_requireconfs("**fmt",      {override = true, system = useSystemFmt, version = "x.x.x", configs = {shared = is_config("3rd_kind", "shared"), debug = is_config("3rd_mode", "debug"), header_only = false}})
-add_requireconfs("**spdlog",    {override = true, system = useSystemSpdlog, version = "x.x.x", configs = {shared = is_config("3rd_kind", "shared"), debug = is_config("3rd_mode", "debug"), header_only = false, fmt_external = useSystemSpdlog or not has_config("has_std_format"), std_format = not useSystemSpdlog and has_config("has_std_format"), wchar = true, wchar_console = true}})
+add_requireconfs("**fmt",      {override = true, system = useSystemFmt, version = useSystemFmt and "x.x.x" or "12.2.0", configs = {shared = is_config("3rd_kind", "shared"), debug = is_config("3rd_mode", "debug"), header_only = false}})
+add_requireconfs("**spdlog",    {override = true, system = useSystemSpdlog, version = useSystemSpdlog and "x.x.x" or "1.17.0", configs = {shared = is_config("3rd_kind", "shared"), debug = is_config("3rd_mode", "debug"), header_only = false, fmt_external = useSystemSpdlog or not has_config("has_std_format"), std_format = not useSystemSpdlog and has_config("has_std_format"), wchar = true, wchar_console = true}})
 add_requireconfs("**ilias",     {override = true, version = "x.x.x", configs = {debug = is_config("3rd_mode", "debug"), stdcxx = stdcxx_version(), fmt = not has_config("has_std_format")}})
 add_requireconfs("**neko-proto-tools", {override = true, version = "x.x.x", configs = {debug = is_config("3rd_mode", "debug"), enable_simdjson = false, enable_rapidjson = true, enable_communication = false, enable_fmt = false, enable_spdlog = false, enable_jsonrpc = false, enable_protocol = false, enable_tomlplusplus = true}})
 end
