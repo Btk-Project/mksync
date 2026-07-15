@@ -14,10 +14,10 @@ target("mksync-gui")
         add_packages("qt6quick")
     end
 
-    add_packages("ilias", "spdlog", "neko-proto-tools")
+    add_packages("ilias", mks_spdlog_package(), "neko-proto-tools")
     mks_add_backend_packages()
-    if has_config("has_system_spdlog") or not has_config("has_std_format") then
-        add_packages("fmt")
+    if mks_requires_fmt() then
+        add_packages(mks_fmt_package())
     end
 
     add_includedirs(os.scriptdir(), path.join(os.projectdir(), "src"))

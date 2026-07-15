@@ -22,10 +22,18 @@
 namespace fmtlib = std;
 #else
 #define MKS_USE_STD_FORMAT 0
+#ifndef MKS_HAS_FMT
+#define MKS_HAS_FMT 1
+#endif
+#endif // __cpp_lib_format >= 202207L
+
+#if MKS_HAS_FMT
 #include <fmt/core.h>
 #include <fmt/format.h>
 #include <fmt/ranges.h>
+#if !MKS_USE_STD_FORMAT
 namespace fmtlib = fmt;
+#endif
 #if FMT_VERSION < 110000
 namespace fmt {
     template<typename T, typename Char = char>
@@ -34,7 +42,7 @@ namespace fmt {
     };
 }
 #endif // FMT_VERSION < 110000
-#endif // __cpp_lib_format >= 202207L
+#endif // MKS_HAS_FMT
 #include <print>
 #include <map>
 
@@ -45,9 +53,7 @@ namespace fmt {
 // values to a project-owned view so formatting stays allocation-free and its implementation is
 // instantiated only where the value is actually formatted. The delayed instantiation matters
 // for flags whose operators can be declared later in the same header.
-#if MKS_USE_STD_FORMAT
-#define REFL_FORMAT_AS(TYPE)
-#else
+#if MKS_HAS_FMT
 namespace refl {
 template <typename T>
 struct FormatView {
@@ -65,7 +71,13 @@ struct fmt::formatter<::refl::FormatView<T>, Char> {
     template <typename FormatContext>
     auto format(const ::refl::FormatView<T> &view, FormatContext &context) const
         -> decltype(context.out()) {
+#if MKS_USE_STD_FORMAT
+        auto output = std::string {};
+        _refl_fmt_inline(view.value, std::back_inserter(output));
+        return fmt::format_to(context.out(), "{}", output);
+#else
         return _refl_fmt_inline(view.value, context.out());
+#endif
     }
 };
 
@@ -73,6 +85,8 @@ struct fmt::formatter<::refl::FormatView<T>, Char> {
     inline auto format_as(const TYPE &value) -> ::refl::FormatView<TYPE> { \
         return {value};                                                    \
     }
+#else
+#define REFL_FORMAT_AS(TYPE)
 #endif
 
 // MARK: Inline

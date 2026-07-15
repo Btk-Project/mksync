@@ -26,9 +26,9 @@ local function test_group(file)
 end
 
 local function add_common_test_packages()
-    add_packages("gtest", "neko-proto-tools", "ilias", "spdlog")
-    if has_config("has_system_spdlog") or not has_config("has_std_format") then
-        add_packages("fmt")
+    add_packages("gtest", "neko-proto-tools", "ilias", mks_spdlog_package())
+    if mks_requires_fmt() then
+        add_packages(mks_fmt_package())
     end
 end
 

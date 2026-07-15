@@ -29,12 +29,6 @@ option("3rd_kind",     {showmenu = true, type = "string",  default = get_config(
 option("3rd_mode",     {showmenu = true, type = "string",  default = "release",          values = {"release", "debug"}})
 option("outputdir",    {showmenu = true, type = "string",  default = path.join(os.projectdir(), "bin")})
 option("buildversion", {showmenu = true, type = "number",  default = 0})
-option("use_system_format_stack")
-    set_default(false)
-    set_showmenu(true)
-    set_description("Use the system fmt and spdlog packages instead of the pinned versions")
-    set_category("mksync dependencies")
-option_end()
 option("enable_gui")
     set_default(false)
     set_showmenu(true)
@@ -59,26 +53,24 @@ add_repositories("btk-repo https://github.com/Btk-Project/xmake-repo.git")
 includes("lua/backends.lua")
 includes("lua/pack.lua")
 
--- Keep fmt and spdlog on a tested version pair by default. In particular, fmt 10's consteval
--- format-string parser is not compatible with newer Clang constant evaluators. Distribution
--- packagers may explicitly select the system pair, but never mix one system package with one
--- pinned package because spdlog's external-fmt mode shares fmt's ABI and headers.
-local useSystemFormatStack = has_config("use_system_format_stack")
-local useSystemSpdlog = useSystemFormatStack and has_config("has_system_spdlog")
-local useSystemFmt = useSystemFormatStack and has_config("has_system_fmt")
-local requireFmt = useSystemSpdlog or not has_config("has_std_format")
-if useSystemFormatStack and not (useSystemSpdlog and useSystemFmt) then
-    raise("--use_system_format_stack=y requires pkg-config packages for both fmt and spdlog")
-end
+-- A system spdlog is compiled against its distribution fmt. Keep that pair together so headers
+-- and libraries cannot come from different ABIs. Only download the stack when no system package
+-- is available; a system fmt can also back the downloaded spdlog safely.
+local useSystemSpdlog = mks_uses_system_spdlog()
+local useSystemFmt = has_config("has_system_fmt")
+local requireFmt = mks_requires_fmt()
 
 -- header-only libraries
 if not has_config("has_std_out_ptr")  then add_requires("out_ptr") end
 if not has_config("has_std_expected") then add_requires("zeus_expected") end
-if requireFmt then add_requires("fmt") end
+if requireFmt then
+    add_requires(mks_fmt_package(), {system = useSystemFmt})
+    add_defines("MKS_HAS_FMT=1")
+end
 
 -- normal libraries
+add_requires(mks_spdlog_package(), {system = useSystemSpdlog})
 add_requires(
-    "spdlog",
     "ilias",
     "neko-proto-tools"
 )
@@ -93,7 +85,9 @@ add_requireconfs("**out_ptr",       {override = true, version = "x.x.x"})
 add_requireconfs("**zeus_expected", {override = true, version = "x.x.x"})
 -- normal libraries' dependencies configurations
 add_requireconfs("**fmt",      {override = true, system = useSystemFmt, version = useSystemFmt and "x.x.x" or "12.2.0", configs = {shared = is_config("3rd_kind", "shared"), debug = is_config("3rd_mode", "debug"), header_only = false}})
-add_requireconfs("**spdlog",    {override = true, system = useSystemSpdlog, version = useSystemSpdlog and "x.x.x" or "1.17.0", configs = {shared = is_config("3rd_kind", "shared"), debug = is_config("3rd_mode", "debug"), header_only = false, fmt_external = useSystemSpdlog or not has_config("has_std_format"), std_format = not useSystemSpdlog and has_config("has_std_format"), wchar = true, wchar_console = true}})
+if not useSystemSpdlog then
+    add_requireconfs("**spdlog", {override = true, system = false, version = "1.17.0", configs = {shared = is_config("3rd_kind", "shared"), debug = is_config("3rd_mode", "debug"), header_only = false, fmt_external = not has_config("has_std_format"), std_format = has_config("has_std_format"), wchar = true, wchar_console = true}})
+end
 add_requireconfs("**ilias",     {override = true, version = "x.x.x", configs = {debug = is_config("3rd_mode", "debug"), stdcxx = stdcxx_version(), fmt = not has_config("has_std_format")}})
 add_requireconfs("**neko-proto-tools", {override = true, version = "x.x.x", configs = {debug = is_config("3rd_mode", "debug"), enable_simdjson = false, enable_rapidjson = true, enable_communication = false, enable_fmt = false, enable_spdlog = false, enable_jsonrpc = false, enable_protocol = false, enable_tomlplusplus = true}})
 end
@@ -118,13 +112,13 @@ target("mksync")
     set_kind("binary")
     set_installdir(path.join(os.projectdir(), "build", "install"))
     add_packages("ilias")
-    add_packages("spdlog")
+    add_packages(mks_spdlog_package())
     add_packages("neko-proto-tools")
     
     mks_add_backend_packages()
 
     if requireFmt then
-        add_packages("fmt")
+        add_packages(mks_fmt_package())
     end
     
     add_includedirs("src")
