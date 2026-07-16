@@ -155,3 +155,7 @@ target("mksync")
     set_configvar("MKS_SHARED_BUILD", is_kind("shared") and true or false)
     add_configfiles("src/config/*.in", {public = true})
 target_end()
+
+-- Debian's package implementation is external, while this phony target owns target discovery,
+-- dependency staging inputs, and the configured output location.
+includes("packaging/debian/xmake.lua")

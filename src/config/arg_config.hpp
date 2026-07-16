@@ -2,6 +2,7 @@
 
 #include "config/config.hpp"
 
+#include <algorithm>
 #include <ilias/io/error.hpp>
 #include <nekoproto/argparser/argparser.hpp>
 

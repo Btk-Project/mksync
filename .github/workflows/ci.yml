@@ -110,7 +110,7 @@ jobs:
           xmake build mksync
 
   windows-cpp23:
-    name: Windows / C++23 / CLI and GUI
+    name: Windows / C++23 / release CLI and GUI
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
@@ -122,10 +122,10 @@ jobs:
           package-cache: true
           project-path: .
 
-      - name: Configure C++23
+      - name: Configure the release-equivalent C++23 build
         shell: pwsh
         run: >-
-          xmake f -c -y -p windows -a x64 -m debug --stdcxx=23 --enable_gui=y
+          xmake f -c -y -p windows -a x64 -m release --stdcxx=23 --enable_gui=y
           --enable_tests=n --ccache=n
 
       - name: Build CLI and GUI

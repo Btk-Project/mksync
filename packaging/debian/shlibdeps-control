@@ -1,0 +1,13 @@
+Source: mksync
+Section: utils
+Priority: optional
+Maintainer: Btk-Project <btk-project@users.noreply.github.com>
+Standards-Version: 4.6.2
+Homepage: https://github.com/Btk-Project/mksync
+Rules-Requires-Root: no
+
+Package: mksync
+Architecture: any
+Depends: ${shlibs:Depends}
+Description: Mouse and keyboard synchronization tool
+ mksync shares mouse and keyboard input between computers.

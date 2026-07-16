@@ -35,29 +35,6 @@ xpack("mksync")
     --     "LICENSE"
     -- )
 
-    before_package(function (package)
-        if package:format() == "deb" then
-            os.setenv("LC_ALL", "C")
-            os.setenv("LC_TIME", "C")
-            if has_config("enable_gui") then
-                local template = path.join(os.programdir(), "scripts", "xpack", "deb", "debian")
-                local specdir = path.join(package:builddir(), "debian-template")
-                os.cp(template, specdir)
-                local control = path.join(specdir, "control")
-                io.replace(control, "Section: devel", "Section: utils", {plain = true})
-                io.replace(
-                    control,
-                    "Depends: ${shlibs:Depends}, ${misc:Depends}",
-                    "Depends: ${shlibs:Depends}, ${misc:Depends}, " ..
-                        "qml6-module-qtquick, qml6-module-qtquick-controls, " ..
-                        "qml6-module-qtquick-dialogs, qml6-module-qtquick-layouts",
-                    {plain = true}
-                )
-                package:set("specfile", specdir)
-            end
-        end
-    end)
-
     if is_plat("windows", "mingw") then
         -- qt.quickapp's xpack install hook runs windeployqt for every binary format.
         set_formats("nsis", "zip")
@@ -65,8 +42,9 @@ xpack("mksync")
         -- qt.quickapp deploys the .app bundle before xpack creates these archives.
         set_formats("dmg", "zip")
     else
-        -- Linux QML import modules and backend libraries remain system dependencies. deb/rpm
-        -- record them through the native package tools; targz is a distro-oriented archive.
-        set_formats("deb", "rpm", "targz")
+        -- Debian packages use the package_deb phony target and packaging/debian/build.sh. Xpack's
+        -- Debian backend creates a source package and starts a second build whose Xmake dependency
+        -- cannot be satisfied by the distribution's older Xmake package.
+        set_formats("rpm", "targz")
     end
 xpack_end()

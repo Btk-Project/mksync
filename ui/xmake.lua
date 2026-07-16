@@ -36,6 +36,10 @@ target("mksync-gui")
     )
     mks_add_backend_sources()
 
+    -- Keep the GUI's shared core sources on the same PCH path as the CLI. Public project headers
+    -- remain self-contained; this only keeps the two Windows build targets configured alike.
+    set_pcxxheader(path.join(os.projectdir(), "src/config/pch.hpp"))
+
     -- Use the same generated project configuration and reflection setting as
     -- the CLI because the GUI reuses AppConfig byte-for-byte.
     if stdcxx_version() == 26 and is_tool("cxx", "gcc") then

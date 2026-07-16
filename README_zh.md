@@ -45,12 +45,12 @@ Mksync 是基于 synergy、barrier 和 input-leap 的灵感而开发的。你也
 ## 如何构建?
 mksync 使用 Xmake 3.0.9 或更高版本构建。默认且最低支持 C++23；C++26 仅用于
 GCC 16.1 兼容性验证，不支持 C++20 或更低标准。Linux 最低构建和安装包基线为
-Ubuntu 24.04、Clang 19、libstdc++ 14 与 Qt 6。
+Ubuntu 26.04、Clang 19、libstdc++ 15 与 Qt 6。
 
-Ubuntu 24.04 上完整构建环境的安装示例：
+Ubuntu 26.04 上完整构建环境的安装示例：
 
 ```bash
-sudo apt install clang-19 g++-14 libei-dev libfmt-dev libgmock-dev libgtest-dev \
+sudo apt install clang-19 g++ libei-dev libfmt-dev libgmock-dev libgtest-dev \
   libportal-dev libspdlog-dev libwayland-bin libwayland-dev \
   libxcb1-dev libxcb-keysyms1-dev libxcb-randr0-dev libxcb-xinput-dev \
   libxcb-xtest0-dev libxkbcommon-dev pkg-config qt6-base-dev qt6-declarative-dev \
@@ -106,19 +106,27 @@ Windows CI 和发布构建使用 Xmake 提供的 SDK。
 
 ### 安装包与 Release
 
-`lua/pack.lua` 会把 CLI 和启用后的 GUI 一起交给 Xpack。示例：
+Linux 归档仍由 Xpack 生成；Debian 包改用仓库自己的二进制打包脚本，避开 Xpack
+错误触发的源码包二次构建：
 
 ```bash
 xmake f -c -m release --stdcxx=23 --enable_gui=y --enable_tests=n
 xmake pack -f targz -o dist       # Linux 归档
-xmake pack -f deb -o dist         # Debian/Ubuntu 安装包
+xmake build package_deb           # Debian/Ubuntu 安装包
 ```
+
+Debian 脚本只需要 `dpkg-dev` 和 `patchelf`。它直接消费已经编译好的可执行文件，打入私有
+`libilias`，再调用 `dpkg-deb`；生成过程中不会执行 `debuild`/`dpkg-buildpackage`，包的
+构建依赖中也不会出现 Xmake 或 `build-essential`。`package_deb` phony target 会按当前
+Xmake 配置传入精确的 CLI、GUI 和 ilias 路径；配置时使用
+`--deb_outputdir=/path/to/dist` 可以调整输出目录。调整时应与 `-m release`、
+`--enable_gui=y` 等完整配置项放在同一条 `xmake f` 命令中，避免按默认选项重新配置。
 
 Windows 使用 `xmake pack -f nsis,zip -o dist`；Xmake 的 Qt 安装钩子会自动调用
 `windeployqt`。推送 `vX.Y.Z` tag 后，GitHub Actions 会自动生成 Linux 和 Windows
 安装包并附加到 Release。完整操作与临时 artifact/正式 Release asset 的区别见
 [`docs/releasing.md`](docs/releasing.md)。
-当前 Linux 安装包以 Ubuntu 24.04 为最低基线；后续计划增加 Flatpak，提供与宿主发行版
+当前 Linux 安装包以 Ubuntu 26.04 为最低基线；后续计划增加 Flatpak，提供与宿主发行版
 运行库解耦的分发方式。
 
 ### 输入后端

@@ -1,5 +1,5 @@
-#include "config/arg_config.hpp"
 #include "preinclude.hpp"
+#include "config/arg_config.hpp"
 
 #include <spdlog/spdlog.h>
 

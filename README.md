@@ -110,13 +110,20 @@ prebuilt `qt6quick` package. Windows CI and release builds use the Xmake-provide
 
 ### Packages and releases
 
-`lua/pack.lua` gives Xpack both the CLI and the enabled GUI target:
+Xpack still creates Linux archives, while Debian packages use the repository-owned binary package
+script to avoid Xpack's broken source-package rebuild:
 
 ```bash
 xmake f -c -m release --stdcxx=23 --enable_gui=y --enable_tests=n
 xmake pack -f targz -o dist       # Linux archive
-xmake pack -f deb -o dist         # Debian/Ubuntu package
+xmake build package_deb           # Debian/Ubuntu package
 ```
+
+The Debian script requires `dpkg-dev` and `patchelf`. It consumes the already-built executables,
+bundles their private `libilias`, and invokes `dpkg-deb` directly; neither Xmake nor
+`build-essential` is recorded as a Debian build dependency. The `package_deb` phony target supplies
+the exact binary and library locations from the active Xmake configuration; use
+`--deb_outputdir=/path/to/dist` in the same full configure command to relocate its output.
 
 On Windows, use `xmake pack -f nsis,zip -o dist`; Xmake's Qt install hook invokes
 `windeployqt`. Pushing a `vX.Y.Z` tag makes GitHub Actions build Linux and Windows packages and
