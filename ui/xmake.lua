@@ -15,6 +15,7 @@ target("mksync-gui")
     end
 
     add_packages("ilias", mks_spdlog_package(), "neko-proto-tools")
+    add_values("qt.deploy.qmldir", "qml")
     mks_add_backend_packages()
     if mks_requires_fmt() then
         add_packages(mks_fmt_package())
