@@ -150,10 +150,6 @@ jobs:
           package-cache: true
           project-path: .
 
-      - name: Install NSIS
-        shell: pwsh
-        run: choco install nsis --yes --no-progress
-
       - name: Configure release build
         shell: pwsh
         run: >-
@@ -164,7 +160,7 @@ jobs:
         run: |
           xmake build mksync
           xmake build mksync-gui
-          xmake pack -f nsis,zip -o dist
+          xmake pack -f nsis,zip -o dist -y
 
       - name: Upload Windows packages
         uses: actions/upload-artifact@v4
