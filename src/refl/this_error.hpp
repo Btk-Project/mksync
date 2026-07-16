@@ -15,7 +15,6 @@
 #include <string>
 #include <print>
 
-#define NEKO_ENUM_SEARCH_DEPTH 256
 #include <nekoproto/serialization/reflection.hpp>
 
 #include "formatter.hpp"
@@ -27,6 +26,9 @@
     static_assert(std::is_enum_v<ENUM>, "ENUM must be an enum type");             \
     extern auto _this_error_get_category_##ENUM() -> const std::error_category &; \
     extern auto _this_error_message(ENUM e) -> std::string_view;                  \
+    inline auto format_as(ENUM e) -> std::string_view {                           \
+        return _this_error_message(e);                                            \
+    }                                                                             \
     inline auto make_error_code(ENUM e) -> std::error_code {                      \
         return { static_cast<int>(e), _this_error_get_category_##ENUM() };        \
     }
@@ -72,7 +74,8 @@ concept ThisError = requires(T t) {
 template <ThisError T>
 struct std::is_error_code_enum<T> : std::true_type {};
 
-// Enable Format for enum types
+// std::format does not use format_as, so keep its formatter bridge for error enums.
+#if MKS_USE_STD_FORMAT
 template <ThisError T>
 struct fmtlib::formatter<T> {
     fmtlib::formatter<std::string_view> inner;
@@ -86,6 +89,7 @@ struct fmtlib::formatter<T> {
         return inner.format(_this_error_message(e), ctxt);
     }
 };
+#endif
 
 #if defined(__cpp_lib_print) && __cpp_lib_print >= 202406L
 template <ThisError T>

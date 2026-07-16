@@ -12,17 +12,31 @@
 
 #include <type_traits>
 #include <concepts>
+#include <iterator>
 #include <variant>
 #include <string>
 
 #if __cpp_lib_format >= 202207L
+#define MKS_USE_STD_FORMAT 1
 #include <format>
 namespace fmtlib = std;
 #else
+#define MKS_USE_STD_FORMAT 0
+#ifndef MKS_HAS_FMT
+#define MKS_HAS_FMT 1
+#endif
+#endif // __cpp_lib_format >= 202207L
+
+#if MKS_HAS_FMT
 #include <fmt/core.h>
 #include <fmt/format.h>
 #include <fmt/ranges.h>
+#if MKS_USE_STD_FORMAT
+#include <ilias/net/endpoint.hpp>
+#endif
+#if !MKS_USE_STD_FORMAT
 namespace fmtlib = fmt;
+#endif
 #if FMT_VERSION < 110000
 namespace fmt {
     template<typename T, typename Char = char>
@@ -31,32 +45,120 @@ namespace fmt {
     };
 }
 #endif // FMT_VERSION < 110000
-#endif // __cpp_lib_format >= 202207L
+#endif // MKS_HAS_FMT
 #include <print>
 #include <map>
 
-#define NEKO_ENUM_SEARCH_DEPTH 256
 #include <nekoproto/serialization/reflection.hpp>
+
+// {fmt} supports user-defined types through an ADL-found format_as overload. Map reflected
+// values to a project-owned view so formatting stays allocation-free and its implementation is
+// instantiated only where the value is actually formatted. The delayed instantiation matters
+// for flags whose operators can be declared later in the same header.
+#if MKS_HAS_FMT
+namespace refl {
+template <typename T>
+struct FormatView {
+    const T &value;
+};
+}
+
+template <typename T, typename Char>
+struct fmt::formatter<::refl::FormatView<T>, Char> {
+    constexpr auto parse(fmt::basic_format_parse_context<Char> &context)
+        -> decltype(context.begin()) {
+        return context.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const ::refl::FormatView<T> &view, FormatContext &context) const
+        -> decltype(context.out()) {
+#if MKS_USE_STD_FORMAT
+        auto output = std::string {};
+        _refl_fmt_inline(view.value, std::back_inserter(output));
+        return fmt::format_to(context.out(), "{}", output);
+#else
+        return _refl_fmt_inline(view.value, context.out());
+#endif
+    }
+};
+
+// Ilias follows the selected standard backend and therefore provides std::formatter here, while
+// a distribution spdlog still formats through {fmt}. Keep its endpoint logs usable in that dual
+// backend configuration without changing Ilias or relying on fmt's ostream fallback.
+#if MKS_USE_STD_FORMAT
+template <>
+struct fmt::formatter<ilias::IPEndpoint, char> : fmt::formatter<std::string_view, char> {
+    template <typename FormatContext>
+    auto format(const ilias::IPEndpoint &endpoint, FormatContext &context) const
+        -> decltype(context.out()) {
+        const auto text = endpoint.toString();
+        return fmt::formatter<std::string_view, char>::format(text, context);
+    }
+};
+#endif
+
+// fmt 10 detects format_as but only maps arithmetic results automatically. Its formatter lookup
+// also recursively probes constrained catch-all specializations, so register each complete project
+// type explicitly and delegate to the formatter of its format_as result.
+#if FMT_VERSION < 110000
+namespace refl::detail {
+template <typename T, typename Char>
+struct Fmt10FormatAsFormatter {
+    using Formatted = std::remove_cvref_t<decltype(format_as(std::declval<const T &>()))>;
+    fmt::formatter<Formatted, Char> inner;
+
+    constexpr auto parse(fmt::basic_format_parse_context<Char> &context)
+        -> decltype(context.begin()) {
+        return inner.parse(context);
+    }
+
+    template <typename FormatContext>
+    auto format(const T &value, FormatContext &context) const -> decltype(context.out()) {
+        return inner.format(format_as(value), context);
+    }
+};
+}
+
+#define REFL_REGISTER_FMT_FORMATTER(TYPE)                               \
+    template <typename Char>                                           \
+    struct fmt::formatter<TYPE, Char>                                  \
+        : ::refl::detail::Fmt10FormatAsFormatter<TYPE, Char> {}
+#else
+#define REFL_REGISTER_FMT_FORMATTER(TYPE)
+#endif
+
+#define REFL_FORMAT_AS(TYPE)                                               \
+    inline auto format_as(const TYPE &value) -> ::refl::FormatView<TYPE> { \
+        return {value};                                                    \
+    }
+#else
+#define REFL_FORMAT_AS(TYPE)
+#define REFL_REGISTER_FMT_FORMATTER(TYPE)
+#endif
 
 // MARK: Inline
 // Generic Formatter for enums and structs/classes
-#define FORMATTER(TYPE)                                          \
-    inline auto _refl_fmt_inline(const TYPE &value, auto it) {   \
-        return ::refl::detail::formatTo(value, it);              \
-    }                                                            \
+#define FORMATTER(TYPE)                                           \
+    inline auto _refl_fmt_inline(const TYPE &value, auto it) {    \
+        return ::refl::detail::formatTo(value, it);               \
+    }                                                             \
+    REFL_FORMAT_AS(TYPE)
 
 // Formatter for enum flags
-#define FLAGS_FORMATTER(ENUM)                            \
-    inline auto _refl_fmt_inline(ENUM value, auto it) {  \
-        return ::refl::detail::formatFlags(value, it);   \
-    }                                                             
+#define FLAGS_FORMATTER(ENUM)                                     \
+    inline auto _refl_fmt_inline(ENUM value, auto it) {           \
+        return ::refl::detail::formatFlags(value, it);            \
+    }                                                             \
+    REFL_FORMAT_AS(ENUM)
 
 // Formatter for variant
-#define VARIANT_FORMATTER(TYPE)                                       \
-    template <char = 0>                                               \
-    inline auto _refl_fmt_inline(const TYPE &value, auto it) {        \
-        return ::refl::detail::formatVariant(#TYPE, value, it);       \
-    }
+#define VARIANT_FORMATTER(TYPE)                                   \
+    template <char = 0>                                           \
+    inline auto _refl_fmt_inline(const TYPE &value, auto it) {    \
+        return ::refl::detail::formatVariant(#TYPE, value, it);   \
+    }                                                             \
+    REFL_FORMAT_AS(TYPE)
 
 // MARK: Extern
 #define EXTERN_FORMATTER(TYPE) \
@@ -74,7 +176,8 @@ concept Formattable = requires(T t) {
     _refl_fmt_extern(t);   
 };
 
-// Bridges to reflection formatter
+// std::format has no format_as extension point, so retain the formatter bridge for that path.
+#if MKS_USE_STD_FORMAT
 template <Formattable T>
 struct fmtlib::formatter<T> {
     constexpr auto parse(fmtlib::format_parse_context &ctxt) const -> decltype(ctxt.begin()) {
@@ -91,6 +194,7 @@ struct fmtlib::formatter<T> {
         }
     }
 };
+#endif
 
 #if defined(__cpp_lib_print) && __cpp_lib_print >= 202406L
 template <Formattable T>

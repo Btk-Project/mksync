@@ -122,3 +122,12 @@ concept MessageLike = requires(T t, Serializer sr, Deserializer ds) {
 };
 
 MKS_END
+
+REFL_REGISTER_FMT_FORMATTER(mks::MessageId);
+REFL_REGISTER_FMT_FORMATTER(mks::HelloMessage);
+REFL_REGISTER_FMT_FORMATTER(mks::ScreensMessage);
+REFL_REGISTER_FMT_FORMATTER(mks::InputMessage);
+REFL_REGISTER_FMT_FORMATTER(mks::ErrorMessage);
+REFL_REGISTER_FMT_FORMATTER(mks::PingMessage);
+REFL_REGISTER_FMT_FORMATTER(mks::PongMessage);
+REFL_REGISTER_FMT_FORMATTER(mks::RpcMessage);

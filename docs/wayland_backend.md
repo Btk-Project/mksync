@@ -67,7 +67,9 @@ libportal 的回调运行在独立 GLib main context；异步结果通过 ilias 
 Linux evdev key code 转回项目的 USB HID usage，注入侧执行相反映射。
 
 Linux 构建依赖提供 `libportal.pc` 和 `libei-1.0.pc` 的开发包。例如 Debian/Ubuntu 系通常
-为 `libportal-dev`、`libei-dev`，不需要 `liboeffis`。
+为 `libportal-dev`、`libei-dev`，不需要 `liboeffis`。InputCapture API 从 libportal 0.8.0
+开始提供，因此 portal 后端的最低版本是 0.8.0；Ubuntu 24.04 的 0.7.1 只能通过
+`--enable_backend_wayland_portal=n` 构建其余后端。
 
 ## 为什么当前不能捕获全局输入
 

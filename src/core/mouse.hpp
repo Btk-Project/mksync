@@ -21,3 +21,5 @@ enum class MouseButton {
 FORMATTER(MouseButton);
 
 MKS_END
+
+REFL_REGISTER_FMT_FORMATTER(mks::MouseButton);

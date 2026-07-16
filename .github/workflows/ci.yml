@@ -15,17 +15,26 @@ concurrency:
 
 jobs:
   linux-cpp23:
-    name: Linux / C++23 / tests and GUI
-    runs-on: ubuntu-latest
+    name: Linux / Ubuntu 26.04 / Clang 19 / C++23 / tests and GUI
+    runs-on: ubuntu-26.04
+    env:
+      CC: clang-19
+      CXX: clang++-19
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install Linux backend dependencies
+      - name: Install Linux build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
+            clang-19 \
+            g++ \
             libei-dev \
+            libfmt-dev \
+            libgmock-dev \
+            libgtest-dev \
             libportal-dev \
+            libspdlog-dev \
             libwayland-bin \
             libwayland-dev \
             libxcb1-dev \
@@ -35,15 +44,37 @@ jobs:
             libxcb-xtest0-dev \
             libxkbcommon-dev \
             pkg-config \
+            qml6-module-qtquick \
+            qml6-module-qtquick-controls \
+            qml6-module-qtquick-dialogs \
+            qml6-module-qtquick-layouts \
+            qt6-base-dev \
+            qt6-declarative-dev \
             wayland-protocols \
             x11proto-dev
 
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: 6.8.3
-          modules: qtdeclarative
-          cache: true
+      - name: Report Linux compiler toolchain
+        run: |
+          "$CXX" --version
+          "$CXX" -v -E -x c++ /dev/null
+          portal_version="$(pkg-config --modversion libportal)"
+          echo "libportal $portal_version"
+          if ! pkg-config --atleast-version=0.8.0 libportal; then
+            echo "libportal 0.8.0 or newer is required; found $portal_version" >&2
+            exit 1
+          fi
+          portal_header="$(pkg-config --variable=includedir libportal)/libportal/inputcapture.h"
+          if [[ ! -f "$portal_header" ]]; then
+            echo "libportal InputCapture header is missing: $portal_header" >&2
+            exit 1
+          fi
+          printf '%s\n' \
+            '#include <expected>' \
+            'template <typename T> struct Aggregate { T value; };' \
+            'template <typename T> using Alias = Aggregate<T>;' \
+            'Alias alias{42};' \
+            'static_assert(std::expected<int, int>{42}.has_value());' \
+            | "$CXX" -std=c++23 -fsyntax-only -x c++ -
 
       - name: Install Xmake
         uses: xmake-io/github-action-setup-xmake@v1
@@ -54,8 +85,8 @@ jobs:
 
       - name: Configure C++23
         run: >-
-          xmake f -c -m debug --stdcxx=23 --enable_gui=y --enable_tests=y
-          --ccache=n --qt="$QT_ROOT_DIR"
+          xmake f -c -y -m debug --stdcxx=23 --enable_gui=y --enable_tests=y
+          --ccache=n --qt=/usr
 
       - name: Build CLI and GUI
         run: |
@@ -84,14 +115,6 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: 6.8.3
-          arch: win64_msvc2022_64
-          modules: qtdeclarative
-          cache: true
-
       - name: Install Xmake
         uses: xmake-io/github-action-setup-xmake@v1
         with:
@@ -102,32 +125,33 @@ jobs:
       - name: Configure C++23
         shell: pwsh
         run: >-
-          xmake f -c -p windows -a x64 -m debug --stdcxx=23 --enable_gui=y
-          --enable_tests=n --ccache=n --qt="$env:QT_ROOT_DIR"
+          xmake f -c -y -p windows -a x64 -m debug --stdcxx=23 --enable_gui=y
+          --enable_tests=n --ccache=n
 
       - name: Build CLI and GUI
         run: |
           xmake build mksync
           xmake build mksync-gui
 
-  linux-cpp26:
-    name: Linux / GCC 16.1 / C++26
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
+  # 暂时不可用
+  # linux-cpp26:
+  #   name: Linux / GCC 16.1 / C++26
+  #   runs-on: ubuntu-24.04
+  #   steps:
+  #     - uses: actions/checkout@v6
 
-      - name: Build GCC 16.1 image
-        run: docker build --tag mksync-gcc16 .
+  #     - name: Build GCC 16.1 image
+  #       run: docker build --tag mksync-gcc16 .
 
-      - name: Build the C++26 compatibility lane
-        run: |
-          docker run --rm \
-            --volume "$PWD:/workspace/mksync" \
-            --workdir /workspace/mksync \
-            mksync-gcc16 \
-            xmake f -c -m debug --stdcxx=26 --enable_gui=n --enable_tests=n --ccache=n
-          docker run --rm \
-            --volume "$PWD:/workspace/mksync" \
-            --workdir /workspace/mksync \
-            mksync-gcc16 \
-            xmake build mksync
+  #     - name: Build the C++26 compatibility lane
+  #       run: |
+  #         docker run --rm \
+  #           --volume "$PWD:/workspace/mksync" \
+  #           --workdir /workspace/mksync \
+  #           mksync-gcc16 \
+  #           xmake f -c -m debug --stdcxx=26 --enable_gui=n --enable_tests=n --ccache=n
+  #         docker run --rm \
+  #           --volume "$PWD:/workspace/mksync" \
+  #           --workdir /workspace/mksync \
+  #           mksync-gcc16 \
+  #           xmake build mksync

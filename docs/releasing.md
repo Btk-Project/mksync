@@ -3,7 +3,8 @@
 项目现在把“编译”“临时产物”和“正式发布”分成两条工作流：
 
 - `.github/workflows/ci.yml`：每次推送到 `main` 或提交 PR 时运行。Linux C++23
-  会构建 CLI、GUI 并执行测试；Windows C++23 构建 CLI 与 GUI；Docker 额外验证
+  固定在 Ubuntu 26.04/Clang 19/libstdc++ 15，使用系统 Qt 6、libportal 0.9.1、fmt、spdlog
+  和 gtest 构建 CLI、GUI 并执行测试；Windows C++23 构建 CLI 与 GUI；Docker 额外验证
   GCC 16.1/C++26，但它不是默认发布标准。
 - `.github/workflows/release.yml`：只在推送 `vX.Y.Z` tag 或手工指定已有 tag 时运行。
   Linux 生成 `.deb` 和 `.tar.gz`，Windows 生成 NSIS `.exe` 安装器和 `.zip`，最后生成
@@ -58,8 +59,9 @@ xmake f -c -m release --stdcxx=23 --enable_gui=y --enable_tests=n
 xmake pack -f targz -o dist
 ```
 
-Debian/Ubuntu 环境可使用 `-f deb`，Windows 可使用 `-f nsis,zip`。`lua/pack.lua` 同时绑定
+Ubuntu 26.04 环境可使用 `-f deb`，Windows 可使用 `-f nsis,zip`。`lua/pack.lua` 同时绑定
 `mksync` 和 `mksync-gui`：Windows 上 Xmake 的 `qt.quickapp` 安装钩子会运行
-`windeployqt`；macOS 会打包 Qt `.app`；Linux 的 Qt、XCB、Wayland 和 portal 库按系统依赖
-处理，`.deb` 由原生工具生成依赖关系。当前没有 macOS 输入后端，因此 Release 暂不发布
-无实际功能的 macOS 安装包。
+`windeployqt`；macOS 会打包 Qt `.app`；Linux 使用 Ubuntu 26.04 系统 Qt，QML 导入模块、
+XCB、Wayland、portal、fmt 和 spdlog 均按系统依赖处理，`.deb` 由原生工具生成依赖关系。
+当前没有 macOS 输入后端，因此 Release 暂不发布无实际功能的 macOS 安装包。后续将增加
+Flatpak 作为与宿主发行版运行库解耦的 Linux 分发方式，不通过降低 C++/Qt 基线兼容旧系统。

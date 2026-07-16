@@ -48,49 +48,18 @@ function check_system_pkgconfig_package(name, packageNames)
     add_options(name)
 end
 
-function read_os_release()
-    local values = {}
-    local file = io.open("/etc/os-release", "r")
-    if not file then
-        return values
-    end
-    for line in file:lines() do
-        local key, value = line:match("^([%w_]+)=(.*)$")
-        if key and value then
-            value = value:gsub('^"', ""):gsub('"$', "")
-            values[key] = value
-        end
-    end
-    file:close()
-    return values
+function mks_spdlog_package()
+    return mks_uses_system_spdlog() and "pkgconfig::spdlog" or "spdlog"
 end
 
-function os_release_matches(values, ...)
-    local ids = table.pack(...)
-    local osIds = " " .. (values.ID or "") .. " " .. (values.ID_LIKE or "") .. " "
-    for i = 1, ids.n do
-        if osIds:find(" " .. ids[i] .. " ", 1, true) then
-            return true
-        end
-    end
-    return false
+function mks_fmt_package()
+    return has_config("has_system_fmt") and "pkgconfig::fmt" or "fmt"
 end
 
-function system_fmt_missing_message()
-    local hint = "install the package that provides fmt.pc, or disable system spdlog"
-    if is_plat("linux") then
-        local osRelease = read_os_release()
-        if os_release_matches(osRelease, "debian", "ubuntu", "uos", "kylin") then
-            hint = "run: sudo apt install libfmt-dev"
-        elseif os_release_matches(osRelease, "fedora", "rhel", "centos", "rocky", "almalinux") then
-            hint = "run: sudo dnf install fmt-devel"
-        elseif os_release_matches(osRelease, "arch", "manjaro") then
-            hint = "run: sudo pacman -S fmt"
-        elseif os_release_matches(osRelease, "opensuse", "suse") then
-            hint = "run: sudo zypper install fmt-devel"
-        elseif os_release_matches(osRelease, "alpine") then
-            hint = "run: sudo apk add fmt-dev"
-        end
-    end
-    return "system spdlog was found, but system fmt was not found; " .. hint
+function mks_requires_fmt()
+    return mks_uses_system_spdlog() or not has_config("has_std_format")
+end
+
+function mks_uses_system_spdlog()
+    return has_config("has_system_fmt") and has_config("has_system_spdlog")
 end

@@ -17,6 +17,7 @@ set_warnings("allextra")
 set_encodings("utf-8")
 set_exceptions("cxx")
 add_defines("SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE")
+add_defines("NEKO_ENUM_SEARCH_DEPTH=256")
 
 -- compile rules
 add_rules("mode.release", "mode.debug")
@@ -53,14 +54,24 @@ add_repositories("btk-repo https://github.com/Btk-Project/xmake-repo.git")
 includes("lua/backends.lua")
 includes("lua/pack.lua")
 
+-- A system spdlog is compiled against its distribution fmt. Keep that pair together so headers
+-- and libraries cannot come from different ABIs. Only download the stack when no system package
+-- is available; a system fmt can also back the downloaded spdlog safely.
+local useSystemSpdlog = mks_uses_system_spdlog()
+local useSystemFmt = has_config("has_system_fmt")
+local requireFmt = mks_requires_fmt()
+
 -- header-only libraries
 if not has_config("has_std_out_ptr")  then add_requires("out_ptr") end
 if not has_config("has_std_expected") then add_requires("zeus_expected") end
-if not has_config("has_std_format")  then add_requires("fmt") end
+if requireFmt then
+    add_requires(mks_fmt_package(), {system = useSystemFmt})
+    add_defines("MKS_HAS_FMT=1")
+end
 
 -- normal libraries
+add_requires(mks_spdlog_package(), {system = useSystemSpdlog})
 add_requires(
-    "spdlog",
     "ilias",
     "neko-proto-tools"
 )
@@ -74,10 +85,12 @@ if not has_config("3rd_custom") then
 add_requireconfs("**out_ptr",       {override = true, version = "x.x.x"})
 add_requireconfs("**zeus_expected", {override = true, version = "x.x.x"})
 -- normal libraries' dependencies configurations
-add_requireconfs("**fmt",      {override = true, system = useSystemFmt, version = "x.x.x", configs = {shared = is_config("3rd_kind", "shared"), debug = is_config("3rd_mode", "debug"), header_only = false}})
-add_requireconfs("**spdlog",    {override = true, system = useSystemSpdlog, version = "x.x.x", configs = {shared = is_config("3rd_kind", "shared"), debug = is_config("3rd_mode", "debug"), header_only = false, fmt_external = useSystemSpdlog or not has_config("has_std_format"), std_format = not useSystemSpdlog and has_config("has_std_format"), wchar = true, wchar_console = true}})
+add_requireconfs("**fmt",      {override = true, system = useSystemFmt, version = useSystemFmt and "x.x.x" or "12.2.0", configs = {shared = is_config("3rd_kind", "shared"), debug = is_config("3rd_mode", "debug"), header_only = false}})
+if not useSystemSpdlog then
+    add_requireconfs("**spdlog", {override = true, system = false, version = "1.17.0", configs = {shared = is_config("3rd_kind", "shared"), debug = is_config("3rd_mode", "debug"), header_only = false, fmt_external = not has_config("has_std_format"), std_format = has_config("has_std_format"), wchar = true, wchar_console = true}})
+end
 add_requireconfs("**ilias",     {override = true, version = "x.x.x", configs = {debug = is_config("3rd_mode", "debug"), stdcxx = stdcxx_version(), fmt = not has_config("has_std_format")}})
-add_requireconfs("**neko-proto-tools", {override = true, version = "x.x.x", configs = {debug = is_config("3rd_mode", "debug"), enable_simdjson = false, enable_rapidjson = true, enable_communication = false, enable_fmt = false, enable_spdlog = false, enable_rapidxml = false, enable_jsonrpc = false, enable_protocol = false, enable_tomlplusplus = true}})
+add_requireconfs("**neko-proto-tools", {override = true, version = "x.x.x", configs = {debug = is_config("3rd_mode", "debug"), enable_simdjson = false, enable_rapidjson = true, enable_communication = false, enable_fmt = false, enable_spdlog = false, enable_jsonrpc = false, enable_protocol = false, enable_tomlplusplus = true}})
 end
 
 -- subdirectories
@@ -87,6 +100,12 @@ includes("tests/xmake.lua")
 
 -- The GUI stays opt-in so a normal command-line build never needs a Qt SDK.
 if has_config("enable_gui") then
+    -- Linux builds use the distribution SDK selected by qt.quickapp. Do not turn a missing SDK
+    -- into an xrepo download: qt6quick's aqt-based prebuilt installer is not a reliable Linux
+    -- fallback, and the Qt rule already reports an actionable SDK error during configuration.
+    if not is_plat("linux") then
+        add_requires("qt6quick")
+    end
     includes("ui/xmake.lua")
 end
 
@@ -94,13 +113,13 @@ target("mksync")
     set_kind("binary")
     set_installdir(path.join(os.projectdir(), "build", "install"))
     add_packages("ilias")
-    add_packages("spdlog")
+    add_packages(mks_spdlog_package())
     add_packages("neko-proto-tools")
     
     mks_add_backend_packages()
 
-    if not has_config("has_std_format") then
-        add_packages("fmt")
+    if requireFmt then
+        add_packages(mks_fmt_package())
     end
     
     add_includedirs("src")
