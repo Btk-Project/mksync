@@ -31,6 +31,9 @@ namespace fmtlib = std;
 #include <fmt/core.h>
 #include <fmt/format.h>
 #include <fmt/ranges.h>
+#if MKS_USE_STD_FORMAT
+#include <ilias/net/endpoint.hpp>
+#endif
 #if !MKS_USE_STD_FORMAT
 namespace fmtlib = fmt;
 #endif
@@ -46,7 +49,6 @@ namespace fmt {
 #include <print>
 #include <map>
 
-#define NEKO_ENUM_SEARCH_DEPTH 256
 #include <nekoproto/serialization/reflection.hpp>
 
 // {fmt} supports user-defined types through an ADL-found format_as overload. Map reflected
@@ -63,7 +65,7 @@ struct FormatView {
 
 template <typename T, typename Char>
 struct fmt::formatter<::refl::FormatView<T>, Char> {
-    constexpr auto parse(fmt::basic_format_parse_context<Char> &context) const
+    constexpr auto parse(fmt::basic_format_parse_context<Char> &context)
         -> decltype(context.begin()) {
         return context.begin();
     }
@@ -81,12 +83,58 @@ struct fmt::formatter<::refl::FormatView<T>, Char> {
     }
 };
 
+// Ilias follows the selected standard backend and therefore provides std::formatter here, while
+// a distribution spdlog still formats through {fmt}. Keep its endpoint logs usable in that dual
+// backend configuration without changing Ilias or relying on fmt's ostream fallback.
+#if MKS_USE_STD_FORMAT
+template <>
+struct fmt::formatter<ilias::IPEndpoint, char> : fmt::formatter<std::string_view, char> {
+    template <typename FormatContext>
+    auto format(const ilias::IPEndpoint &endpoint, FormatContext &context) const
+        -> decltype(context.out()) {
+        const auto text = endpoint.toString();
+        return fmt::formatter<std::string_view, char>::format(text, context);
+    }
+};
+#endif
+
+// fmt 10 detects format_as but only maps arithmetic results automatically. Its formatter lookup
+// also recursively probes constrained catch-all specializations, so register each complete project
+// type explicitly and delegate to the formatter of its format_as result.
+#if FMT_VERSION < 110000
+namespace refl::detail {
+template <typename T, typename Char>
+struct Fmt10FormatAsFormatter {
+    using Formatted = std::remove_cvref_t<decltype(format_as(std::declval<const T &>()))>;
+    fmt::formatter<Formatted, Char> inner;
+
+    constexpr auto parse(fmt::basic_format_parse_context<Char> &context)
+        -> decltype(context.begin()) {
+        return inner.parse(context);
+    }
+
+    template <typename FormatContext>
+    auto format(const T &value, FormatContext &context) const -> decltype(context.out()) {
+        return inner.format(format_as(value), context);
+    }
+};
+}
+
+#define REFL_REGISTER_FMT_FORMATTER(TYPE)                               \
+    template <typename Char>                                           \
+    struct fmt::formatter<TYPE, Char>                                  \
+        : ::refl::detail::Fmt10FormatAsFormatter<TYPE, Char> {}
+#else
+#define REFL_REGISTER_FMT_FORMATTER(TYPE)
+#endif
+
 #define REFL_FORMAT_AS(TYPE)                                               \
     inline auto format_as(const TYPE &value) -> ::refl::FormatView<TYPE> { \
         return {value};                                                    \
     }
 #else
 #define REFL_FORMAT_AS(TYPE)
+#define REFL_REGISTER_FMT_FORMATTER(TYPE)
 #endif
 
 // MARK: Inline

@@ -61,3 +61,8 @@ auto loadOrCreateConfig(const std::filesystem::path &path) -> IoResult<AppConfig
 auto saveConfig(const std::filesystem::path &path, const AppConfig &config) -> IoResult<void>;
 
 MKS_END
+
+REFL_REGISTER_FMT_FORMATTER(mks::ConfigError);
+REFL_REGISTER_FMT_FORMATTER(mks::ScreenLayoutConfig);
+REFL_REGISTER_FMT_FORMATTER(mks::TrustedClientConfig);
+REFL_REGISTER_FMT_FORMATTER(mks::AppConfig);

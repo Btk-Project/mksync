@@ -326,3 +326,6 @@ constexpr auto operator &=(KeyModifier &lhs, KeyModifier rhs) -> KeyModifier & {
 }
 
 MKS_END
+
+REFL_REGISTER_FMT_FORMATTER(mks::KeyModifier);
+REFL_REGISTER_FMT_FORMATTER(mks::Key);

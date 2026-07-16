@@ -46,3 +46,5 @@ inline auto _refl_fmt_inline(const VirtualScreen &value, auto it) {
 REFL_FORMAT_AS(VirtualScreen);
 
 MKS_END
+
+REFL_REGISTER_FMT_FORMATTER(mks::VirtualScreen);

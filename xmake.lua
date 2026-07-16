@@ -17,6 +17,7 @@ set_warnings("allextra")
 set_encodings("utf-8")
 set_exceptions("cxx")
 add_defines("SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE")
+add_defines("NEKO_ENUM_SEARCH_DEPTH=256")
 
 -- compile rules
 add_rules("mode.release", "mode.debug")

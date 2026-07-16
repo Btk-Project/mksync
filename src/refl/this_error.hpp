@@ -15,7 +15,6 @@
 #include <string>
 #include <print>
 
-#define NEKO_ENUM_SEARCH_DEPTH 256
 #include <nekoproto/serialization/reflection.hpp>
 
 #include "formatter.hpp"

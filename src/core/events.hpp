@@ -75,3 +75,11 @@ using InputEvent = std::variant<
 VARIANT_FORMATTER(InputEvent);
 
 MKS_END
+
+REFL_REGISTER_FMT_FORMATTER(mks::MouseMoveEvent);
+REFL_REGISTER_FMT_FORMATTER(mks::MouseButtonEvent);
+REFL_REGISTER_FMT_FORMATTER(mks::MouseWheelEvent);
+REFL_REGISTER_FMT_FORMATTER(mks::KeyEvent);
+REFL_REGISTER_FMT_FORMATTER(mks::ScreenInfo);
+REFL_REGISTER_FMT_FORMATTER(mks::ScreenChangeEvent);
+REFL_REGISTER_FMT_FORMATTER(mks::InputEvent);
