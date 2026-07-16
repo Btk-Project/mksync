@@ -190,17 +190,23 @@ jobs:
             | sort -z \
             | xargs -0 sha256sum > SHA256SUMS
 
-      - name: Create the release and upload packages
+      - name: Create or update the release and upload packages
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           mapfile -d '' files < <(find release-assets -maxdepth 1 -type f -print0)
           if (( ${#files[@]} == 0 )); then
             echo "No release assets were downloaded" >&2
             exit 1
           fi
-          gh release create "$RELEASE_TAG" "${files[@]}" \
-            --verify-tag \
-            --generate-notes \
-            --title "mksync $RELEASE_TAG"
+          if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
+            echo "Release $RELEASE_TAG already exists; uploading packages"
+            gh release upload "$RELEASE_TAG" "${files[@]}" --clobber
+          else
+            gh release create "$RELEASE_TAG" "${files[@]}" \
+              --verify-tag \
+              --generate-notes \
+              --title "mksync $RELEASE_TAG"
+          fi
