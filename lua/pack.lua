@@ -9,7 +9,7 @@ xpack("mksync")
     set_description("Mouse and keyboard synchronization tool")
     set_homepage("https://github.com/Btk-Project/mksync")
     set_license("GPL-3.0-or-later")
-    set_licensefile("LICENSE")
+    set_licensefile("../LICENSE")
     -- Release packages consume the already configured targets. This keeps optional backends and
     -- the optional Qt target identical between the build and the package.
     set_inputkind("binary")
