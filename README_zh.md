@@ -106,28 +106,29 @@ Windows CI 和发布构建使用 Xmake 提供的 SDK。
 
 ### 安装包与 Release
 
-Linux 归档仍由 Xpack 生成；Debian 包改用仓库自己的二进制打包脚本，避开 Xpack
-错误触发的源码包二次构建：
+Debian 包使用仓库自己的二进制打包脚本，避开 Xpack 错误触发的源码包二次构建：
 
 ```bash
 xmake f -c -m release --stdcxx=23 --enable_gui=y --enable_tests=n
-xmake pack -f targz -o dist       # Linux 归档
-xmake build package_deb           # Debian/Ubuntu 安装包
+xmake package_deb                 # 精简 Debian/Ubuntu 安装包
+xmake package_deb --bundle-qt     # 自带 Qt/QML 的较大安装包
 ```
 
-Debian 脚本只需要 `dpkg-dev` 和 `patchelf`。它直接消费已经编译好的可执行文件，打入私有
-`libilias`，再调用 `dpkg-deb`；生成过程中不会执行 `debuild`/`dpkg-buildpackage`，包的
-构建依赖中也不会出现 Xmake 或 `build-essential`。`package_deb` phony target 会按当前
-Xmake 配置传入精确的 CLI、GUI 和 ilias 路径；配置时使用
-`--deb_outputdir=/path/to/dist` 可以调整输出目录。调整时应与 `-m release`、
-`--enable_gui=y` 等完整配置项放在同一条 `xmake f` 命令中，避免按默认选项重新配置。
+Debian 脚本只需要 `dpkg-dev` 和 `patchelf`。默认包只携带没有稳定发行版 ABI 的项目私有库；
+Qt/QML/QPA、XCB、Wayland、libei/libportal、编译器运行库、glibc 和图形库均由目标系统包
+管理器提供。ELF 库的最低 ABI 版本由 `dpkg-shlibdeps` 计算，动态载入的 QML/QPA 包则显式
+写入 `Depends`。打包时追加 `--bundle-qt` 可生成较大的自带 Qt 版本，其中包含匹配的 Qt 库、
+必要 QML 导入和 Qt 平台插件。生成过程不会执行 `debuild`/`dpkg-buildpackage`。
+`package_deb` 任务会按当前 Xmake 配置传入精确路径；使用
+`--output-dir=/path/to/dist` 可以只调整本次输出目录，不会污染缓存配置。
 
-Windows 使用 `xmake pack -f nsis,zip -o dist`；Xmake 的 Qt 安装钩子会自动调用
-`windeployqt`。推送 `vX.Y.Z` tag 后，GitHub Actions 会自动生成 Linux 和 Windows
+Windows 使用 `xmake pack -f nsis,zip -o dist`。生成的 `-setup.exe` 不带通常已安装的
+MSVC 运行时副本和可选软件渲染后端；`-portable.zip` 保留 `windeployqt` 的完整运行时。
+推送 `vX.Y.Z` tag 后，GitHub Actions 会自动生成 Linux 和 Windows
 安装包并附加到 Release。完整操作与临时 artifact/正式 Release asset 的区别见
 [`docs/releasing.md`](docs/releasing.md)。
-当前 Linux 安装包以 Ubuntu 26.04 为最低基线；后续计划增加 Flatpak，提供与宿主发行版
-运行库解耦的分发方式。
+当前 Linux 安装包仍以 Ubuntu 26.04 的 glibc 为最低基线；默认包允许满足最低 ABI 的更高
+Qt 版本，自带 Qt 版本则不使用宿主 Qt。
 
 ### 输入后端
 

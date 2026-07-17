@@ -124,7 +124,7 @@ jobs:
 
       - name: Build Linux packages
         run: |
-          xmake build package_deb
+          xmake package_deb
           xmake pack -f targz -o dist
 
       - name: Upload Linux packages

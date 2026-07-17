@@ -3,6 +3,9 @@
 /bin/
 /build/
 /vs*/
+/dist/
+/.codex/
+/.agent/
 
 config.h*
 !config.h*.in

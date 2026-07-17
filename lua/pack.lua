@@ -35,14 +35,25 @@ xpack("mksync")
     --     "LICENSE"
     -- )
 
+    before_package(function (package)
+        if package:is_plat("windows", "mingw") then
+            if package:format() == "nsis" then
+                package:set("basename", package_basename .. "-setup")
+                import("lua.nsis_template", {rootdir = os.projectdir()})(package)
+            elseif package:format() == "zip" then
+                package:set("basename", package_basename .. "-portable")
+            end
+        end
+    end)
+
     if is_plat("windows", "mingw") then
-        -- qt.quickapp's xpack install hook runs windeployqt for every binary format.
+        -- The installer omits common/optional system runtimes; the portable ZIP is complete.
         set_formats("nsis", "zip")
     elseif is_plat("macosx") then
         -- qt.quickapp deploys the .app bundle before xpack creates these archives.
         set_formats("dmg", "zip")
     else
-        -- Debian packages use the package_deb phony target and packaging/debian/build.sh. Xpack's
+        -- Debian packages use the package_deb task and packaging/debian/build.sh. Xpack's
         -- Debian backend creates a source package and starts a second build whose Xmake dependency
         -- cannot be satisfied by the distribution's older Xmake package.
         set_formats("rpm", "targz")

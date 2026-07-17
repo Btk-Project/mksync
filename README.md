@@ -110,26 +110,27 @@ prebuilt `qt6quick` package. Windows CI and release builds use the Xmake-provide
 
 ### Packages and releases
 
-Xpack still creates Linux archives, while Debian packages use the repository-owned binary package
-script to avoid Xpack's broken source-package rebuild:
+Debian packages use the repository-owned binary package script to avoid Xpack's broken
+source-package rebuild:
 
 ```bash
 xmake f -c -m release --stdcxx=23 --enable_gui=y --enable_tests=n
-xmake pack -f targz -o dist       # Linux archive
-xmake build package_deb           # Debian/Ubuntu package
+xmake package_deb                 # lean Debian/Ubuntu package
+xmake package_deb --bundle-qt     # larger package carrying Qt/QML
 ```
 
-The Debian script requires `dpkg-dev` and `patchelf`. It consumes the already-built executables,
-bundles their private `libilias`, and invokes `dpkg-deb` directly; neither Xmake nor
-`build-essential` is recorded as a Debian build dependency. The `package_deb` phony target supplies
-the exact binary and library locations from the active Xmake configuration; use
-`--deb_outputdir=/path/to/dist` in the same full configure command to relocate its output.
+The Debian script requires `dpkg-dev` and `patchelf`. By default it carries only project-private
+libraries; Qt/QML/QPA, XCB, Wayland, libei/libportal, compiler runtimes, glibc, and graphics
+libraries remain distribution packages. `dpkg-shlibdeps` records their minimum ELF ABI versions,
+and runtime-loaded QML/QPA packages are declared explicitly. Add `--bundle-qt` for a larger variant
+carrying the matching Qt libraries, selected QML imports, and Qt platform plugins. Use
+`--output-dir=/path/to/dist` to relocate a single packaging invocation.
 
-On Windows, use `xmake pack -f nsis,zip -o dist`; Xmake's Qt install hook invokes
-`windeployqt`. Pushing a `vX.Y.Z` tag makes GitHub Actions build Linux and Windows packages and
-attach them to a GitHub Release. See [`docs/releasing.md`](docs/releasing.md) for the exact flow.
-The Linux package currently targets Ubuntu 26.04; a Flatpak package is planned as the future
-distribution-independent runtime.
+On Windows, use `xmake pack -f nsis,zip -o dist`. The `-setup.exe` installer omits the commonly
+installed MSVC runtime copy and optional software graphics fallbacks; the `-portable.zip` retains
+the complete `windeployqt` runtime. Pushing a `vX.Y.Z` tag makes GitHub Actions build Linux and
+Windows packages and attach them to a GitHub Release. See [`docs/releasing.md`](docs/releasing.md)
+for the exact flow. The Linux package currently retains Ubuntu 26.04 as its glibc baseline.
 
 ### Input backends
 

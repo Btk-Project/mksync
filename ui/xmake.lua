@@ -6,10 +6,10 @@ target("mksync-gui")
     set_group("applications")
     set_installdir(path.join(os.projectdir(), "build", "install"))
 
-    -- Xmake's Qt Quick rule runs rcc and moc. Linux uses the distribution Qt SDK;
-    -- other platforms use the qt6quick package. Explicit modules include QML FileDialog support.
-    add_rules("qt.quickapp")
+    -- Xmake's Qt Quick rule runs rcc, moc, and the platform deployment helpers. QtNetwork remains
+    -- part of the Qt Quick ABI even though application code does not use its API directly.
     add_frameworks("QtCore", "QtGui", "QtQml", "QtQuick", "QtQuickControls2", "QtQuickDialogs2")
+    add_rules("qt.quickapp")
     if not is_plat("linux") then
         add_packages("qt6quick")
     end
@@ -72,6 +72,14 @@ target("mksync-gui")
         })
         pack_batchcmds.install_target_files(target, batchcmds, opt)
         pack_batchcmds.update_target_install_rpath(target, batchcmds, opt)
+    end)
+
+    -- Override only Windows Xpack staging so NSIS can stay lean while ZIP remains fully portable.
+    on_installcmd("windows", "mingw", function (target, batchcmds, opt)
+        import("lua.qt_installcmd", {rootdir = os.projectdir()})(target, batchcmds, opt)
+    end)
+    on_uninstallcmd("windows", "mingw", function (target, batchcmds, opt)
+        import("lua.qt_uninstallcmd", {rootdir = os.projectdir()})(target, batchcmds, opt)
     end)
 
 target_end()
